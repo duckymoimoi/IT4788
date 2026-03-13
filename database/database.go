@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	model "hospital/schema"
+	"hospital/schema"
 )
 
 // DB la bien global giu ket noi database.
@@ -24,7 +24,7 @@ var DB *gorm.DB
 //	import "gorm.io/driver/postgres"
 //	gorm.Open(postgres.Open(dsn), &gorm.Config{})
 //
-// Toan bo code query, model, handler khong can thay doi gi.
+// Toan bo code query, schema, handler khong can thay doi gi.
 func Connect(dsn string) error {
 	// Cau hinh logger: hien thi SQL query ra console khi dev,
 	// tat di khi production de tranh lo du lieu nhay cam.
@@ -70,7 +70,7 @@ func Connect(dsn string) error {
 	return nil
 }
 
-// Migrate chay auto-migrate cho tat ca cac model.
+// Migrate chay auto-migrate cho tat ca cac schema.
 // Thu tu quan trong de tranh loi foreign key:
 //  1. wards    (chua co FK phuc tap)
 //  2. users    (chua co FK)
@@ -91,12 +91,13 @@ func Migrate() error {
 
 	// Chay auto-migrate theo thu tu phu thuoc
 	err := DB.AutoMigrate(
-		&model.Ward{},
-		&model.User{},
-		&model.Staff{},
-		&model.OTPCode{},
-		&model.UserSetting{},
-		&model.FCMToken{},
+		&schema.Ward{},
+		&schema.User{},
+		&schema.Staff{},
+		&schema.OTPCode{},
+		&schema.UserSetting{},
+		&schema.FCMToken{},
+		&schema.AppVersion{},
 	)
 	if err != nil {
 		return fmt.Errorf("auto-migrate that bai: %w", err)

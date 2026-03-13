@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	model "hospital/schema"
+	"hospital/schema"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -14,7 +14,7 @@ import (
 // Du lieu nay dung de test API va demo san pham.
 func Seed() error {
 	var count int64
-	DB.Model(&model.User{}).Count(&count)
+	DB.Model(&schema.User{}).Count(&count)
 	if count > 0 {
 		log.Println("Database da co du lieu, bo qua seed")
 		return nil
@@ -29,7 +29,7 @@ func Seed() error {
 
 	// --- BUOC 1: Tao cac khoa/vien (wards) ---
 	// head_staff_id de NULL truoc, cap nhat sau khi co staff
-	wards := []model.Ward{
+	wards := []schema.Ward{
 		{WardCode: "XN", WardName: "Khoa Xet Nghiem", IsActive: true},
 		{WardCode: "CDHA", WardName: "Khoa Chan Doan Hinh Anh", IsActive: true},
 		{WardCode: "NI", WardName: "Khoa Noi", IsActive: true},
@@ -46,50 +46,50 @@ func Seed() error {
 	// Dung password "password123" cho tat ca tai khoan test
 	testPassword := hashPassword("password123")
 	dob := time.Date(1990, 1, 15, 0, 0, 0, 0, time.UTC)
-	genderMale := model.GenderMale
-	genderFemale := model.GenderFemale
+	genderMale := schema.GenderMale
+	genderFemale := schema.GenderFemale
 
-	users := []model.User{
+	users := []schema.User{
 		{
 			PhoneNumber:  "0900000001",
 			PasswordHash: testPassword,
 			FullName:     "Nguyen Van Admin",
-			UserType:     model.UserTypeStaff,
+			UserType:     schema.UserTypeStaff,
 			Gender:       &genderMale,
-			Status:       model.UserStatusActive,
+			Status:       schema.UserStatusActive,
 		},
 		{
 			PhoneNumber:  "0900000002",
 			PasswordHash: testPassword,
 			FullName:     "Tran Thi Coordinator",
-			UserType:     model.UserTypeStaff,
+			UserType:     schema.UserTypeStaff,
 			Gender:       &genderFemale,
-			Status:       model.UserStatusActive,
+			Status:       schema.UserStatusActive,
 		},
 		{
 			PhoneNumber:  "0900000003",
 			PasswordHash: testPassword,
 			FullName:     "Le Van Staff",
-			UserType:     model.UserTypeStaff,
+			UserType:     schema.UserTypeStaff,
 			Gender:       &genderMale,
-			Status:       model.UserStatusActive,
+			Status:       schema.UserStatusActive,
 		},
 		{
 			PhoneNumber:  "0900000004",
 			PasswordHash: testPassword,
 			FullName:     "Pham Thi Benh Nhan",
-			UserType:     model.UserTypePatient,
+			UserType:     schema.UserTypePatient,
 			DateOfBirth:  &dob,
 			Gender:       &genderFemale,
-			Status:       model.UserStatusActive,
+			Status:       schema.UserStatusActive,
 		},
 		{
 			PhoneNumber:  "0900000005",
 			PasswordHash: testPassword,
 			FullName:     "Hoang Van Test",
-			UserType:     model.UserTypePatient,
+			UserType:     schema.UserTypePatient,
 			Gender:       &genderMale,
-			Status:       model.UserStatusActive,
+			Status:       schema.UserStatusActive,
 		},
 	}
 
@@ -101,11 +101,11 @@ func Seed() error {
 	// --- BUOC 3: Tao user_settings cho tung user ---
 	// Row nay tu dong tao khi signup, o day seed thu cong
 	for _, u := range users {
-		setting := model.UserSetting{
+		setting := schema.UserSetting{
 			UserID:               u.UserID,
 			VoiceGuidanceEnabled: true,
 			NotificationEnabled:  true,
-			TravelMode:           model.TravelModeWalk,
+			TravelMode:           schema.TravelModeWalk,
 			Language:             "vi",
 		}
 		if err := DB.Create(&setting).Error; err != nil {
@@ -124,18 +124,18 @@ func Seed() error {
 	wardNI := uint32(wards[2].WardID) // Khoa Noi
 	wardXN := uint32(wards[0].WardID) // Khoa Xet Nghiem
 
-	staffs := []model.Staff{
+	staffs := []schema.Staff{
 		{
 			UserID:    users[0].UserID,
 			StaffCode: "NV001",
-			Role:      model.StaffRoleAdmin,
+			Role:      schema.StaffRoleAdmin,
 			IsActive:  true,
 			// Admin khong can ca truc cu the, de NULL
 		},
 		{
 			UserID:     users[1].UserID,
 			StaffCode:  "NV002",
-			Role:       model.StaffRoleCoordinator,
+			Role:       schema.StaffRoleCoordinator,
 			WardID:     &wardNI,
 			IsActive:   true,
 			ShiftStart: &s1,
@@ -144,7 +144,7 @@ func Seed() error {
 		{
 			UserID:     users[2].UserID,
 			StaffCode:  "NV003",
-			Role:       model.StaffRoleStaff,
+			Role:       schema.StaffRoleStaff,
 			WardID:     &wardXN,
 			IsActive:   true,
 			ShiftStart: &s2,
@@ -171,6 +171,30 @@ func Seed() error {
 	log.Println("  Staff      : 0900000003")
 	log.Println("  Benh nhan  : 0900000004 / 0900000005")
 	log.Println("-------------------------------------------")
+
+	// --- Seed app versions ---
+	versions := []schema.AppVersion{
+		{
+			Platform:      "android",
+			VersionName:   "1.0.0",
+			VersionCode:   1,
+			IsForceUpdate: false,
+			ChangeLog:     "Phien ban ra mat",
+			DownloadURL:   "https://play.google.com/store/apps/details?id=com.hospital",
+		},
+		{
+			Platform:      "ios",
+			VersionName:   "1.0.0",
+			VersionCode:   1,
+			IsForceUpdate: false,
+			ChangeLog:     "Phien ban ra mat",
+			DownloadURL:   "https://apps.apple.com/app/hospital",
+		},
+	}
+	if err := DB.Create(&versions).Error; err != nil {
+		return err
+	}
+	log.Println("Da tao app_versions")
 
 	return nil
 }
