@@ -1,0 +1,158 @@
+================================================================================
+CAU TRUC PROJECT - HOSPITAL NAVIGATION SYSTEM
+================================================================================
+
+hospital/
+    cmd/
+        main.go
+
+    schema/
+        user.go
+        staff.go
+        map.go          (them sau: Floor, Node, Edge)
+        medical.go      (them sau: ClinicalTask, Queue)
+        utility.go      (them sau: Facility, FAQ)
+
+    database/
+        database.go
+        seed.go
+
+    repository/
+        user_repo.go
+        staff_repo.go
+        map_repo.go     (them sau)
+        medical_repo.go (them sau)
+
+    service/
+        auth_service.go
+        map_service.go  (them sau)
+        route_service.go (them sau, chua Dijkstra)
+
+    handler/
+        auth_handler.go
+        map_handler.go  (them sau)
+        route_handler.go (them sau)
+
+    middleware/
+        auth.go
+
+    pkg/
+        graph/
+            dijkstra.go
+        response/
+            response.go
+
+    go.mod
+    go.sum
+    hospital.db
+
+================================================================================
+Y NGHIA TUNG FOLDER
+================================================================================
+
+cmd/
+    Diem khoi dong duy nhat cua ung dung.
+    Chi chua main.go, nhiem vu la goi Connect, Migrate, Seed
+    va khoi dong HTTP server (Gin).
+    Khong chua bat ky logic nao, chi la noi lap rap cac
+    thanh phan lai voi nhau.
+
+schema/
+    Dinh nghia cau truc du lieu tuong ung voi cac bang trong database.
+    Moi struct la anh xa truc tiep cua 1 bang, chua cac truong (column)
+    va khai bao GORM tag.
+    Khong chua logic xu ly, chi la mo ta du lieu.
+    Ten "schema" duoc chon thay vi "model" de tranh nham voi
+    AI model / ML model neu du an mo rong ve sau.
+
+database/
+    Quan ly ket noi va khoi tao database.
+    database.go : mo ket noi SQLite/PostgreSQL, chay AutoMigrate.
+    seed.go     : tao du lieu mau cho moi truong dev va demo.
+    Day la noi duy nhat biet den driver database cu the.
+    Neu chuyen tu SQLite sang PostgreSQL, chi sua file nay.
+
+repository/
+    Truy van database, chi lam nhiem vu CRUD thuan tuy.
+    Khong chua logic nghiep vu, chi biet cach doc/ghi du lieu.
+    Vi du user_repo.go chua: FindByPhone, FindByID, Create, UpdateStatus.
+    Tang nay giup tach biet code truy van khoi code xu ly,
+    de thay doi cau truc query ma khong anh huong den logic.
+
+service/
+    Xu ly logic nghiep vu chinh cua ung dung.
+    Goi vao repository de lay du lieu, xu ly, tra ket qua cho handler.
+    Vi du auth_service.go: kiem tra mat khau, tao JWT, hash OTP.
+    Vi du route_service.go: chay thuat toan Dijkstra, tinh ETA.
+    Day la noi tap trung logic quan trong nhat cua he thong.
+
+handler/
+    Xu ly HTTP request va response.
+    Nhan du lieu tu client (JSON body, query param, header),
+    goi sang service de xu ly, tra ket qua ve dang JSON.
+    Khong chua logic, chi lam nhiem vu dich chuyen du lieu
+    giua HTTP va service.
+    Vi du auth_handler.go xu ly: POST /auth/login, POST /auth/signup.
+
+middleware/
+    Chay truoc khi request den handler.
+    auth.go kiem tra JWT token trong Authorization header,
+    lay thong tin user (user_id, role) va gan vao request context
+    de cac handler phia sau su dung.
+    Co the them cac middleware khac sau nay: rate limiting, logging, CORS.
+
+pkg/
+    Chua code co the tai su dung o nhieu noi, doc lap voi
+    logic cu the cua du an.
+
+    graph/
+        Thuat toan Dijkstra tim duong ngan nhat tren do thi.
+        Nhan vao danh sach Node va Edge, tra ve danh sach buoc di.
+        Doc lap hoan toan, khong biet gi ve database hay HTTP.
+
+    response/
+        Dinh nghia cau truc JSON response chuan dung chung
+        cho toan bo API. Dam bao tat ca API tra ve cung mot
+        dinh dang { code, message, data }.
+
+================================================================================
+LUONG DU LIEU QUA CAC TANG
+================================================================================
+
+Client (Flutter)
+    |
+    v
+handler         <- nhan request, kiem tra input co ban
+    |
+    v
+middleware      <- xac thuc JWT truoc khi vao handler
+    |
+    v
+service         <- xu ly logic, goi repository
+    |
+    v
+repository      <- truy van database
+    |
+    v
+database        <- SQLite / PostgreSQL
+
+================================================================================
+QUY TAC KHI THEM TINH NANG MOI
+================================================================================
+
+Vi du them API "tim duong" (POST /route/ordered):
+
+    Buoc 1: Them struct moi vao schema/ neu can bang moi
+    Buoc 2: Them ham truy van vao repository/map_repo.go
+            (lay danh sach node, edge cua 1 tang)
+    Buoc 3: Viet logic Dijkstra trong pkg/graph/dijkstra.go
+    Buoc 4: Viet service/route_service.go goi repo lay data,
+            goi Dijkstra, tinh ETA, tra ket qua
+    Buoc 5: Viet handler/route_handler.go nhan request,
+            goi service, tra JSON
+    Buoc 6: Dang ky route trong main.go:
+            router.POST("/route/ordered", handler.OrderedRoute)
+
+Moi buoc chi sua 1 file, cac file khac khong bi anh huong.
+
+================================================================================
