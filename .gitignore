@@ -13,7 +13,7 @@
 
 # Output of go coverage
 *.out
-
+*.pdf
 # IDE
 .idea/
 .vscode/

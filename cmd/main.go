@@ -33,7 +33,4 @@ func main() {
 
 	log.Println("Database san sang. Server se duoc them vao day sau.")
 
-	// TODO: Khoi dong Gin HTTP server o day
-	// router := gin.Default()
-	// router.Run(":8080")
 }

@@ -37,10 +37,10 @@ hospital/
         auth.go
 
     pkg/
+        response.go
+        jwt.go
         graph/
-            dijkstra.go
-        response/
-            response.go
+            dijkstra.go (them sau)
 
     go.mod
     go.sum
@@ -105,15 +105,23 @@ pkg/
     Chua code co the tai su dung o nhieu noi, doc lap voi
     logic cu the cua du an.
 
-    graph/
-        Thuat toan Dijkstra tim duong ngan nhat tren do thi.
-        Nhan vao danh sach Node va Edge, tra ve danh sach buoc di.
-        Doc lap hoan toan, khong biet gi ve database hay HTTP.
-
-    response/
+    response.go:
         Dinh nghia cau truc JSON response chuan dung chung
         cho toan bo API. Dam bao tat ca API tra ve cung mot
         dinh dang { code, message, data }.
+
+    jwt.go:
+        Helper tao va parse JWT token dung chung.
+        GenerateToken(userID, role) tao token HS256, het han 7 ngay.
+        ParseToken(tokenString) giai ma va xac thuc token.
+        Secret doc tu env JWT_SECRET (mac dinh co san cho dev).
+        Service goi GenerateToken khi login, middleware goi ParseToken
+        khi xac thuc request.
+
+    graph/ (them sau)
+        Thuat toan Dijkstra tim duong ngan nhat tren do thi.
+        Nhan vao danh sach Node va Edge, tra ve danh sach buoc di.
+        Doc lap hoan toan, khong biet gi ve database hay HTTP.
 
 ================================================================================
 LUONG DU LIEU QUA CAC TANG
