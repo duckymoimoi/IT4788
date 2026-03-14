@@ -16,6 +16,7 @@ type UserStatus string
 
 const (
 	UserStatusActive  UserStatus = "active"
+	UserStatusPending UserStatus = "pending"
 	UserStatusBanned  UserStatus = "banned"
 	UserStatusDeleted UserStatus = "deleted"
 )
