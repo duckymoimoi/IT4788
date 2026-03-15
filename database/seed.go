@@ -22,10 +22,8 @@ func Seed() error {
 
 	log.Println("Bat dau seed du lieu demo...")
 
-	// Tat foreign key khi seed de xu ly circular dependency
-	// giua staffs va wards (ward.head_staff_id -> staffs)
-	DB.Exec("PRAGMA foreign_keys = OFF")
-	defer DB.Exec("PRAGMA foreign_keys = ON")
+	// FK da duoc tat trong Connect/Migrate, khong can tat/bat lai.
+	// Circular dependency staffs <-> wards duoc xu ly o tang application.
 
 	// --- BUOC 1: Tao cac khoa/vien (wards) ---
 	// head_staff_id de NULL truoc, cap nhat sau khi co staff

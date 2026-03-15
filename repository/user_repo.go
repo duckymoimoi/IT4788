@@ -6,6 +6,7 @@ import (
 	"hospital/schema"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // UserRepo la struct truy van database cho User va cac bang lien quan.
@@ -86,9 +87,11 @@ func (r *UserRepo) FindByPhoneWithStaff(phone string) (*schema.User, error) {
 
 // Create tao user moi trong database.
 // GORM tu dong set UserID (autoIncrement) va CreatedAt.
-// Dung trong luong dang ky tai khoan.
+// Dung Omit(clause.Associations) de chi insert row users,
+// khong xu ly cac relation (Staff, Setting, FCMTokens)
+// tranh loi FK constraint voi SQLite.
 func (r *UserRepo) Create(user *schema.User) error {
-	return r.db.Create(user).Error
+	return r.db.Omit(clause.Associations).Create(user).Error
 }
 
 // UpdateStatus cap nhat trang thai tai khoan (active/banned/deleted).

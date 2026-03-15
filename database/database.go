@@ -50,15 +50,19 @@ func Connect(dsn string) error {
 		return fmt.Errorf("ket noi database that bai: %w", err)
 	}
 
-	// Bat foreign key constraint cho SQLite.
-	// Mac dinh SQLite tat foreign key, can bat len de GORM enforce FK.
+	// Lay sql.DB de cau hinh connection pool.
 	sqlDB, err := DB.DB()
 	if err != nil {
 		return fmt.Errorf("lay sql.DB that bai: %w", err)
 	}
-	if _, err := sqlDB.Exec("PRAGMA foreign_keys = ON"); err != nil {
-		return fmt.Errorf("bat foreign key that bai: %w", err)
-	}
+
+	// KHONG bat PRAGMA foreign_keys = ON.
+	// Ly do: GORM auto-migrate tao FK constraint cho circular dependency
+	// staffs.ward_id -> wards va wards.head_staff_id -> staffs.
+	// Khi FK = ON, SQLite block INSERT vao bat ky bang nao lien quan.
+	// FK integrity duoc quan ly o tang application (GORM relations,
+	// thu tu insert trong seed.go) thay vi o tang database.
+	// Khi chuyen sang PostgreSQL (ho tro deferred FK), co the bat lai.
 
 	// Gioi han connection pool cho SQLite.
 	// SQLite khong ho tro concurrent write nen dat MaxOpenConns = 1
@@ -103,10 +107,8 @@ func Migrate() error {
 		return fmt.Errorf("auto-migrate that bai: %w", err)
 	}
 
-	// Bat lai foreign key sau khi migrate xong
-	if err := DB.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
-		return fmt.Errorf("bat lai foreign key that bai: %w", err)
-	}
+	// Giu foreign_keys = OFF do circular dependency staffs <-> wards.
+	// FK integrity duoc dam bao o tang application.
 
 	log.Println("Auto-migrate hoan thanh")
 	return nil

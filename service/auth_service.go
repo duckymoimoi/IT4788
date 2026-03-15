@@ -37,20 +37,19 @@ func NewAuthService(repo *repository.UserRepo) *AuthService {
 // LoginResult chua thong tin tra ve sau khi dang nhap thanh cong.
 // Cac truong tra ve khop voi dac ta API trong slide.
 type LoginResult struct {
-	UserID       string  `json:"user_id"`
-	FullName     string  `json:"full_name"`
-	PhoneNumber  string  `json:"phone_number"`
-	Token        string  `json:"token"`
-	RefreshToken string  `json:"refresh_token"`
-	Avatar       *string `json:"avatar"`
-	Active       int     `json:"active"` // 1: active, 0: inactive
-	Role         string  `json:"role"`
+	UserID      uint64  `json:"user_id"`
+	FullName    string  `json:"full_name"`
+	PhoneNumber string  `json:"phone_number"`
+	Token       string  `json:"token"`
+	Avatar      *string `json:"avatar"`
+	Active      int     `json:"active"` // 1: active, 0: inactive
+	Role        string  `json:"role"`
 }
 
 // SignupResult chua thong tin tra ve sau khi dang ky.
 // otp_code chi dung de debug trong MVP (khong gui SMS).
 type SignupResult struct {
-	UserID  string `json:"user_id"`
+	UserID  uint64 `json:"user_id"`
 	OTPCode string `json:"otp_code,omitempty"` // debug only
 }
 
@@ -142,12 +141,6 @@ func (s *AuthService) Login(phone, password, deviceToken, platform string) (*Log
 		return nil, err
 	}
 
-	// Sinh refresh token (trong MVP dung cung JWT voi thoi han dai hon)
-	refreshToken, err := response.GenerateToken(user.UserID, role)
-	if err != nil {
-		return nil, err
-	}
-
 	// Luu FCM token neu client gui kem
 	if deviceToken != "" && platform != "" {
 		fcm := &schema.FCMToken{
@@ -166,14 +159,13 @@ func (s *AuthService) Login(phone, password, deviceToken, platform string) (*Log
 	}
 
 	return &LoginResult{
-		UserID:       fmt.Sprintf("%d", user.UserID),
-		FullName:     user.FullName,
-		PhoneNumber:  user.PhoneNumber,
-		Token:        token,
-		RefreshToken: refreshToken,
-		Avatar:       user.AvatarURL,
-		Active:       active,
-		Role:         role,
+		UserID:      user.UserID,
+		FullName:    user.FullName,
+		PhoneNumber: user.PhoneNumber,
+		Token:       token,
+		Avatar:      user.AvatarURL,
+		Active:      active,
+		Role:        role,
 	}, nil
 }
 
@@ -195,7 +187,8 @@ func (s *AuthService) Signup(phone, password, fullName, dob string, gender *int)
 	if err != nil {
 		return nil, err
 	}
-	if existing != nil {
+	// Cho phep dang ky lai neu tai khoan cu da bi xoa (soft delete)
+	if existing != nil && existing.Status != schema.UserStatusDeleted {
 		return nil, ErrUserAlreadyExists
 	}
 
@@ -261,31 +254,25 @@ func (s *AuthService) Signup(phone, password, fullName, dob string, gender *int)
 	}
 
 	return &SignupResult{
-		UserID:  fmt.Sprintf("%d", user.UserID),
+		UserID:  user.UserID,
 		OTPCode: otpCode,
 	}, nil
 }
 
 // VerifyOTP xac thuc ma OTP da gui cho nguoi dung.
+// Nhan vao otpType de tim dung loai OTP, tranh verify nham.
 // Neu OTP la loai signup, chuyen user status tu pending -> active.
 //
 // Flow:
-//  1. Tim OTP hop le (chua dung, chua het han)
+//  1. Tim OTP hop le theo phone + otpType (chua dung, chua het han)
 //  2. So sanh ma OTP
 //  3. Danh dau OTP da su dung
 //  4. Cap nhat status user (neu la OTP signup)
-func (s *AuthService) VerifyOTP(phone, code string) error {
-	// Tim OTP hop le — uu tien tim signup truoc, neu khong co thi tim reset_password
-	otp, err := s.repo.FindValidOTP(phone, schema.OTPTypeSignup)
+func (s *AuthService) VerifyOTP(phone, code string, otpType schema.OTPType) error {
+	// Tim OTP hop le theo dung loai
+	otp, err := s.repo.FindValidOTP(phone, otpType)
 	if err != nil {
 		return err
-	}
-	if otp == nil {
-		// Thu tim OTP loai reset_password
-		otp, err = s.repo.FindValidOTP(phone, schema.OTPTypeResetPassword)
-		if err != nil {
-			return err
-		}
 	}
 	if otp == nil {
 		return ErrOTPExpired
@@ -302,7 +289,7 @@ func (s *AuthService) VerifyOTP(phone, code string) error {
 	}
 
 	// Neu la OTP signup, chuyen status tu pending -> active
-	if otp.Type == schema.OTPTypeSignup {
+	if otpType == schema.OTPTypeSignup {
 		user, err := s.repo.FindByPhone(phone)
 		if err != nil {
 			return err
