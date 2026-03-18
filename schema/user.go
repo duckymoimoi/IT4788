@@ -109,6 +109,7 @@ type UserSetting struct {
 	NotificationEnabled  bool       `gorm:"not null;default:true;column:notification_enabled"`
 	TravelMode           TravelMode `gorm:"not null;default:walk;column:travel_mode"`
 	Language             string     `gorm:"not null;default:vi;size:10;column:language"`
+	Theme                string     `gorm:"not null;default:light;size:20;column:theme"`
 	UpdatedAt            *time.Time `gorm:"column:updated_at"`
 }
 

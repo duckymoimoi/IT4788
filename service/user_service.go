@@ -2,11 +2,14 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"hospital/repository"
 	"hospital/schema"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Các lỗi nghiệp vụ cho UserService
@@ -17,7 +20,9 @@ var (
 	ErrVersionNotFound     = errors.New("version not found")
 )
 
-// UserService xử lý logic nghiệp vụ cho 6 API user + 1 API sys
+// UserService xử lý logic nghiệp vụ cho 6 API user + 1 API sys.
+// Nhận dữ liệu từ handler, gọi repository để truy vấn DB,
+// xử lý logic, trả kết quả hoặc lỗi.
 type UserService struct {
 	repo *repository.UserRepo
 }
@@ -26,36 +31,112 @@ func NewUserService(repo *repository.UserRepo) *UserService {
 	return &UserService{repo: repo}
 }
 
-// UpdateProfileInput là input cho SetProfile
-type UpdateProfileInput struct {
-	FullName    *string `json:"full_name"`
-	DateOfBirth *string `json:"date_of_birth"` // "YYYY-MM-DD"
-	Gender      *int    `json:"gender"`       // 0: nữ, 1: nam, khác: other
-	AvatarURL   *string `json:"avatar_url"`
+// ========================================
+// RETURN TYPES — đúng theo spec API
+// ========================================
+
+// ProfileResult là output cho get_profile và set_profile.
+// Trả đúng các trường theo spec: user_id, full_name, phone_number, dob, gender, avatar.
+type ProfileResult struct {
+	UserID      string  `json:"user_id"`
+	FullName    string  `json:"full_name"`
+	PhoneNumber string  `json:"phone_number"`
+	DOB         *string `json:"dob"`    // "YYYY-MM-DD" hoặc null
+	Gender      *int    `json:"gender"` // 0: nữ, 1: nam
+	Avatar      *string `json:"avatar"`
 }
 
-// UpdateSettingInput là input cho SetSettings
-type UpdateSettingInput struct {
-	VoiceGuidanceEnabled *bool   `json:"voice_guidance_enabled"`
-	NotificationEnabled  *bool   `json:"notification_enabled"`
-	TravelMode           *string `json:"travel_mode"`
-	Language             *string `json:"language"`
+// SettingsResult là output cho get_settings.
+// Trả đúng các trường theo spec: language, theme, notification.
+type SettingsResult struct {
+	Language     string `json:"language"`
+	Theme        string `json:"theme"`
+	Notification bool   `json:"notification"`
 }
 
-// VersionCheckResult là output cho CheckVersion
+// DeleteAccountResult là output cho delete_account.
+// Trả id của tài khoản vừa bị xóa.
+type DeleteAccountResult struct {
+	ID string `json:"id"`
+}
+
+// VersionCheckResult là output cho check_version.
+// Trả latest_version, force_update, download_url.
 type VersionCheckResult struct {
-	Platform          string `json:"platform"`
-	CurrentVersion    int    `json:"current_version_code"`
-	LatestVersionCode int    `json:"latest_version_code"`
-	LatestVersionName string `json:"latest_version_name"`
-	NeedUpdate        bool   `json:"need_update"`
-	IsForceUpdate     bool   `json:"is_force_update"`
-	DownloadURL       string `json:"download_url"`
-	ChangeLog         string `json:"change_log"`
+	LatestVersion string `json:"latest_version"`
+	ForceUpdate   bool   `json:"force_update"`
+	DownloadURL   string `json:"download_url"`
 }
 
-// GetProfile trả về thông tin user theo userID
-func (s *UserService) GetProfile(userID uint64) (*schema.User, error) {
+// ========================================
+// INPUT TYPES
+// ========================================
+
+// UpdateProfileInput là input cho set_profile.
+// Các trường đều là pointer để phân biệt "không gửi" vs "gửi rỗng".
+type UpdateProfileInput struct {
+	FullName *string `json:"full_name"`
+	DOB      *string `json:"dob"`    // "YYYY-MM-DD"
+	Gender   *int    `json:"gender"` // 0: nữ, 1: nam
+	Avatar   *string `json:"avatar"` // URL ảnh (handler xử lý upload file, truyền URL xuống)
+}
+
+// UpdateSettingInput là input cho set_settings.
+// Theo spec: language, theme, notification.
+type UpdateSettingInput struct {
+	Language     *string `json:"language"`
+	Theme        *string `json:"theme"`
+	Notification *bool   `json:"notification"`
+}
+
+// ========================================
+// PRIVATE HELPER
+// ========================================
+
+// buildProfileResult chuyển đổi schema.User sang ProfileResult đúng spec.
+// - user_id: chuyển uint64 → string
+// - gender: chuyển "F"→0, "M"→1
+// - dob: chuyển time.Time → "YYYY-MM-DD"
+// - avatar: giữ nguyên *string
+func (s *UserService) buildProfileResult(user *schema.User) *ProfileResult {
+	result := &ProfileResult{
+		UserID:      fmt.Sprintf("%d", user.UserID),
+		FullName:    user.FullName,
+		PhoneNumber: user.PhoneNumber,
+		Avatar:      user.AvatarURL,
+	}
+
+	// Chuyển DateOfBirth time.Time → string "YYYY-MM-DD"
+	if user.DateOfBirth != nil {
+		dob := user.DateOfBirth.Format("2006-01-02")
+		result.DOB = &dob
+	}
+
+	// Chuyển Gender string → int (0: nữ, 1: nam)
+	if user.Gender != nil {
+		var g int
+		switch *user.Gender {
+		case schema.GenderFemale:
+			g = 0
+		case schema.GenderMale:
+			g = 1
+		default:
+			g = 2 // other
+		}
+		result.Gender = &g
+	}
+
+	return result
+}
+
+// ========================================
+// PUBLIC METHODS — 7 HÀM THEO SPEC
+// ========================================
+
+// 1. GetProfile lấy thông tin cá nhân user.
+// Input: token (lấy userID từ middleware)
+// Output: ProfileResult { user_id, full_name, phone_number, dob, gender, avatar }
+func (s *UserService) GetProfile(userID uint64) (*ProfileResult, error) {
 	user, err := s.repo.FindByID(userID)
 	if err != nil {
 		return nil, err
@@ -63,32 +144,36 @@ func (s *UserService) GetProfile(userID uint64) (*schema.User, error) {
 	if user == nil {
 		return nil, ErrUserNotFound
 	}
-	return user, nil
+	return s.buildProfileResult(user), nil
 }
 
-// SetProfile cập nhật thông tin cá nhân user
-func (s *UserService) SetProfile(userID uint64, data UpdateProfileInput) error {
+// 2. SetProfile cập nhật thông tin cá nhân user.
+// Input: token, full_name, dob, gender, avatar (file → URL do handler xử lý upload)
+// Output: ProfileResult (thông tin user sau khi cập nhật)
+func (s *UserService) SetProfile(userID uint64, data UpdateProfileInput) (*ProfileResult, error) {
 	updates := make(map[string]interface{})
 
 	if data.FullName != nil {
 		name := strings.TrimSpace(*data.FullName)
 		if name == "" {
-			return ErrInvalidProfileInput
+			return nil, ErrInvalidProfileInput
 		}
 		updates["full_name"] = name
 	}
 
-	if data.DateOfBirth != nil {
-		dob := strings.TrimSpace(*data.DateOfBirth)
+	// Parse dob nếu có (format: "YYYY-MM-DD")
+	if data.DOB != nil {
+		dob := strings.TrimSpace(*data.DOB)
 		if dob != "" {
 			parsed, err := time.Parse("2006-01-02", dob)
 			if err != nil {
-				return ErrInvalidProfileInput
+				return nil, ErrInvalidProfileInput
 			}
 			updates["date_of_birth"] = parsed
 		}
 	}
 
+	// Map gender: 0 = nữ (F), 1 = nam (M)
 	if data.Gender != nil {
 		var g schema.Gender
 		switch *data.Gender {
@@ -102,8 +187,9 @@ func (s *UserService) SetProfile(userID uint64, data UpdateProfileInput) error {
 		updates["gender"] = g
 	}
 
-	if data.AvatarURL != nil {
-		avatar := strings.TrimSpace(*data.AvatarURL)
+	// Avatar URL (handler đã upload file và truyền URL xuống)
+	if data.Avatar != nil {
+		avatar := strings.TrimSpace(*data.Avatar)
 		if avatar == "" {
 			updates["avatar_url"] = nil
 		} else {
@@ -111,26 +197,37 @@ func (s *UserService) SetProfile(userID uint64, data UpdateProfileInput) error {
 		}
 	}
 
-	if len(updates) == 0 {
-		return nil
-	}
-
+	// Kiểm tra user tồn tại
 	user, err := s.repo.FindByID(userID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if user == nil {
-		return ErrUserNotFound
+		return nil, ErrUserNotFound
 	}
 
-	return s.repo.UpdateProfile(userID, updates)
+	// Cập nhật nếu có trường nào thay đổi
+	if len(updates) > 0 {
+		if err := s.repo.UpdateProfile(userID, updates); err != nil {
+			return nil, err
+		}
+	}
+
+	// Lấy lại user sau khi cập nhật để trả về đúng data mới nhất
+	updated, err := s.repo.FindByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	return s.buildProfileResult(updated), nil
 }
 
-// SetDevToken lưu hoặc cập nhật FCM token cho user
-func (s *UserService) SetDevToken(userID uint64, token, platform, model, version string) error {
-	token = strings.TrimSpace(token)
+// 3. SetDevToken đăng ký nhận thông báo đẩy (FCM).
+// Input: device_token, platform (android/ios)
+// Output: chỉ code + message (không có data)
+func (s *UserService) SetDevToken(userID uint64, deviceToken, platform string) error {
+	deviceToken = strings.TrimSpace(deviceToken)
 	platform = strings.ToLower(strings.TrimSpace(platform))
-	if token == "" || platform == "" {
+	if deviceToken == "" || platform == "" {
 		return ErrInvalidSettingInput
 	}
 	if platform != string(schema.DevicePlatformAndroid) && platform != string(schema.DevicePlatformIOS) {
@@ -139,62 +236,65 @@ func (s *UserService) SetDevToken(userID uint64, token, platform, model, version
 
 	payload := &schema.FCMToken{
 		UserID:         userID,
-		FCMToken:       token,
+		FCMToken:       deviceToken,
 		DevicePlatform: schema.DevicePlatform(platform),
-	}
-
-	if m := strings.TrimSpace(model); m != "" {
-		payload.DeviceModel = &m
-	}
-	if v := strings.TrimSpace(version); v != "" {
-		payload.AppVersion = &v
 	}
 
 	return s.repo.UpsertFCMToken(payload)
 }
 
-// GetSettings trả về cấu hình cá nhân của user
-func (s *UserService) GetSettings(userID uint64) (*schema.UserSetting, error) {
+// 4. GetSettings lấy cấu hình giao diện/ngôn ngữ.
+// Input: token
+// Output: SettingsResult { language, theme, notification }
+func (s *UserService) GetSettings(userID uint64) (*SettingsResult, error) {
 	setting, err := s.repo.FindSettingByUserID(userID)
 	if err != nil {
 		return nil, err
 	}
-	if setting != nil {
-		return setting, nil
+
+	// Tự động tạo setting mặc định nếu chưa có
+	if setting == nil {
+		created := &schema.UserSetting{UserID: userID}
+		if err := s.repo.CreateSetting(created); err != nil {
+			return nil, err
+		}
+		setting, err = s.repo.FindSettingByUserID(userID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	created := &schema.UserSetting{UserID: userID}
-	if err := s.repo.CreateSetting(created); err != nil {
-		return nil, err
-	}
-	return s.repo.FindSettingByUserID(userID)
+	return &SettingsResult{
+		Language:     setting.Language,
+		Theme:        setting.Theme,
+		Notification: setting.NotificationEnabled,
+	}, nil
 }
 
-// SetSettings cập nhật cấu hình cá nhân user
+// 5. SetSettings lưu cấu hình người dùng.
+// Input: token, language, theme, notification
+// Output: chỉ code + message (không có data)
 func (s *UserService) SetSettings(userID uint64, data UpdateSettingInput) error {
 	updates := make(map[string]interface{})
 
-	if data.VoiceGuidanceEnabled != nil {
-		updates["voice_guidance_enabled"] = *data.VoiceGuidanceEnabled
-	}
-	if data.NotificationEnabled != nil {
-		updates["notification_enabled"] = *data.NotificationEnabled
-	}
-	if data.TravelMode != nil {
-		mode := strings.ToLower(strings.TrimSpace(*data.TravelMode))
-		switch schema.TravelMode(mode) {
-		case schema.TravelModeWalk, schema.TravelModeWheelchair, schema.TravelModeStretcher:
-			updates["travel_mode"] = mode
-		default:
-			return ErrInvalidSettingInput
-		}
-	}
 	if data.Language != nil {
 		lang := strings.TrimSpace(*data.Language)
 		if lang == "" {
 			return ErrInvalidSettingInput
 		}
 		updates["language"] = lang
+	}
+
+	if data.Theme != nil {
+		theme := strings.TrimSpace(*data.Theme)
+		if theme == "" {
+			return ErrInvalidSettingInput
+		}
+		updates["theme"] = theme
+	}
+
+	if data.Notification != nil {
+		updates["notification_enabled"] = *data.Notification
 	}
 
 	if len(updates) == 0 {
@@ -204,20 +304,36 @@ func (s *UserService) SetSettings(userID uint64, data UpdateSettingInput) error 
 	return s.repo.UpdateSetting(userID, updates)
 }
 
-// DeleteAccount đánh dấu tài khoản đã xóa (soft delete)
-func (s *UserService) DeleteAccount(userID uint64) error {
+// 6. DeleteAccount xóa tài khoản (soft delete) sau khi xác nhận mật khẩu.
+// Input: token, password (xác nhận)
+// Output: DeleteAccountResult { id }
+func (s *UserService) DeleteAccount(userID uint64, password string) (*DeleteAccountResult, error) {
 	user, err := s.repo.FindByID(userID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if user == nil {
-		return ErrUserNotFound
+		return nil, ErrUserNotFound
 	}
-	return s.repo.DeleteSoft(userID)
+
+	// Xác nhận mật khẩu trước khi xóa
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		return nil, ErrPasswordIncorrect
+	}
+
+	if err := s.repo.DeleteSoft(userID); err != nil {
+		return nil, err
+	}
+
+	return &DeleteAccountResult{
+		ID: fmt.Sprintf("%d", userID),
+	}, nil
 }
 
-// CheckVersion kiểm tra phiên bản app client
-func (s *UserService) CheckVersion(platform string, versionCode int) (*VersionCheckResult, error) {
+// 7. CheckVersion kiểm tra cập nhật ứng dụng.
+// Input: app_version (string, version hiện tại), platform (android/ios)
+// Output: VersionCheckResult { latest_version, force_update, download_url }
+func (s *UserService) CheckVersion(platform, appVersion string) (*VersionCheckResult, error) {
 	platform = strings.ToLower(strings.TrimSpace(platform))
 	if platform != "android" && platform != "ios" {
 		return nil, ErrInvalidPlatform
@@ -232,13 +348,8 @@ func (s *UserService) CheckVersion(platform string, versionCode int) (*VersionCh
 	}
 
 	return &VersionCheckResult{
-		Platform:          platform,
-		CurrentVersion:    versionCode,
-		LatestVersionCode: latest.VersionCode,
-		LatestVersionName: latest.VersionName,
-		NeedUpdate:        versionCode < latest.VersionCode,
-		IsForceUpdate:     latest.IsForceUpdate,
-		DownloadURL:       latest.DownloadURL,
-		ChangeLog:         latest.ChangeLog,
+		LatestVersion: latest.VersionName,
+		ForceUpdate:   latest.IsForceUpdate,
+		DownloadURL:   latest.DownloadURL,
 	}, nil
 }
