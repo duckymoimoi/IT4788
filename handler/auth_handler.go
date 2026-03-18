@@ -1,48 +1,48 @@
 package handler
 
 import (
-	"github.com/gin-gonic/gin"
 	"errors"
+
+	"github.com/gin-gonic/gin"
+
 	"hospital/middleware"
 	response "hospital/pkg"
-	"hospital/service"
 	"hospital/schema"
+	"hospital/service"
 )
 
 // ==========================================================
-// 1. CÁC KHUÔN HỨNG DỮ LIỆU TỪ CLIENT (REQUEST BODY)
+// REQUEST STRUCTS
 // ==========================================================
 
 type LoginRequest struct {
-	PhoneNumber       string `json:"phone_number" binding:"required"`
+	PhoneNumber string `json:"phone_number" binding:"required"`
 	Password    string `json:"password" binding:"required"`
-	DeviceToken string `json:"device_token"` 
-	Platform    string `json:"platform"`     
+	DeviceToken string `json:"device_token"`
+	Platform    string `json:"platform"`
 }
 
 type SignupRequest struct {
-	PhoneNumber    string `json:"phone_number" binding:"required"`
-	Password string `json:"password" binding:"required,min=6"`
-	FullName string `json:"full_name" binding:"required"`
-	DOB      string `json:"dob"`    // Ngày sinh (định dạng YYYY-MM-DD), không bắt buộc
-	Gender   *int   `json:"gender"` // 0: Nữ, 1: Nam.
+	PhoneNumber string `json:"phone_number" binding:"required"`
+	Password    string `json:"password" binding:"required,min=6"`
+	FullName    string `json:"full_name" binding:"required"`
+	DOB         string `json:"dob"`
+	Gender      *int   `json:"gender"`
 }
 
 type VerifyOTPRequest struct {
-	PhoneNumber   string         `json:"phone_number" binding:"required"`
-	OTP    string         `json:"otp" binding:"required"`
-	OTPType schema.OTPType `json:"otp_type" ` 
+	PhoneNumber string         `json:"phone_number" binding:"required"`
+	OTP         string         `json:"otp" binding:"required"`
+	OTPType     schema.OTPType `json:"otp_type"`
 }
-type ResendOTPRequest struct {
-	PhoneNumber string `json:"phone_number" binding:"required"`
-}
+
 type ForgotPasswordRequest struct {
 	PhoneNumber string `json:"phone_number" binding:"required"`
 }
 
 type ResetPasswordRequest struct {
-	PhoneNumber       string `json:"phone_number" binding:"required"`
-	OTP        string `json:"otp" binding:"required"`
+	PhoneNumber string `json:"phone_number" binding:"required"`
+	OTP         string `json:"otp" binding:"required"`
 	NewPassword string `json:"new_password" binding:"required,min=6"`
 }
 
@@ -52,15 +52,17 @@ type ChangePasswordRequest struct {
 }
 
 type LogoutRequest struct {
-	FCMToken string `json:"fcm_token"` // Không bắt buộc
+	FCMToken string `json:"fcm_token"`
 }
 
-// AuthHandler chứa AuthService (Đầu bếp) bên trong
+// ==========================================================
+// AUTH HANDLER
+// ==========================================================
+
 type AuthHandler struct {
 	svc *service.AuthService
 }
 
-// Hàm tạo Handler mới
 func NewAuthHandler(svc *service.AuthService) *AuthHandler {
 	return &AuthHandler{svc: svc}
 }
@@ -73,10 +75,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Gọi Service 
 	result, err := h.svc.Login(req.PhoneNumber, req.Password, req.DeviceToken, req.Platform)
 	if err != nil {
-		response.Error(c, 401, err.Error())
+		h.handleAuthError(c, err)
 		return
 	}
 
@@ -93,14 +94,14 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 
 	result, err := h.svc.Signup(req.PhoneNumber, req.Password, req.FullName, req.DOB, req.Gender)
 	if err != nil {
-		response.Error(c, 400, err.Error())
+		h.handleAuthError(c, err)
 		return
 	}
 
 	response.Success(c, result)
 }
 
-// POST /api/auth/verify-otp
+// POST /api/auth/verify_otp
 func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 	var req VerifyOTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -108,7 +109,6 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 		return
 	}
 
-	// Xử lý thông dịch: Nếu FE không gửi otp_type, mặc định là Signup
 	otpType := req.OTPType
 	if otpType == "" {
 		otpType = schema.OTPTypeSignup
@@ -116,13 +116,14 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 
 	err := h.svc.VerifyOTP(req.PhoneNumber, req.OTP, otpType)
 	if err != nil {
-		response.Error(c, 400, err.Error())
+		h.handleAuthError(c, err)
 		return
 	}
 
 	response.Success(c, nil)
 }
-// POST /api/auth/forgot-password
+
+// POST /api/auth/forgot_password
 func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 	var req ForgotPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -132,14 +133,14 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 
 	result, err := h.svc.ForgotPassword(req.PhoneNumber)
 	if err != nil {
-		response.Error(c, 400, err.Error())
+		h.handleAuthError(c, err)
 		return
 	}
 
 	response.Success(c, result)
 }
 
-// POST /api/auth/reset-password
+// POST /api/auth/reset_password
 func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	var req ResetPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -147,15 +148,15 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	// Gọi service để đổi pass mới sau khi check OTP reset_password
 	err := h.svc.ResetPassword(req.PhoneNumber, req.OTP, req.NewPassword)
 	if err != nil {
-		response.Error(c, 400, err.Error())
+		h.handleAuthError(c, err)
 		return
 	}
 
 	response.Success(c, nil)
 }
+
 // POST /api/auth/logout
 func (h *AuthHandler) Logout(c *gin.Context) {
 	userID := middleware.GetUserID(c)
@@ -169,14 +170,14 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 	err := h.svc.Logout(userID, req.FCMToken)
 	if err != nil {
-		response.Error(c, 400, err.Error())
+		h.handleAuthError(c, err)
 		return
 	}
 
 	response.Success(c, nil)
 }
 
-// POST /api/auth/change-password
+// POST /api/auth/change_password
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
@@ -192,13 +193,33 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 
 	err := h.svc.ChangePassword(userID, req.OldPassword, req.NewPassword)
 	if err != nil {
-		if errors.Is(err, service.ErrPasswordIncorrect) {
-			response.ErrPasswordIncorrect(c)
-			return
-		}
-		response.Error(c, 400, err.Error())
+		h.handleAuthError(c, err)
 		return
 	}
 
 	response.Success(c, nil)
+}
+
+// ==========================================================
+// ERROR HANDLER — map lỗi service sang đúng response code
+// ==========================================================
+
+func (h *AuthHandler) handleAuthError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, service.ErrUserNotFound):
+		response.ErrUserNotFound(c)
+	case errors.Is(err, service.ErrPasswordIncorrect):
+		response.ErrPasswordIncorrect(c)
+	case errors.Is(err, service.ErrUserAlreadyExists):
+		response.ErrUserAlreadyExists(c)
+	case errors.Is(err, service.ErrOTPIncorrect):
+		response.ErrOTPIncorrect(c)
+	case errors.Is(err, service.ErrOTPExpired):
+		response.ErrOTPExpired(c)
+	case errors.Is(err, service.ErrAccountBanned),
+		errors.Is(err, service.ErrAccountNotActive):
+		response.ErrNotAuthenticated(c)
+	default:
+		response.ErrUnexpected(c)
+	}
 }
