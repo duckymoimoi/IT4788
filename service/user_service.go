@@ -2,7 +2,6 @@ package service
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -38,7 +37,7 @@ func NewUserService(repo *repository.UserRepo) *UserService {
 // ProfileResult là output cho get_profile và set_profile.
 // Trả đúng các trường theo spec: user_id, full_name, phone_number, dob, gender, avatar.
 type ProfileResult struct {
-	UserID      string  `json:"user_id"`
+	UserID      uint64  `json:"user_id"`
 	FullName    string  `json:"full_name"`
 	PhoneNumber string  `json:"phone_number"`
 	DOB         *string `json:"dob"`    // "YYYY-MM-DD" hoặc null
@@ -57,7 +56,7 @@ type SettingsResult struct {
 // DeleteAccountResult là output cho delete_account.
 // Trả id của tài khoản vừa bị xóa.
 type DeleteAccountResult struct {
-	ID string `json:"id"`
+	ID uint64 `json:"id"`
 }
 
 // VersionCheckResult là output cho check_version.
@@ -100,7 +99,7 @@ type UpdateSettingInput struct {
 // - avatar: giữ nguyên *string
 func (s *UserService) buildProfileResult(user *schema.User) *ProfileResult {
 	result := &ProfileResult{
-		UserID:      fmt.Sprintf("%d", user.UserID),
+		UserID:      user.UserID,
 		FullName:    user.FullName,
 		PhoneNumber: user.PhoneNumber,
 		Avatar:      user.AvatarURL,
@@ -326,7 +325,7 @@ func (s *UserService) DeleteAccount(userID uint64, password string) (*DeleteAcco
 	}
 
 	return &DeleteAccountResult{
-		ID: fmt.Sprintf("%d", userID),
+		ID: userID,
 	}, nil
 }
 

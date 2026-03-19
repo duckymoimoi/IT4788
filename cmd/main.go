@@ -4,7 +4,10 @@ import (
 	"log"
 	"os"
 
+	"github.com/gin-gonic/gin"
+
 	"hospital/database"
+	"hospital/handler"
 )
 
 func main() {
@@ -28,9 +31,26 @@ func main() {
 
 	// Seed du lieu demo neu database dang rong
 	if err := database.Seed(); err != nil {
-		log.Fatal("Seed that bai:", err)
+		log.Println("Seed bi bo qua (du lieu da ton tai):", err)
 	}
 
-	log.Println("Database san sang. Server se duoc them vao day sau.")
+	// Cau hinh Gin mode (mac dinh debug, production dung APP_ENV=production)
+	if os.Getenv("APP_ENV") == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
 
+	// Khoi tao router va dang ky tat ca routes
+	router := gin.Default()
+	handler.RegisterRoutes(router, database.DB)
+
+	// Lay port tu bien moi truong, mac dinh 8080
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Println("Server dang chay tai port:", port)
+	if err := router.Run(":" + port); err != nil {
+		log.Fatal("Khong the khoi dong server:", err)
+	}
 }
