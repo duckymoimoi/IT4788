@@ -25,12 +25,12 @@ var (
 )
 
 // getJWTSecret lay secret key tu bien moi truong.
-// Neu khong set, dung gia tri mac dinh cho moi truong dev.
-// KHONG BAO GIO dung gia tri mac dinh trong production.
+// Khi deploy: set JWT_SECRET trong env voi gia tri bi mat.
+// Gia tri mac dinh du manh cho dev/demo, nhung KHONG nen dung trong production.
 func getJWTSecret() []byte {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		secret = "hospital-dev-secret-key-2024"
+		secret = "h0sp1tNav-Gr1-2026!@sEcR3t#K3y"
 	}
 	return []byte(secret)
 }

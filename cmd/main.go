@@ -3,7 +3,9 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	"hospital/database"
@@ -39,8 +41,22 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Khoi tao router va dang ky tat ca routes
+	// Khoi tao router
 	router := gin.Default()
+
+	// CORS — cho phep frontend (React/Flutter web/...) goi API tu domain khac.
+	// AllowAllOrigins = true: moi domain deu goi duoc (phu hop dev/demo).
+	// Khi len production, doi thanh AllowOrigins voi danh sach domain cu the.
+	router.Use(cors.New(cors.Config{
+		AllowAllOrigins:  true,
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: false,
+		MaxAge:           12 * time.Hour,
+	}))
+
+	// Dang ky tat ca routes
 	handler.RegisterRoutes(router, database.DB)
 
 	// Lay port tu bien moi truong, mac dinh 8080
