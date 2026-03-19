@@ -95,6 +95,7 @@ func Migrate() error {
 
 	// Chay auto-migrate theo thu tu phu thuoc
 	err := DB.AutoMigrate(
+		// --- User module ---
 		&schema.Ward{},
 		&schema.User{},
 		&schema.Staff{},
@@ -102,6 +103,11 @@ func Migrate() error {
 		&schema.UserSetting{},
 		&schema.FCMToken{},
 		&schema.AppVersion{},
+		// --- Map module ---
+		&schema.Building{},
+		&schema.Floor{},
+		&schema.MapNode{},
+		&schema.MapEdge{},
 	)
 	if err != nil {
 		return fmt.Errorf("auto-migrate that bai: %w", err)

@@ -1,0 +1,230 @@
+================================================================================
+         HƯỚNG DẪN SỬ DỤNG MAP EDITOR V2 - TẠO BẢN ĐỒ BỆNH VIỆN
+================================================================================
+
+Mở file: tools/map_editor_v2.html bằng trình duyệt (Chrome/Edge/Firefox).
+
+────────────────────────────────────────────────────────────────────────────────
+BƯỚC 1: TẢI ẢNH NỀN VÀ NHẬP THÔNG TIN TẦNG
+────────────────────────────────────────────────────────────────────────────────
+
+1. Click nút [Tải ảnh] ở thanh dưới cùng → chọn ảnh sơ đồ mặt bằng tầng.
+2. Sau khi tải ảnh, popup "Thông tin tầng / tòa nhà" sẽ tự mở.
+3. Điền:
+   - Tên tòa nhà (VD: "Bệnh viện Bạch Mai")
+   - Mã tòa (VD: "A")
+   - Số tầng (VD: 1)
+   - Tên tầng (VD: "Tầng 1")
+   - Kích thước thực tế ước chừng: Rộng (m) và Cao (m)
+     → Dùng để quy đổi pixel sang mét, tính khoảng cách thực tế.
+4. Nhấn [Xác nhận].
+
+Lưu ý: Có thể mở lại popup bất cứ lúc nào bằng nút [Thông tin tầng]
+hoặc click vào tiêu đề "Map Editor v2" ở sidebar.
+
+────────────────────────────────────────────────────────────────────────────────
+BƯỚC 2: VẼ CÁC PHÒNG (POLYGON)
+────────────────────────────────────────────────────────────────────────────────
+
+1. Chọn công cụ [P] Vẽ phòng (Poly) ở sidebar, hoặc nhấn phím P.
+2. Click lần lượt các đỉnh của phòng trên ảnh nền.
+   - Các đỉnh nối nhau bằng đường nét đứt vàng.
+   - Chuột phải để undo đỉnh vừa đặt.
+3. Khi đủ ≥ 3 đỉnh, double-click để đóng polygon.
+4. Popup "Tạo phòng" hiện ra:
+   - Mã (code): mã định danh duy nhất, VD: R101, WC1, ELV1
+   - Tên hiển thị: tên hiện trên bản đồ, VD: "Phòng 101", "Vệ sinh nam"
+   - Loại: room, elevator, escalator, stairs, wc, entrance, pharmacy, 
+     info, restricted, other
+5. Nhấn [Tạo] → phòng được tạo.
+
+────────────────────────────────────────────────────────────────────────────────
+BƯỚC 3: ĐẶT CỬA TRÊN CẠNH PHÒNG (TỰ ĐỘNG SAU KHI VẼ PHÒNG)
+────────────────────────────────────────────────────────────────────────────────
+
+Ngay sau khi tạo phòng xong, editor tự động chuyển sang chế độ đặt cửa:
+- Viền phòng vừa tạo sáng lên (nét đứt vàng).
+- Di chuột gần cạnh phòng → hiện vòng tròn snap.
+- Click vào cạnh phòng → popup tạo cửa:
+  - Mã mặc định: D_[mã_phòng]_[id], VD: D_R101_5
+  - Tên mặc định: "Cửa [tên_phòng]", VD: "Cửa Phòng 101"
+  - Loại mặc định: entrance
+  - wheelchair_accessible mặc định: true
+- Có thể đặt nhiều cửa liên tiếp cho cùng 1 phòng.
+- Nhấn Esc hoặc chọn tool khác để kết thúc chế độ đặt cửa.
+
+────────────────────────────────────────────────────────────────────────────────
+BƯỚC 4: ĐẶT CỬA / NODE ĐỘC LẬP (NẾU CẦN)
+────────────────────────────────────────────────────────────────────────────────
+
+Nếu cần đặt node không gắn với phòng cụ thể:
+1. Chọn công cụ [D] Đặt cửa / Node, hoặc nhấn phím D.
+2. Click vị trí trên bản đồ.
+3. Nhập mã, tên, loại trong popup.
+
+Dùng cho: thang máy, cầu thang, lối vào chính, quầy thông tin...
+
+────────────────────────────────────────────────────────────────────────────────
+BƯỚC 5: VẼ HÀNH LANG
+────────────────────────────────────────────────────────────────────────────────
+
+1. Chọn công cụ [C] Vẽ hành lang, hoặc nhấn phím C.
+2. Click điểm bắt đầu → click điểm kết thúc = 1 đoạn hành lang.
+3. Tiếp tục click = nối thêm đoạn mới (tự động nối với điểm cuối đoạn trước).
+4. Snap tự động: khi đưa chuột gần đầu mút đoạn đã có → tự bắt điểm.
+5. Chuột phải để hủy đoạn đang vẽ.
+
+Thuộc tính mỗi đoạn hành lang (click chọn đoạn trong chế độ Select):
+- Trọng số (weight): cao = ít ưu tiên (hành lang hẹp/đông). Mặc định 1.0.
+- Xe lăn đi được: mặc định bật (true).
+
+Mẹo vẽ hành lang:
+- Vẽ các đoạn thẳng nối liền nhau tạo thành bộ khung hành lang.
+- Đoạn xuất phát/kết thúc từ đoạn khác = tự động nối qua snap.
+- Mỗi đoạn có thể đặt weight riêng tùy độ rộng/hẹp.
+
+────────────────────────────────────────────────────────────────────────────────
+BƯỚC 6: TỰ ĐỘNG NỐI CỬA VÀO HÀNH LANG
+────────────────────────────────────────────────────────────────────────────────
+
+1. Đảm bảo đã vẽ đủ phòng + cửa + hành lang.
+2. Nhấn nút [Tự động nối cửa] ở thanh dưới.
+3. Hệ thống sẽ tự:
+   - Chiếu vuông góc từ mỗi cửa xuống đoạn hành lang gần nhất.
+   - Tạo junction node tại điểm chiếu trên hành lang.
+   - Tạo edge nối cửa → junction.
+   - Tạo edge giữa các junction trên hành lang.
+   - Junction kế thừa wheelchair_accessible từ đoạn hành lang.
+4. Kết quả: mạng lưới đồ thị hoàn chỉnh từ cửa → hành lang → cửa.
+
+────────────────────────────────────────────────────────────────────────────────
+BƯỚC 7: NỐI THỦ CÔNG (NẾU CẦN)
+────────────────────────────────────────────────────────────────────────────────
+
+1. Chọn công cụ [E] Nối đường (Edge), hoặc nhấn phím E.
+2. Click node bắt đầu → click thêm điểm rẽ giữa đường (nếu cần) 
+   → click node đích = hoàn thành edge.
+3. Chuột phải để undo điểm rẽ hoặc hủy.
+
+Dùng cho: nối thang máy giữa các tầng, nối đường đặc biệt...
+
+────────────────────────────────────────────────────────────────────────────────
+BƯỚC 8: CHỈNH SỬA THUỘC TÍNH
+────────────────────────────────────────────────────────────────────────────────
+
+Chọn công cụ [S] Chọn / Di chuyển (hoặc phím S):
+- Click node → panel thuộc tính hiện bên trái:
+  - Mã (code), Tên hiển thị, Loại
+  - Điểm mốc nổi bật (landmark)
+  - Hỗ trợ xe lăn (wheelchair_accessible)
+- Click edge → chỉnh:
+  - Trọng số (weight)
+  - Hai chiều (bidirectional)
+  - Xe lăn đi được
+- Click đoạn hành lang → chỉnh:
+  - Trọng số
+  - Xe lăn đi được
+- Kéo node để di chuyển vị trí.
+- Kéo waypoint (điểm rẽ) trên edge để điều chỉnh.
+- Delete/Backspace để xóa phần tử đang chọn.
+
+────────────────────────────────────────────────────────────────────────────────
+BƯỚC 9: QUẢN LÝ NHIỀU TẦNG
+────────────────────────────────────────────────────────────────────────────────
+
+- Thanh tab ở trên cùng hiển thị danh sách tầng.
+- Nhấn [+ Thêm tầng] để tạo tầng mới.
+- Click tab để chuyển giữa các tầng.
+- Nút "x" trên tab để xóa tầng (phải có ít nhất 1 tầng).
+- Mỗi tầng có ảnh nền, metadata, node, edge, corridor riêng biệt.
+
+────────────────────────────────────────────────────────────────────────────────
+BƯỚC 10: XUẤT / NHẬP JSON
+────────────────────────────────────────────────────────────────────────────────
+
+XUẤT:
+- Nhấn [Xuất JSON] → tải file map_data.json.
+- File chứa TẤT CẢ các tầng, bao gồm:
+  + meta: thông tin tòa nhà, tầng, kích thước
+  + nodes: danh sách node với đầy đủ thuộc tính
+  + edges: danh sách edge với distance_m tự tính (mét)
+  + corridors: dữ liệu hành lang (dùng khi import lại editor)
+
+NHẬP:
+- Nhấn [Nhập JSON] → chọn file JSON đã xuất trước đó.
+- Toàn bộ dữ liệu được khôi phục (cần tải lại ảnh nền thủ công).
+
+────────────────────────────────────────────────────────────────────────────────
+CẤU TRÚC JSON XUẤT RA (TƯƠNG THÍCH DATABASE)
+────────────────────────────────────────────────────────────────────────────────
+
+{
+  "floors": [
+    {
+      "meta": {
+        "building_name", "building_code", "floor_number", "floor_name",
+        "image_width_px", "image_height_px", "real_width_m", "real_height_m"
+      },
+      "nodes": [
+        {
+          "node_code": "R101",           // Mã định danh (unique)
+          "node_name": "Phòng 101",      // Tên hiển thị
+          "node_type": "room",           // Loại node
+          "polygon_coords": "x1,y1,...", // Tọa độ polygon (rỗng nếu point)
+          "center_x", "center_y",        // Tâm hình học (pixel)
+          "access_x", "access_y",        // Tọa độ cửa vào (pixel)
+          "is_landmark": false,
+          "is_accessible": true,
+          "wheelchair_accessible": true,
+          "is_active": true
+        }
+      ],
+      "edges": [
+        {
+          "from_code": "D_R101_2",       // Mã node bắt đầu
+          "to_code": "JCT_8",           // Mã node kết thúc
+          "polygon_coords": null,        // Đường đi (null = thẳng)
+          "distance_m": 3.45,            // Khoảng cách thực tế (tự tính)
+          "weight": 1.0,                 // Trọng số Dijkstra
+          "is_bidirectional": true,
+          "is_cross_floor": false,
+          "wheelchair_accessible": true,
+          "is_active": true
+        }
+      ],
+      "corridors": [...]                 // Metadata hành lang (cho editor)
+    }
+  ]
+}
+
+Mapping vào DB (xử lý ở Go handler/service):
+- from_code/to_code → lookup node_id từ bảng map_nodes
+- floor_number → lookup floor_id từ bảng floors
+- building_code → lookup building_id từ bảng buildings
+
+────────────────────────────────────────────────────────────────────────────────
+PHÍM TẮT
+────────────────────────────────────────────────────────────────────────────────
+
+  S         Chọn / Di chuyển
+  P         Vẽ phòng (Polygon)
+  D         Đặt cửa / Node
+  E         Nối đường (Edge)
+  C         Vẽ hành lang (Corridor)
+  Escape    Hủy thao tác / Thoát chế độ đặt cửa
+  Delete    Xóa phần tử đang chọn
+  Chuột phải   Undo đỉnh / Hủy đoạn
+
+────────────────────────────────────────────────────────────────────────────────
+QUY TRÌNH ĐỀ XUẤT (THỨ TỰ TỐI ƯU)
+────────────────────────────────────────────────────────────────────────────────
+
+1. Tải ảnh nền + nhập thông tin tầng
+2. Vẽ TẤT CẢ các phòng (polygon) + đặt cửa ngay sau mỗi phòng
+3. Vẽ hành lang (các đoạn thẳng nối liền)
+4. Nhấn [Tự động nối cửa] → tạo đồ thị tự động
+5. Kiểm tra, chỉnh sửa thuộc tính (weight, wheelchair...)
+6. Lặp lại cho các tầng khác (Thêm tầng → tải ảnh → vẽ)
+7. Xuất JSON → import vào database
+
+================================================================================
