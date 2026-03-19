@@ -194,6 +194,13 @@ func Seed() error {
 	}
 	log.Println("Da tao app_versions")
 
+	// --- BUOC 7: Seed du lieu ban do tu JSON ---
+	// File map_data.json xuat tu Map Editor v2
+	if err := SeedMap("map_data.json"); err != nil {
+		log.Printf("CANH BAO: Khong seed duoc map data: %v", err)
+		// Khong return error, van tiep tuc vi map data la optional
+	}
+
 	return nil
 }
 
