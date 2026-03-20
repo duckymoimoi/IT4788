@@ -469,6 +469,8 @@
                 onchange="setEProp('bidirectional',this.checked)"> Hai chiều</label></div>
           <div class="pr"><label class="pchk"><input type="checkbox" id="e-wc"
                 onchange="setEProp('wheelchair',this.checked)"> Xe lăn đi được</label></div>
+          <div class="pr"><label class="pchk"><input type="checkbox" id="e-cf"
+                onchange="setEProp('crossFloor',this.checked)"> Nối liên tầng</label></div>
           <div class="pr" style="margin-top:10px"><button class="btn btn-r" style="width:100%" onclick="delSel()">Xóa
               edge</button></div>
         </div>
@@ -757,7 +759,7 @@
       }
       if (tool === 'edge') {
         if (!edgeFrom) { const n = hitNP(x, y); if (n) { edgeFrom = n.id; edgeWpts = []; updStatus(); render() } return }
-        const n = hitNP(x, y); if (n && n.id !== edgeFrom) { const ed = { id: gid(), from: edgeFrom, to: n.id, waypoints: edgeWpts.map(p => [...p]), weight: 1.0, bidirectional: true, wheelchair: true }; F().edges.push(ed); sel = { t: 'edge', id: ed.id }; edgeFrom = null; edgeWpts = []; updProps(); updStatus(); render(); return }
+        const n = hitNP(x, y); if (n && n.id !== edgeFrom) { const ed = { id: gid(), from: edgeFrom, to: n.id, waypoints: edgeWpts.map(p => [...p]), weight: 1.0, bidirectional: true, wheelchair: true, crossFloor: false }; F().edges.push(ed); sel = { t: 'edge', id: ed.id }; edgeFrom = null; edgeWpts = []; updProps(); updStatus(); render(); return }
         edgeWpts.push([x, y]); render(); return;
       }
     });
@@ -786,7 +788,7 @@
       const hide = () => { pe.style.display = 'none'; pn.style.display = 'none'; ep.style.display = 'none'; sp.style.display = 'none' };
       if (!sel) { pe.style.display = ''; pn.style.display = 'none'; ep.style.display = 'none'; sp.style.display = 'none'; return }
       if (sel.t === 'node') { const n = fNode(sel.id); if (!n) return; hide(); pn.style.display = ''; document.getElementById('p-code').value = n.code; document.getElementById('p-name').value = n.name; document.getElementById('p-type').value = n.type; document.getElementById('p-lm').checked = n.landmark; document.getElementById('p-wc').checked = n.wheelchair }
-      else if (sel.t === 'edge') { const e = fEdge(sel.id); if (!e) return; hide(); ep.style.display = ''; document.getElementById('e-w').value = e.weight; document.getElementById('e-bi').checked = e.bidirectional; document.getElementById('e-wc').checked = e.wheelchair }
+      else if (sel.t === 'edge') { const e = fEdge(sel.id); if (!e) return; hide(); ep.style.display = ''; document.getElementById('e-w').value = e.weight; document.getElementById('e-bi').checked = e.bidirectional; document.getElementById('e-wc').checked = e.wheelchair; document.getElementById('e-cf').checked = e.crossFloor || false }
       else if (sel.t === 'seg') { const s = fSeg(sel.id); if (!s) return; hide(); sp.style.display = ''; document.getElementById('s-w').value = s.weight; document.getElementById('s-wc').checked = s.wheelchair !== false }
     }
     function setProp(k, v) { if (!sel || sel.t !== 'node') return; const n = fNode(sel.id); if (n) { n[k] = v; render() } }
@@ -867,7 +869,7 @@
       const pk = (x, y) => Math.round(x * 10) + ',' + Math.round(y * 10);
       const cni = new Map();
       const fOrMk = (x, y, wc) => { const k = pk(x, y); if (cni.has(k)) return cni.get(k); for (const n of f.nodes) if (Math.hypot(n.cx - x, n.cy - y) < 5) { cni.set(k, n.id); return n.id }; const n = mkPointNode(x, y, 'JCT_' + nextId, 'Junction', 'corridor', wc !== undefined ? wc : true); cni.set(k, n.id); nn++; return n.id };
-      const addE = (a, b, w, wc) => { if (a === b) return; if (f.edges.some(e => (e.from === a && e.to === b) || (e.from === b && e.to === a))) return; f.edges.push({ id: gid(), from: a, to: b, waypoints: [], weight: w, bidirectional: true, wheelchair: wc !== undefined ? wc : true }); ne++ };
+      const addE = (a, b, w, wc) => { if (a === b) return; if (f.edges.some(e => (e.from === a && e.to === b) || (e.from === b && e.to === a))) return; f.edges.push({ id: gid(), from: a, to: b, waypoints: [], weight: w, bidirectional: true, wheelchair: wc !== undefined ? wc : true, crossFloor: false }); ne++ };
       const segs = [...f.corridors.map(s => ({ ...s }))];
       for (const door of doors) {
         let best = null, bestD = Infinity, bestSeg = null; for (const s of segs) { const ft = footOnSeg(door.cx, door.cy, s.ax, s.ay, s.bx, s.by); if (ft.d < bestD) { bestD = ft.d; best = ft; bestSeg = s } } if (!best || bestD > 600) continue;
@@ -890,7 +892,7 @@
           return {
             meta: { building_name: f.meta.buildingName, building_code: f.meta.buildingCode, floor_number: f.meta.floorNumber, floor_name: f.meta.floorName, image_width_px: f.img ? f.img.width : 0, image_height_px: f.img ? f.img.height : 0, real_width_m: f.meta.realWidthM, real_height_m: f.meta.realHeightM },
             nodes: f.nodes.map(n => ({ node_code: n.code, node_name: n.name, node_type: n.type, polygon_coords: n.isPoly ? n.poly.map(p => p.join(',')).join(',') : '', center_x: Math.round(n.cx * 10) / 10, center_y: Math.round(n.cy * 10) / 10, access_x: Math.round(n.cx * 10) / 10, access_y: Math.round(n.cy * 10) / 10, is_landmark: n.landmark, is_accessible: true, wheelchair_accessible: n.wheelchair, is_active: true })),
-            edges: f.edges.map(e => { const fn = f.nodes.find(n => n.id === e.from), tn = f.nodes.find(n => n.id === e.to); const dx = ((tn?.cx || 0) - (fn?.cx || 0)) * sx, dy = ((tn?.cy || 0) - (fn?.cy || 0)) * sy; const dm = Math.round(Math.sqrt(dx * dx + dy * dy) * 100) / 100; return { from_code: fn?.code, to_code: tn?.code, polygon_coords: e.waypoints.length ? e.waypoints.map(p => Math.round(p[0] * 10) / 10 + ',' + Math.round(p[1] * 10) / 10).join(',') : null, distance_m: dm, weight: e.weight, is_bidirectional: e.bidirectional, is_cross_floor: false, wheelchair_accessible: e.wheelchair, is_active: true } }),
+            edges: f.edges.map(e => { const fn = f.nodes.find(n => n.id === e.from), tn = f.nodes.find(n => n.id === e.to); const dx = ((tn?.cx || 0) - (fn?.cx || 0)) * sx, dy = ((tn?.cy || 0) - (fn?.cy || 0)) * sy; const dm = Math.round(Math.sqrt(dx * dx + dy * dy) * 100) / 100; const crossTypes = ['elevator','escalator','stairs']; const autoCross = e.crossFloor || (fn && crossTypes.includes(fn.type)) || (tn && crossTypes.includes(tn.type)); return { from_code: fn?.code, to_code: tn?.code, polygon_coords: e.waypoints.length ? e.waypoints.map(p => Math.round(p[0] * 10) / 10 + ',' + Math.round(p[1] * 10) / 10).join(',') : null, distance_m: dm, weight: e.weight, is_bidirectional: e.bidirectional, is_cross_floor: !!autoCross, wheelchair_accessible: e.wheelchair, is_active: true } }),
             corridors: f.corridors.map(s => ({ ax: Math.round(s.ax), ay: Math.round(s.ay), bx: Math.round(s.bx), by: Math.round(s.by), weight: s.weight, wheelchair_accessible: s.wheelchair !== false }))
           }
         })
@@ -913,7 +915,7 @@
                 f.meta.realWidthM = fl.meta?.real_width_m || 50; f.meta.realHeightM = fl.meta?.real_height_m || 30;
                 const codeToId = {};
                 for (const n of (fl.nodes || [])) { let poly = null; if (n.polygon_coords && n.polygon_coords.length > 0) { const nums = n.polygon_coords.split(',').map(Number); poly = []; for (let i = 0; i < nums.length; i += 2)poly.push([nums[i], nums[i + 1]]) } const id = gid(); codeToId[n.node_code] = id; f.nodes.push({ id, code: n.node_code, name: n.node_name, type: n.node_type, isPoly: !!poly, poly, cx: n.center_x, cy: n.center_y, landmark: n.is_landmark || false, wheelchair: n.wheelchair_accessible !== false }) }
-                for (const e of (fl.edges || [])) { let wpts = []; if (e.polygon_coords) { const nums = e.polygon_coords.split(',').map(Number); for (let i = 0; i < nums.length; i += 2) wpts.push([nums[i], nums[i + 1]]) } else if (e.waypoints) { wpts = e.waypoints.map(p => [p.x, p.y]) } f.edges.push({ id: gid(), from: codeToId[e.from_code], to: codeToId[e.to_code], waypoints: wpts, weight: e.weight || 1, bidirectional: e.is_bidirectional !== false, wheelchair: e.wheelchair_accessible !== false }) }
+                for (const e of (fl.edges || [])) { let wpts = []; if (e.polygon_coords) { const nums = e.polygon_coords.split(',').map(Number); for (let i = 0; i < nums.length; i += 2) wpts.push([nums[i], nums[i + 1]]) } else if (e.waypoints) { wpts = e.waypoints.map(p => [p.x, p.y]) } f.edges.push({ id: gid(), from: codeToId[e.from_code], to: codeToId[e.to_code], waypoints: wpts, weight: e.weight || 1, bidirectional: e.is_bidirectional !== false, wheelchair: e.wheelchair_accessible !== false, crossFloor: e.is_cross_floor || false }) }
                 for (const s of (fl.corridors || [])) f.corridors.push({ id: gid(), ax: s.ax, ay: s.ay, bx: s.bx, by: s.by, weight: s.weight || 1, wheelchair: s.wheelchair_accessible !== false });
                 floors.push(f);
               }
