@@ -50,8 +50,7 @@ type nodeJSON struct {
 	PolygonCoords        string  `json:"polygon_coords"`
 	CenterX              float32 `json:"center_x"`
 	CenterY              float32 `json:"center_y"`
-	AccessX              float32 `json:"access_x"`
-	AccessY              float32 `json:"access_y"`
+	ParentRoomCode       string  `json:"parent_room_code"` // code cua phong cha (entrance -> room)
 	IsLandmark           bool    `json:"is_landmark"`
 	IsAccessible         bool    `json:"is_accessible"`
 	WheelchairAccessible bool    `json:"wheelchair_accessible"`
@@ -184,29 +183,38 @@ func SeedMap(jsonPath string) error {
 
 			// --- Tao nodes ---
 			codeToNodeID := map[string]uint32{}
+			parentLinks := map[uint32]string{} // nodeID -> parentRoomCode (giai quyet sau)
 
 			for _, n := range fl.Nodes {
-				accessX := n.AccessX
-				accessY := n.AccessY
 				node := schema.MapNode{
 					FloorID:              floor.FloorID,
 					NodeCode:             n.NodeCode,
 					NodeName:             n.NodeName,
 					NodeType:             schema.NodeType(n.NodeType),
 					PolygonCoords:        n.PolygonCoords,
-					CenterX:             n.CenterX,
-					CenterY:             n.CenterY,
-					AccessX:             &accessX,
-					AccessY:             &accessY,
-					IsLandmark:          n.IsLandmark,
-					IsAccessible:        n.IsAccessible,
+					CenterX:              n.CenterX,
+					CenterY:              n.CenterY,
+					IsLandmark:           n.IsLandmark,
+					IsAccessible:         n.IsAccessible,
 					WheelchairAccessible: n.WheelchairAccessible,
-					IsActive:            n.IsActive,
+					IsActive:             n.IsActive,
 				}
 				if err := DB.Create(&node).Error; err != nil {
 					return fmt.Errorf("loi tao node %s: %w", n.NodeCode, err)
 				}
 				codeToNodeID[n.NodeCode] = node.NodeID
+				// Ghi nhan parent link de cap nhat sau
+				if n.ParentRoomCode != "" {
+					parentLinks[node.NodeID] = n.ParentRoomCode
+				}
+			}
+			// Cap nhat parent_node_id cho cac door node
+			for nodeID, parentCode := range parentLinks {
+				if parentID, ok := codeToNodeID[parentCode]; ok {
+					DB.Model(&schema.MapNode{}).Where("node_id = ?", nodeID).Update("parent_node_id", parentID)
+				} else {
+					log.Printf("    CANH BAO: parent_room_code '%s' khong tim thay, bo qua", parentCode)
+				}
 			}
 			log.Printf("    Tao %d nodes cho floor %s", len(fl.Nodes), fl.Meta.FloorName)
 

@@ -23,30 +23,28 @@ func NewMapHandler(svc *service.MapService) *MapHandler {
 // ========================================
 
 type addNodeRequest struct {
-	FloorID              uint32   `json:"floor_id"`
-	WardID               *uint32  `json:"ward_id"`
-	NodeCode             string   `json:"node_code"`
-	NodeName             string   `json:"node_name"`
-	NodeType             string   `json:"node_type"`
-	PolygonCoords        string   `json:"polygon_coords"`
-	CenterX              float32  `json:"center_x"`
-	CenterY              float32  `json:"center_y"`
-	AccessX              *float32 `json:"access_x"`
-	AccessY              *float32 `json:"access_y"`
-	IsLandmark           bool     `json:"is_landmark"`
-	WheelchairAccessible bool     `json:"wheelchair_accessible"`
+	FloorID              uint32  `json:"floor_id"`
+	WardID               *uint32 `json:"ward_id"`
+	ParentNodeID         *uint32 `json:"parent_node_id"`
+	NodeCode             string  `json:"node_code"`
+	NodeName             string  `json:"node_name"`
+	NodeType             string  `json:"node_type"`
+	PolygonCoords        string  `json:"polygon_coords"`
+	CenterX              float32 `json:"center_x"`
+	CenterY              float32 `json:"center_y"`
+	IsLandmark           bool    `json:"is_landmark"`
+	WheelchairAccessible bool    `json:"wheelchair_accessible"`
 }
 
 type editNodeRequest struct {
 	NodeID               uint32   `json:"node_id"`
+	ParentNodeID         *uint32  `json:"parent_node_id"`
 	NodeCode             *string  `json:"node_code"`
 	NodeName             *string  `json:"node_name"`
 	NodeType             *string  `json:"node_type"`
 	PolygonCoords        *string  `json:"polygon_coords"`
 	CenterX              *float32 `json:"center_x"`
 	CenterY              *float32 `json:"center_y"`
-	AccessX              *float32 `json:"access_x"`
-	AccessY              *float32 `json:"access_y"`
 	IsLandmark           *bool    `json:"is_landmark"`
 	WheelchairAccessible *bool    `json:"wheelchair_accessible"`
 	IsAccessible         *bool    `json:"is_accessible"`
@@ -213,14 +211,13 @@ func (h *MapHandler) AddNode(c *gin.Context) {
 	input := service.AddNodeInput{
 		FloorID:              req.FloorID,
 		WardID:               req.WardID,
+		ParentNodeID:         req.ParentNodeID,
 		NodeCode:             req.NodeCode,
 		NodeName:             req.NodeName,
 		NodeType:             req.NodeType,
 		PolygonCoords:        req.PolygonCoords,
 		CenterX:              req.CenterX,
 		CenterY:              req.CenterY,
-		AccessX:              req.AccessX,
-		AccessY:              req.AccessY,
 		IsLandmark:           req.IsLandmark,
 		WheelchairAccessible: req.WheelchairAccessible,
 	}
@@ -248,14 +245,13 @@ func (h *MapHandler) EditNode(c *gin.Context) {
 
 	input := service.EditNodeInput{
 		NodeID:               req.NodeID,
+		ParentNodeID:         req.ParentNodeID,
 		NodeCode:             req.NodeCode,
 		NodeName:             req.NodeName,
 		NodeType:             req.NodeType,
 		PolygonCoords:        req.PolygonCoords,
 		CenterX:              req.CenterX,
 		CenterY:              req.CenterY,
-		AccessX:              req.AccessX,
-		AccessY:              req.AccessY,
 		IsLandmark:           req.IsLandmark,
 		WheelchairAccessible: req.WheelchairAccessible,
 		IsAccessible:         req.IsAccessible,

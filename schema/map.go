@@ -59,7 +59,15 @@ func (Floor) TableName() string { return "floors" }
 // Moi node mo ta bang polygon toa do pixel (ho tro moi hinh da giac).
 // - polygon_coords: "x1,y1,x2,y2,x3,y3,..." (cac dinh polygon)
 // - center_x/y: tam hinh hoc, dung de hien thi nhan va render ban do
-// - access_x/y: toa do cua ra vao, dung de tinh distance_m cua edge
+//
+// Phan loai node:
+// - Node co polygon (isPoly=true): phong, khu vuc... => center la tam polygon
+// - Node khong co polygon (isPoly=false): cua, junction, thang may...
+//   => la access node (diem truy cap), dung de tinh khoang cach edge
+//
+// parent_node_id: Lien ket cua ra vao (entrance) voi phong cha.
+//   VD: Cua P101 (entrance) -> Phong 101 (room).
+//   Junction va corridor khong can parent.
 // ========================================
 
 type NodeType string
@@ -81,23 +89,23 @@ const (
 type MapNode struct {
 	NodeID               uint32   `gorm:"primaryKey;autoIncrement;column:node_id"`
 	FloorID              uint32   `gorm:"not null;index;column:floor_id"`
-	WardID               *uint32  `gorm:"column:ward_id"` // NULL = khong thuoc khoa nao
+	WardID               *uint32  `gorm:"column:ward_id"`        // NULL = khong thuoc khoa nao
+	ParentNodeID         *uint32  `gorm:"column:parent_node_id"` // Cua -> Phong cha (NULL = khong co)
 	NodeCode             string   `gorm:"uniqueIndex;not null;size:30;column:node_code"`  // VD: P04, N_ELV1
 	NodeName             string   `gorm:"not null;size:200;column:node_name"`             // FULLTEXT khi dung PostgreSQL
 	NodeType             NodeType `gorm:"not null;column:node_type"`
-	PolygonCoords        string   `gorm:"not null;type:text;column:polygon_coords"` // "x1,y1,x2,y2,..."
-	CenterX              float32  `gorm:"not null;default:0;column:center_x"` // Tam polygon, dung render nhan
+	PolygonCoords        string   `gorm:"not null;type:text;column:polygon_coords"` // "x1,y1,x2,y2,..." (rong = access node)
+	CenterX              float32  `gorm:"not null;default:0;column:center_x"` // Tam polygon hoac toa do access
 	CenterY              float32  `gorm:"not null;default:0;column:center_y"`
-	AccessX              *float32 `gorm:"column:access_x"` // Toa do cua ra vao, dung tinh distance_m
-	AccessY              *float32 `gorm:"column:access_y"`
 	IsLandmark           bool     `gorm:"not null;default:false;column:is_landmark"`           // Diem moc noi bat
 	IsAccessible         bool     `gorm:"not null;default:true;column:is_accessible"`          // Co the di qua
 	WheelchairAccessible bool     `gorm:"not null;default:false;column:wheelchair_accessible"` // Ho tro xe lan
 	IsActive             bool     `gorm:"not null;default:true;column:is_active"`
 
 	// Belongs-to
-	Floor *Floor `gorm:"foreignKey:FloorID"`
-	Ward  *Ward  `gorm:"foreignKey:WardID"`
+	Floor      *Floor   `gorm:"foreignKey:FloorID"`
+	Ward       *Ward    `gorm:"foreignKey:WardID"`
+	ParentNode *MapNode `gorm:"foreignKey:ParentNodeID"` // Self-reference: cua -> phong
 }
 
 func (MapNode) TableName() string { return "map_nodes" }
@@ -107,11 +115,10 @@ func (MapNode) TableName() string { return "map_nodes" }
 // Hanh lang / doan duong noi 2 node.
 // Co the cung tang (is_cross_floor=false) hoac lien tang (thang may/cau thang).
 //
-// distance_m duoc tinh tu toa do cua ra vao (access_x/y) cua 2 node:
-//   dx = (access_x_to - access_x_from) × (real_width_m  / image_width_px)
-//   dy = (access_y_to - access_y_from) × (real_height_m / image_height_px)
+// distance_m duoc tinh tu toa do center_x/y cua 2 node:
+//   dx = (center_x_to - center_x_from) × (real_width_m  / image_width_px)
+//   dy = (center_y_to - center_y_from) × (real_height_m / image_height_px)
 //   distance_m = sqrt(dx² + dy²)
-// Neu node khong co access_x/y → fallback dung center_x/y.
 // Gia tri nay duoc tinh khi admin them edge va luu vao DB.
 //
 // weight: trong so Dijkstra. Admin co the tang weight de "huong" nguoi

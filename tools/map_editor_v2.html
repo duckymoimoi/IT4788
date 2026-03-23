@@ -458,6 +458,7 @@
                 onchange="setProp('landmark',this.checked)"> Điểm mốc nổi bật</label></div>
           <div class="pr"><label class="pchk"><input type="checkbox" id="p-wc"
                 onchange="setProp('wheelchair',this.checked)"> Hỗ trợ xe lăn</label></div>
+          <div class="pr"><label>Phòng cha (code)</label><input id="p-parent" placeholder="VD: R101 (trống = không có)" oninput="setProp('parentCode',this.value)"></div>
           <div class="pr" style="margin-top:10px"><button class="btn btn-r" style="width:100%"
               onclick="delSel()">Xóa</button></div>
         </div>
@@ -694,8 +695,8 @@
 
     // ============ NODE HELPERS ============
     const centroid = p => [p.reduce((a, v) => a + v[0], 0) / p.length, p.reduce((a, v) => a + v[1], 0) / p.length];
-    function mkPolyNode(poly, code, name, type) { const [cx, cy] = centroid(poly); const n = { id: gid(), code, name, type, isPoly: true, poly: poly.map(p => [...p]), cx, cy, landmark: false, wheelchair: true }; F().nodes.push(n); return n }
-    function mkPointNode(x, y, code, name, type, wheelchair) { const n = { id: gid(), code, name, type, isPoly: false, poly: null, cx: x, cy: y, landmark: false, wheelchair: wheelchair !== undefined ? wheelchair : true }; F().nodes.push(n); return n }
+    function mkPolyNode(poly, code, name, type) { const [cx, cy] = centroid(poly); const n = { id: gid(), code, name, type, isPoly: true, poly: poly.map(p => [...p]), cx, cy, landmark: false, wheelchair: true, parentCode: '' }; F().nodes.push(n); return n }
+    function mkPointNode(x, y, code, name, type, wheelchair) { const n = { id: gid(), code, name, type, isPoly: false, poly: null, cx: x, cy: y, landmark: false, wheelchair: wheelchair !== undefined ? wheelchair : true, parentCode: '' }; F().nodes.push(n); return n }
     const fNode = id => F().nodes.find(n => n.id === id);
     const fEdge = id => F().edges.find(e => e.id === id);
     const fSeg = id => F().corridors.find(s => s.id === id);
@@ -738,7 +739,7 @@
         const roomCode = placeDoorNode.code;
         const roomName = placeDoorNode.name;
         openNodeModal('Đặt cửa cho ' + roomName, 'D_' + roomCode + '_' + nextId, 'Cửa ' + roomName, 'entrance', ({ code, name, type }) => {
-          mkPointNode(px, py, code, name, type); render(); updStatus();
+          const dn = mkPointNode(px, py, code, name, type); dn.parentCode = roomCode; render(); updStatus();
         });
         return;
       }
@@ -787,7 +788,7 @@
       const pe = document.getElementById('pp-empty'), pn = document.getElementById('pp-node'), ep = document.getElementById('pp-edge'), sp = document.getElementById('pp-seg');
       const hide = () => { pe.style.display = 'none'; pn.style.display = 'none'; ep.style.display = 'none'; sp.style.display = 'none' };
       if (!sel) { pe.style.display = ''; pn.style.display = 'none'; ep.style.display = 'none'; sp.style.display = 'none'; return }
-      if (sel.t === 'node') { const n = fNode(sel.id); if (!n) return; hide(); pn.style.display = ''; document.getElementById('p-code').value = n.code; document.getElementById('p-name').value = n.name; document.getElementById('p-type').value = n.type; document.getElementById('p-lm').checked = n.landmark; document.getElementById('p-wc').checked = n.wheelchair }
+      if (sel.t === 'node') { const n = fNode(sel.id); if (!n) return; hide(); pn.style.display = ''; document.getElementById('p-code').value = n.code; document.getElementById('p-name').value = n.name; document.getElementById('p-type').value = n.type; document.getElementById('p-lm').checked = n.landmark; document.getElementById('p-wc').checked = n.wheelchair; document.getElementById('p-parent').value = n.parentCode || '' }
       else if (sel.t === 'edge') { const e = fEdge(sel.id); if (!e) return; hide(); ep.style.display = ''; document.getElementById('e-w').value = e.weight; document.getElementById('e-bi').checked = e.bidirectional; document.getElementById('e-wc').checked = e.wheelchair; document.getElementById('e-cf').checked = e.crossFloor || false }
       else if (sel.t === 'seg') { const s = fSeg(sel.id); if (!s) return; hide(); sp.style.display = ''; document.getElementById('s-w').value = s.weight; document.getElementById('s-wc').checked = s.wheelchair !== false }
     }
@@ -891,7 +892,7 @@
           const sx = f.meta.realWidthM / (f.img ? f.img.width : 1), sy = f.meta.realHeightM / (f.img ? f.img.height : 1);
           return {
             meta: { building_name: f.meta.buildingName, building_code: f.meta.buildingCode, floor_number: f.meta.floorNumber, floor_name: f.meta.floorName, image_width_px: f.img ? f.img.width : 0, image_height_px: f.img ? f.img.height : 0, real_width_m: f.meta.realWidthM, real_height_m: f.meta.realHeightM },
-            nodes: f.nodes.map(n => ({ node_code: n.code, node_name: n.name, node_type: n.type, polygon_coords: n.isPoly ? n.poly.map(p => p.join(',')).join(',') : '', center_x: Math.round(n.cx * 10) / 10, center_y: Math.round(n.cy * 10) / 10, access_x: Math.round(n.cx * 10) / 10, access_y: Math.round(n.cy * 10) / 10, is_landmark: n.landmark, is_accessible: true, wheelchair_accessible: n.wheelchair, is_active: true })),
+            nodes: f.nodes.map(n => ({ node_code: n.code, node_name: n.name, node_type: n.type, polygon_coords: n.isPoly ? n.poly.map(p => p.join(',')).join(',') : '', center_x: Math.round(n.cx * 10) / 10, center_y: Math.round(n.cy * 10) / 10, parent_room_code: n.parentCode || '', is_landmark: n.landmark, is_accessible: true, wheelchair_accessible: n.wheelchair, is_active: true })),
             edges: f.edges.map(e => { const fn = f.nodes.find(n => n.id === e.from), tn = f.nodes.find(n => n.id === e.to); const dx = ((tn?.cx || 0) - (fn?.cx || 0)) * sx, dy = ((tn?.cy || 0) - (fn?.cy || 0)) * sy; const dm = Math.round(Math.sqrt(dx * dx + dy * dy) * 100) / 100; const crossTypes = ['elevator','escalator','stairs']; const autoCross = e.crossFloor || (fn && crossTypes.includes(fn.type)) || (tn && crossTypes.includes(tn.type)); return { from_code: fn?.code, to_code: tn?.code, polygon_coords: e.waypoints.length ? e.waypoints.map(p => Math.round(p[0] * 10) / 10 + ',' + Math.round(p[1] * 10) / 10).join(',') : null, distance_m: dm, weight: e.weight, is_bidirectional: e.bidirectional, is_cross_floor: !!autoCross, wheelchair_accessible: e.wheelchair, is_active: true } }),
             corridors: f.corridors.map(s => ({ ax: Math.round(s.ax), ay: Math.round(s.ay), bx: Math.round(s.bx), by: Math.round(s.by), weight: s.weight, wheelchair_accessible: s.wheelchair !== false }))
           }
@@ -914,7 +915,7 @@
                 f.meta.floorNumber = fl.meta?.floor_number || 1; f.meta.floorName = fl.meta?.floor_name || 'Tầng 1';
                 f.meta.realWidthM = fl.meta?.real_width_m || 50; f.meta.realHeightM = fl.meta?.real_height_m || 30;
                 const codeToId = {};
-                for (const n of (fl.nodes || [])) { let poly = null; if (n.polygon_coords && n.polygon_coords.length > 0) { const nums = n.polygon_coords.split(',').map(Number); poly = []; for (let i = 0; i < nums.length; i += 2)poly.push([nums[i], nums[i + 1]]) } const id = gid(); codeToId[n.node_code] = id; f.nodes.push({ id, code: n.node_code, name: n.node_name, type: n.node_type, isPoly: !!poly, poly, cx: n.center_x, cy: n.center_y, landmark: n.is_landmark || false, wheelchair: n.wheelchair_accessible !== false }) }
+                for (const n of (fl.nodes || [])) { let poly = null; if (n.polygon_coords && n.polygon_coords.length > 0) { const nums = n.polygon_coords.split(',').map(Number); poly = []; for (let i = 0; i < nums.length; i += 2)poly.push([nums[i], nums[i + 1]]) } const id = gid(); codeToId[n.node_code] = id; f.nodes.push({ id, code: n.node_code, name: n.node_name, type: n.node_type, isPoly: !!poly, poly, cx: n.center_x, cy: n.center_y, landmark: n.is_landmark || false, wheelchair: n.wheelchair_accessible !== false, parentCode: n.parent_room_code || '' }) }
                 for (const e of (fl.edges || [])) { let wpts = []; if (e.polygon_coords) { const nums = e.polygon_coords.split(',').map(Number); for (let i = 0; i < nums.length; i += 2) wpts.push([nums[i], nums[i + 1]]) } else if (e.waypoints) { wpts = e.waypoints.map(p => [p.x, p.y]) } f.edges.push({ id: gid(), from: codeToId[e.from_code], to: codeToId[e.to_code], waypoints: wpts, weight: e.weight || 1, bidirectional: e.is_bidirectional !== false, wheelchair: e.wheelchair_accessible !== false, crossFloor: e.is_cross_floor || false }) }
                 for (const s of (fl.corridors || [])) f.corridors.push({ id: gid(), ax: s.ax, ay: s.ay, bx: s.bx, by: s.by, weight: s.weight || 1, wheelchair: s.wheelchair_accessible !== false });
                 floors.push(f);

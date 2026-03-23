@@ -58,19 +58,18 @@ type FloorMetaResult struct {
 
 // NodeItem la output cho moi node.
 type NodeItem struct {
-	NodeID               uint32   `json:"node_id"`
-	FloorID              uint32   `json:"floor_id"`
-	NodeCode             string   `json:"node_code"`
-	NodeName             string   `json:"node_name"`
-	NodeType             string   `json:"node_type"`
-	PolygonCoords        string   `json:"polygon_coords"`
-	CenterX              float32  `json:"center_x"`
-	CenterY              float32  `json:"center_y"`
-	AccessX              *float32 `json:"access_x"`
-	AccessY              *float32 `json:"access_y"`
-	IsLandmark           bool     `json:"is_landmark"`
-	IsAccessible         bool     `json:"is_accessible"`
-	WheelchairAccessible bool     `json:"wheelchair_accessible"`
+	NodeID               uint32  `json:"node_id"`
+	FloorID              uint32  `json:"floor_id"`
+	ParentNodeID         *uint32 `json:"parent_node_id"`
+	NodeCode             string  `json:"node_code"`
+	NodeName             string  `json:"node_name"`
+	NodeType             string  `json:"node_type"`
+	PolygonCoords        string  `json:"polygon_coords"`
+	CenterX              float32 `json:"center_x"`
+	CenterY              float32 `json:"center_y"`
+	IsLandmark           bool    `json:"is_landmark"`
+	IsAccessible         bool    `json:"is_accessible"`
+	WheelchairAccessible bool    `json:"wheelchair_accessible"`
 }
 
 // EdgeItem la output cho moi edge.
@@ -101,31 +100,29 @@ type SyncFullResult struct {
 
 // AddNodeInput la input cho admin add_node.
 type AddNodeInput struct {
-	FloorID              uint32   `json:"floor_id"`
-	WardID               *uint32  `json:"ward_id"`
-	NodeCode             string   `json:"node_code"`
-	NodeName             string   `json:"node_name"`
-	NodeType             string   `json:"node_type"`
-	PolygonCoords        string   `json:"polygon_coords"`
-	CenterX              float32  `json:"center_x"`
-	CenterY              float32  `json:"center_y"`
-	AccessX              *float32 `json:"access_x"`
-	AccessY              *float32 `json:"access_y"`
-	IsLandmark           bool     `json:"is_landmark"`
-	WheelchairAccessible bool     `json:"wheelchair_accessible"`
+	FloorID              uint32  `json:"floor_id"`
+	WardID               *uint32 `json:"ward_id"`
+	ParentNodeID         *uint32 `json:"parent_node_id"`
+	NodeCode             string  `json:"node_code"`
+	NodeName             string  `json:"node_name"`
+	NodeType             string  `json:"node_type"`
+	PolygonCoords        string  `json:"polygon_coords"`
+	CenterX              float32 `json:"center_x"`
+	CenterY              float32 `json:"center_y"`
+	IsLandmark           bool    `json:"is_landmark"`
+	WheelchairAccessible bool    `json:"wheelchair_accessible"`
 }
 
 // EditNodeInput la input cho admin edit_node.
 type EditNodeInput struct {
 	NodeID               uint32   `json:"node_id"`
+	ParentNodeID         *uint32  `json:"parent_node_id"`
 	NodeCode             *string  `json:"node_code"`
 	NodeName             *string  `json:"node_name"`
 	NodeType             *string  `json:"node_type"`
 	PolygonCoords        *string  `json:"polygon_coords"`
 	CenterX              *float32 `json:"center_x"`
 	CenterY              *float32 `json:"center_y"`
-	AccessX              *float32 `json:"access_x"`
-	AccessY              *float32 `json:"access_y"`
 	IsLandmark           *bool    `json:"is_landmark"`
 	WheelchairAccessible *bool    `json:"wheelchair_accessible"`
 	IsAccessible         *bool    `json:"is_accessible"`
@@ -158,14 +155,13 @@ func nodeToItem(n schema.MapNode) NodeItem {
 	return NodeItem{
 		NodeID:               n.NodeID,
 		FloorID:              n.FloorID,
+		ParentNodeID:         n.ParentNodeID,
 		NodeCode:             n.NodeCode,
 		NodeName:             n.NodeName,
 		NodeType:             string(n.NodeType),
 		PolygonCoords:        n.PolygonCoords,
 		CenterX:              n.CenterX,
 		CenterY:              n.CenterY,
-		AccessX:              n.AccessX,
-		AccessY:              n.AccessY,
 		IsLandmark:           n.IsLandmark,
 		IsAccessible:         n.IsAccessible,
 		WheelchairAccessible: n.WheelchairAccessible,
@@ -381,14 +377,13 @@ func (s *MapService) AddNode(input AddNodeInput) (*NodeItem, error) {
 	node := &schema.MapNode{
 		FloorID:              input.FloorID,
 		WardID:               input.WardID,
+		ParentNodeID:         input.ParentNodeID,
 		NodeCode:             code,
 		NodeName:             name,
 		NodeType:             schema.NodeType(input.NodeType),
 		PolygonCoords:        input.PolygonCoords,
 		CenterX:              input.CenterX,
 		CenterY:              input.CenterY,
-		AccessX:              input.AccessX,
-		AccessY:              input.AccessY,
 		IsLandmark:           input.IsLandmark,
 		IsAccessible:         true,
 		WheelchairAccessible: input.WheelchairAccessible,
@@ -448,11 +443,8 @@ func (s *MapService) EditNode(input EditNodeInput) (*NodeItem, error) {
 	if input.CenterY != nil {
 		updates["center_y"] = *input.CenterY
 	}
-	if input.AccessX != nil {
-		updates["access_x"] = *input.AccessX
-	}
-	if input.AccessY != nil {
-		updates["access_y"] = *input.AccessY
+	if input.ParentNodeID != nil {
+		updates["parent_node_id"] = *input.ParentNodeID
 	}
 	if input.IsLandmark != nil {
 		updates["is_landmark"] = *input.IsLandmark
@@ -529,27 +521,13 @@ func (s *MapService) AddEdge(input AddEdgeInput) (*EdgeItem, error) {
 	if input.DistanceM != nil && *input.DistanceM > 0 {
 		distM = *input.DistanceM
 	} else {
-		// Tinh tu access_x/y cua 2 node
+		// Tinh tu center_x/y cua 2 node
 		floor, _ := s.repo.FindFloorByID(input.FloorID)
 		if floor != nil && floor.ImageWidthPx > 0 && floor.ImageHeightPx > 0 {
 			sx := floor.RealWidthM / float32(floor.ImageWidthPx)
 			sy := floor.RealHeightM / float32(floor.ImageHeightPx)
-			fx, fy := fromNode.CenterX, fromNode.CenterY
-			tx, ty := toNode.CenterX, toNode.CenterY
-			if fromNode.AccessX != nil {
-				fx = *fromNode.AccessX
-			}
-			if fromNode.AccessY != nil {
-				fy = *fromNode.AccessY
-			}
-			if toNode.AccessX != nil {
-				tx = *toNode.AccessX
-			}
-			if toNode.AccessY != nil {
-				ty = *toNode.AccessY
-			}
-			dx := float64((tx - fx) * sx)
-			dy := float64((ty - fy) * sy)
+			dx := float64((toNode.CenterX - fromNode.CenterX) * sx)
+			dy := float64((toNode.CenterY - fromNode.CenterY) * sy)
 			distM = float32(math.Sqrt(dx*dx + dy*dy))
 		}
 	}
