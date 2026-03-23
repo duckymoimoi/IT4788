@@ -1,0 +1,264 @@
+================================================================================
+QUY TRÌNH GIT — COMMIT, PUSH, MERGE THỐNG NHẤT
+Hospital Navigation & Coordination System
+================================================================================
+
+
+I. CẤU TRÚC NHÁNH (BRANCHING)
+================================================================================
+
+  main          ← Chỉ chứa code đã test, deploy được
+    └── develop ← Nhánh tích hợp, merge từ feature vào đây
+          ├── feature/route       (Người A)
+          ├── feature/flow        (Người B)
+          ├── feature/medical     (Người C)
+          ├── feature/device-util (Người D)
+          └── feature/support     (Người E)
+
+  Quy tắc:
+    - KHÔNG push trực tiếp vào main hoặc develop
+    - Mọi thay đổi đều qua Pull Request (PR)
+    - Chỉ leader (Người A) merge PR vào develop
+    - Merge develop → main khi milestone xong (ví dụ: xong tất cả 12 slice)
+
+
+II. QUY ƯỚC ĐẶT TÊN COMMIT
+================================================================================
+
+  Định dạng:
+    <type>(<scope>): <mô tả ngắn>
+
+  Type (bắt buộc):
+    feat     — Thêm tính năng mới (API, service, handler)
+    fix      — Sửa lỗi
+    schema   — Thay đổi cấu trúc database (schema, migration)
+    seed     — Thêm/sửa dữ liệu seed
+    test     — Thêm/sửa test
+    refactor — Tái cấu trúc code, không thay đổi logic
+    docs     — Cập nhật tài liệu
+    chore    — Việc phụ (config, .gitignore, dependency)
+
+  Scope (tùy chọn, theo module):
+    route, flow, medical, device, util, support, notif,
+    chat, auth, user, engine, map, schema, seed
+
+  Ví dụ:
+    schema(route): tao bang travel_modes, routes, route_paths
+    feat(route): them API route_ordered va preview_path
+    feat(route): them API get_steps va get_eta
+    seed(route): them du lieu travel_modes (4 records)
+    fix(route): sua tinh khoang cach dijkstra sai don vi
+    test(route): them integration test 14 route API
+    schema(flow): tao 5 bang edge_traffic, user_pings, obstacle...
+    feat(flow): them API ping_location va get_density
+    refactor(auth): tach ResendOTP thanh function rieng
+    docs: cap nhat implementation_slices.txt
+
+
+III. QUY TRÌNH LÀM VIỆC (MỖI LẦN NGỒI CODE)
+================================================================================
+
+  Nhóm làm việc theo lịch tự do, không cố định hàng ngày.
+  Mỗi lần bắt đầu ngồi code, bắt buộc thực hiện đúng thứ tự sau.
+
+  ┌─────────────────────────────────────────────────────┐
+  │ TRƯỚC KHI BẮT ĐẦU — Bắt buộc mỗi lần ngồi code   │
+  │                                                     │
+  │  1. git checkout feature/xxx                        │
+  │  2. git pull origin develop                         │
+  │  3. git merge develop    ← đồng bộ dù bỏ lâu bao   │
+  │                            nhiêu                   │
+  │  4. go build ./...       ← kiểm tra không bị vỡ    │
+  │  5. Bắt đầu code                                    │
+  └─────────────────────────────────────────────────────┘
+
+  ⚠ Dù bỏ code 1 ngày hay 1 tuần, bước này vẫn bắt buộc.
+    Bỏ qua sẽ gây conflict lớn khi merge.
+
+  ┌─────────────────────────────────────────────────────┐
+  │ COMMIT — Mỗi khi xong 1 phần có ý nghĩa            │
+  │                                                     │
+  │  Nguyên tắc: 1 commit = 1 việc rõ ràng             │
+  │                                                     │
+  │  ĐÚNG:                                              │
+  │    git add schema/route.go                          │
+  │    git commit -m "schema(route): tao bang routes"   │
+  │                                                     │
+  │    git add service/route_service.go                 │
+  │    git commit -m "feat(route): them RouteOrdered"   │
+  │                                                     │
+  │  SAI (gộp quá nhiều thứ):                           │
+  │    git add .                                        │
+  │    git commit -m "xong route"                       │
+  └─────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────┐
+  │ TRƯỚC KHI PUSH — Bắt buộc                          │
+  │                                                     │
+  │  1. go build ./...       ← chắc chắn build pass    │
+  │  2. Chạy test module của mình                       │
+  │  3. git push origin feature/xxx                     │
+  └─────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────┐
+  │ KHI PR BỊ YÊU CẦU SỬA                             │
+  │                                                     │
+  │  1. Sửa trên cùng nhánh feature/xxx                │
+  │  2. Commit bình thường, push lên                    │
+  │  3. PR tự cập nhật — KHÔNG tạo PR mới              │
+  │  4. Comment vào PR: "Đã sửa, nhờ review lại"       │
+  └─────────────────────────────────────────────────────┘
+
+
+IV. QUY TRÌNH TẠO PULL REQUEST (PR)
+================================================================================
+
+  Khi nào tạo PR:
+    - Xong 1 slice hoàn chỉnh (schema + seed + repo + service + handler + test)
+    - KHÔNG tạo PR khi code chưa build được
+    - KHÔNG tạo PR khi test chưa pass
+
+  Tiêu đề PR:
+    [Module] Mô tả ngắn — Slice N
+
+  Ví dụ:
+    [Route] Thêm Dijkstra + Travel Modes — Slice 2
+    [Route] Thêm 4 API cốt lõi (ordered, preview, steps, eta) — Slice 3
+    [Flow] Thêm 11 API quản lý mật độ — Slice 5
+
+  Nội dung PR (template):
+    ────────────────────────────────────────
+    ## Thay đổi
+    - Mô tả ngắn những gì đã làm
+
+    ## Files mới
+    - Liệt kê file tạo mới
+
+    ## Files sửa
+    - Liệt kê file đã sửa (nếu có)
+
+    ## Schema mới
+    - Liệt kê bảng DB mới (nếu có)
+
+    ## API mới
+    | Method | Endpoint | Mô tả |
+    |--------|----------|-------|
+    | POST   | /api/route/ordered | Tạo lộ trình |
+
+    ## Đã test
+    - [ ] go build ./... pass
+    - [ ] Test API pass (ghi số lượng: X pass / Y fail)
+
+    ## Ghi chú
+    - Cần leader thêm vào AutoMigrate: &schema.Route{}
+    - Cần leader gọi RegisterRouteRoutes() trong routes.go
+    ────────────────────────────────────────
+
+
+V. QUY TRÌNH MERGE (CHỈ LEADER)
+================================================================================
+
+  1. Review PR:
+     □ Đọc code, kiểm tra convention
+     □ Kiểm tra không sửa file của người khác
+
+  2. Merge PR:
+     git checkout develop
+     git pull origin develop
+     git merge --no-ff feature/xxx
+         ↑ dùng --no-ff để giữ lịch sử nhánh
+
+  3. Cập nhật file chung:
+     □ database/database.go → thêm bảng mới vào AutoMigrate()
+     □ handler/routes.go    → gọi RegisterXxxRoutes()
+     □ go build ./...       → kiểm tra build
+     □ Chạy test tổng
+
+  4. Push develop:
+     git push origin develop
+
+  5. Thông báo team:
+     "Đã merge [Module] vào develop. Mọi người pull develop về."
+
+
+VI. THỨ TỰ COMMIT GỢI Ý CHO MỖI SLICE
+================================================================================
+
+  Ví dụ Slice 3 — Route Core (Người A):
+
+  Commit 1: schema(route): them bang routes va route_paths
+    Files: schema/route.go
+
+  Commit 2: seed(route): them AutoMigrate routes, route_paths
+    Files: database/database.go
+
+  Commit 3: feat(route): them route_repo CRUD routes va paths
+    Files: repository/route_repo.go
+
+  Commit 4: feat(route): them service PreviewPath va RouteOrdered
+    Files: service/route_service.go
+
+  Commit 5: feat(route): them service GetSteps va GetETA
+    Files: service/route_service.go
+
+  Commit 6: feat(route): them handler 4 API route core
+    Files: handler/route_handler.go
+
+  Commit 7: feat(route): dang ky 4 endpoint route core
+    Files: handler/routes_route.go
+
+  Commit 8: test(route): them test 4 API route core
+    Files: cmd/test_route/main.go
+
+  → Tạo PR: [Route] Thêm 4 API cốt lõi — Slice 3
+
+
+VII. XỬ LÝ MERGE CONFLICT
+================================================================================
+
+  Trường hợp 1: Conflict ở database/database.go
+    → Leader tự xử lý khi merge, thêm dòng AutoMigrate
+
+  Trường hợp 2: Conflict ở handler/routes.go
+    → Leader tự xử lý, thêm dòng RegisterXxxRoutes()
+
+  Trường hợp 3: Conflict ở file của người khác
+    → KHÔNG NÊN XẢY RA nếu tuân thủ quy tắc "chỉ sửa file mình sở hữu"
+    → Nếu xảy ra: liên hệ người sở hữu file, cùng resolve
+
+  Trường hợp 4: Cần dùng function/struct từ module khác
+    → Import package bình thường (Go package system tự xử lý)
+    → KHÔNG copy code, chỉ import
+
+
+VIII. .GITIGNORE BỔ SUNG
+================================================================================
+
+  Thêm vào .gitignore nếu chưa có:
+
+    # Database
+    *.db
+    *.sqlite
+
+    # IDE
+    .idea/
+    .vscode/
+    *.swp
+    *.swo
+
+    # OS
+    .DS_Store
+    Thumbs.db
+
+    # Build
+    /tmp/
+    *.exe
+    *.exe~
+
+    # Test
+    /cmd/test_*/output/
+
+
+================================================================================
+KẾT THÚC TÀI LIỆU
+================================================================================

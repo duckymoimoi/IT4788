@@ -14,30 +14,30 @@ QUY TRÌNH CHUNG MỖI SLICE
   Bước 6: Handler   — Tạo handler/xxx_handler.go (nhận request, trả response)
   Bước 7: Routes    — Đăng ký endpoint trong handler/routes.go
   Bước 8: Test      — Viết test và chạy kiểm tra
-  Bước 9: ✅ Checkpoint — Build + test pass → tiến sang slice tiếp
+  Bước 9:   Checkpoint — Build + test pass → tiến sang slice tiếp
 
 Nếu slice không cần schema mới → bỏ qua bước 1-3.
 Nếu repo/service đã có → chỉ bổ sung method mới.
 
 
 ================================================================================
-SLICE 1 — Auth bổ sung (5 API, ~45 phút)
+SLICE 1 — Auth bổ sung (5 API)
 ================================================================================
 
 Mô tả: Bổ sung các API xác thực còn thiếu. Không cần bảng mới.
 
 ĐÃ CÓ:
   Schema:
-    - users (T01)                     → schema/user.go ✅
-    - otp_codes (T02)                 → schema/user.go ✅
-    - fcm_tokens (T04)                → schema/user.go ✅
-    - app_versions (T07)              → schema/app_version.go ✅
+    - users (T01)                     → schema/user.go 
+    - otp_codes (T02)                 → schema/user.go  
+    - fcm_tokens (T04)                → schema/user.go  
+    - app_versions (T07)              → schema/app_version.go  
   Repository:
-    - repository/user_repo.go         → CRUD users, otp_codes ✅
+    - repository/user_repo.go         → CRUD users, otp_codes  
   Service:
-    - service/auth_service.go         → Login, Signup, VerifyOTP ✅
+    - service/auth_service.go         → Login, Signup, VerifyOTP  
   Handler:
-    - handler/auth_handler.go         → 3 endpoint hiện tại ✅
+    - handler/auth_handler.go         → 3 endpoint hiện tại  
 
 CẦN BỔ SUNG:
   Repository (bổ sung method):
@@ -66,18 +66,18 @@ CẦN BỔ SUNG:
 
 
 ================================================================================
-SLICE 2 — Dijkstra + Travel Modes (1 API + engine, ~1 giờ)
+SLICE 2 — Dijkstra + Travel Modes (1 API + engine)
 ================================================================================
 
 Mô tả: Xây dựng thuật toán tìm đường + bảng phương thức di chuyển.
 
 ĐÃ CÓ:
   Schema:
-    - map_nodes (T10)                 → schema/map.go ✅
-    - map_edges (T11)                 → schema/map.go ✅
-    - floors (T09)                    → schema/map.go ✅
+    - map_nodes (T10)                 → schema/map.go  
+    - map_edges (T11)                 → schema/map.go  
+    - floors (T09)                    → schema/map.go  
   Repository:
-    - repository/map_repo.go          → FindAllNodes(), FindAllEdges() ✅
+    - repository/map_repo.go          → FindAllNodes(), FindAllEdges()  
 
 CẦN TẠO MỚI:
   Schema:
@@ -114,17 +114,17 @@ CẦN TẠO MỚI:
 
 
 ================================================================================
-SLICE 3 — Route Core (4 API, ~2 giờ)
+SLICE 3 — Route Core (4 API)
 ================================================================================
 
 Mô tả: 4 API cốt lõi dẫn đường. Phần phức tạp nhất.
 
 ĐÃ CÓ:
-  - Dijkstra engine                   → pkg/dijkstra.go ✅ (slice 2)
-  - Navigation helpers                → pkg/navigation.go ✅ (slice 2)
-  - travel_modes                      → schema/route.go ✅ (slice 2)
-  - map_nodes, map_edges, floors      → schema/map.go ✅
-  - map_repo                          → repository/map_repo.go ✅
+  - Dijkstra engine                   → pkg/dijkstra.go   (slice 2)
+  - Navigation helpers                → pkg/navigation.go   (slice 2)
+  - travel_modes                      → schema/route.go   (slice 2)
+  - map_nodes, map_edges, floors      → schema/map.go  
+  - map_repo                          → repository/map_repo.go  
 
 CẦN TẠO MỚI:
   Schema (thêm vào schema/route.go):
@@ -170,15 +170,15 @@ CẦN TẠO MỚI:
 
 
 ================================================================================
-SLICE 4 — Route Mở Rộng (9 API, ~1.5 giờ)
+SLICE 4 — Route Mở Rộng (9 API)
 ================================================================================
 
 Mô tả: Các API quản lý lộ trình: history, share, feedback, pass_node.
 
 ĐÃ CÓ:
-  - routes, route_paths              → schema/route.go ✅ (slice 3)
-  - route_repo, route_service        → ✅ (slice 3)
-  - Dijkstra                          → pkg/dijkstra.go ✅ (slice 2)
+  - routes, route_paths              → schema/route.go   (slice 3)
+  - route_repo, route_service        →   (slice 3)
+  - Dijkstra                          → pkg/dijkstra.go   (slice 2)
 
 CẦN TẠO MỚI:
   Schema (thêm vào schema/route.go):
@@ -230,14 +230,14 @@ CẦN TẠO MỚI:
 
 
 ================================================================================
-SLICE 5 — Flow & Density (11 API, ~2 giờ)
+SLICE 5 — Flow & Density (11 API)
 ================================================================================
 
 Mô tả: Quản lý luồng người, mật độ hành lang, báo cáo sự cố.
 
 ĐÃ CÓ:
-  - map_edges, map_nodes              → schema/map.go ✅
-  - users, staffs                     → schema/user.go, staff.go ✅
+  - map_edges, map_nodes              → schema/map.go  
+  - users, staffs                     → schema/user.go, staff.go  
 
 CẦN TẠO MỚI:
   Schema:
@@ -290,14 +290,14 @@ CẦN TẠO MỚI:
 
 
 ================================================================================
-SLICE 6 — Medical (8 API, ~1.5 giờ)
+SLICE 6 — Medical (8 API)
 ================================================================================
 
 Mô tả: Y tế giả lập — chỉ định khám, hàng đợi, đơn thuốc.
 
 ĐÃ CÓ:
-  - users, wards                      → ✅
-  - map_nodes                         → ✅
+  - users, wards                      →  
+  - map_nodes                         →  
 
 CẦN TẠO MỚI:
   Schema:
@@ -347,13 +347,13 @@ CẦN TẠO MỚI:
 
 
 ================================================================================
-SLICE 7 — Device / Xe lăn (8 API, ~1.5 giờ)
+SLICE 7 — Device / Xe lăn (8 API)
 ================================================================================
 
 Mô tả: Quản lý xe lăn, cáng — mượn/trả/báo hỏng.
 
 ĐÃ CÓ:
-  - users, staffs, map_nodes          → ✅
+  - users, staffs, map_nodes          →  
 
 CẦN TẠO MỚI:
   Schema:
@@ -397,13 +397,13 @@ CẦN TẠO MỚI:
 
 
 ================================================================================
-SLICE 8 — Notifications (3 API, ~30 phút)
+SLICE 8 — Notifications (3 API)
 ================================================================================
 
 Mô tả: Thông báo đẩy — đọc, xóa.
 
 ĐÃ CÓ:
-  - users                             → ✅
+  - users                             →  
 
 CẦN TẠO MỚI:
   Schema:
@@ -431,14 +431,14 @@ CẦN TẠO MỚI:
 
 
 ================================================================================
-SLICE 9 — SOS + Chat (5 API, ~1 giờ)
+SLICE 9 — SOS + Chat (5 API)
 ================================================================================
 
 Mô tả: Cấp cứu SOS + chat bệnh nhân-nhân viên.
 
 ĐÃ CÓ:
-  - users, staffs, map_nodes          → ✅
-  - schema/support.go                 → ✅ (slice 8, đã tạo file)
+  - users, staffs, map_nodes          →  
+  - schema/support.go                 →   (slice 8, đã tạo file)
 
 CẦN TẠO MỚI:
   Schema (bổ sung vào schema/support.go):
@@ -483,14 +483,14 @@ CẦN TẠO MỚI:
 
 
 ================================================================================
-SLICE 10 — Voice (2 API, ~30 phút)
+SLICE 10 — Voice (2 API)
 ================================================================================
 
 Mô tả: Giọng nói — keyword search + audio assets. Giả lập.
 
 ĐÃ CÓ:
-  - map_nodes (search_location)       → ✅
-  - Tất cả schema cần thiết           → ✅
+  - map_nodes (search_location)       →  
+  - Tất cả schema cần thiết           →  
 
 CẦN TẠO MỚI (không cần schema):
   Service:
@@ -510,13 +510,13 @@ CẦN TẠO MỚI (không cần schema):
 
 
 ================================================================================
-SLICE 11 — Utilities (6 API, ~1 giờ)
+SLICE 11 — Utilities (6 API)
 ================================================================================
 
 Mô tả: Tiện ích — nhà thuốc, canteen, parking, wifi, FAQ, feedback.
 
 ĐÃ CÓ:
-  - users, map_nodes                  → ✅
+  - users, map_nodes                  →  
 
 CẦN TẠO MỚI:
   Schema:
@@ -559,15 +559,15 @@ CẦN TẠO MỚI:
 
 
 ================================================================================
-SLICE 12 — Engine + Admin + User bổ sung (8 API, ~1 giờ)
+SLICE 12 — Engine + Admin + User bổ sung (8 API)
 ================================================================================
 
 Mô tả: API engine giả lập + admin quản lý + user settings.
 
 ĐÃ CÓ:
-  - Tất cả schema từ slice 1-11       → ✅
-  - user_settings (T03)               → schema/user.go ✅
-  - Dijkstra engine                    → pkg/dijkstra.go ✅
+  - Tất cả schema từ slice 1-11       →  
+  - user_settings (T03)               → schema/user.go  
+  - Dijkstra engine                    → pkg/dijkstra.go  
 
 CẦN TẠO MỚI (không cần schema mới):
   Service:
@@ -642,7 +642,7 @@ TÓM TẮT FILE ĐÃ CÓ (CHỈ BỔ SUNG)
   handler/routes.go            → Thêm tất cả endpoint mới
   database/database.go         → Thêm 25 bảng vào AutoMigrate (dần theo slice)
   repository/user_repo.go      → +FindOTPByPhone, +DeactivateFCM, +FindAppVersion
-  pkg/response.go              → Đã bổ sung đầy đủ mã lỗi ✅
+  pkg/response.go              → Đã bổ sung đầy đủ mã lỗi  
 
 
 ================================================================================
