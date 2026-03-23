@@ -1,0 +1,705 @@
+THIẾT KẾ CƠ SỞ DỮ LIỆU
+Hospital Navigation & Coordination System
+================================================================================
+
+TỔNG QUAN CÁC BẢNG
+================================================================================
+
+Ký hiệu | Tên bảng               | Nhóm chức năng              | Mô tả chi tiết
+---------|------------------------|------------------------------|------------------------------------------------
+T01      | users                  | Người dùng & Xác thực        | Lưu thông tin tài khoản của tất cả người dùng (bệnh nhân, nhân viên).
+T02      | otp_codes              | Người dùng & Xác thực        | Lưu mã OTP dùng để xác thực, đặt lại mật khẩu.
+T03      | user_settings          | Người dùng & Xác thực        | Cài đặt giao diện, ngôn ngữ và thông báo của từng user.
+T04      | fcm_tokens             | Người dùng & Xác thực        | Token FCM để giám sát thiết bị và gửi push notification.
+T05      | staffs                 | Nhân viên & Phân quyền       | Lưu thông tin nghiệp vụ và phân quyền cho nhân viên bệnh viện (admin, coordinator, staff).
+T06      | wards                  | Nhân viên & Phân quyền       | Danh mục khoa/viện của bệnh viện dùng để phân công và nhóm phòng khám.
+T07      | app_versions           | Hệ thống                     | Lưu thông tin phiên bản ứng dụng client để kiểm tra và bắt buộc cập nhật.
+T08      | buildings              | Bản đồ số (Map)              | Quản lý danh sách các tòa nhà trong khuôn viên bệnh viện.
+T09      | floors                 | Bản đồ số (Map)              | Quản lý các tầng của từng tòa nhà, bao gồm ảnh sơ đồ nền và tỷ lệ.
+T10      | map_nodes              | Bản đồ số (Map)              | Các điểm nút trên đồ thị bản đồ (phòng khám, thang máy, cầu thang, nhà vệ sinh...) kèm tọa độ.
+T11      | map_edges              | Bản đồ số (Map)              | Hành lang và đoạn đường nối giữa 2 node, chứa trọng số phục vụ thuật toán tìm đường.
+T12      | edge_traffic_status    | Luồng người & Giao thông     | Theo dõi trạng thái luồng giao thông thời gian thực tại mỗi đoạn hành lang.
+T13      | user_pings             | Luồng người & Giao thông     | Lưu tọa độ ping từ ứng dụng người dùng để hệ thống tính toán mật độ.
+T14      | obstacle_reports       | Luồng người & Giao thông     | Lưu trữ các báo cáo sự cố đường đi từ người dùng (sàn ướt, tắc nghẽn...).
+T15      | heatmap_snapshots      | Luồng người & Giao thông     | Lưu trữ snapshot bản đồ nhiệt về mật độ luồng người.
+T16      | priority_routes        | Luồng người & Giao thông     | Lưu cấu hình luồng đường đi ưu tiên dành cho các ca cấp cứu.
+T17      | travel_modes           | Điều phối lộ trình           | Lưu trữ các phương thức di chuyển khả dụng (đi bộ, xe lăn, cáng, xe điện).
+T18      | routes                 | Điều phối lộ trình           | Quản lý thông tin tổng quát của một phiên dẫn đường của người dùng.
+T19      | route_paths            | Điều phối lộ trình           | Lưu trữ danh sách tọa độ chi tiết để vẽ dải màu lộ trình trên bản đồ.
+T20      | route_history_nodes    | Điều phối lộ trình           | Theo dõi nhật ký các điểm mốc (node) mà bệnh nhân đã thực tế đi qua.
+T21      | route_shares           | Điều phối lộ trình           | Lưu trữ thông tin về việc chia sẻ lộ trình (link tracking) cho người nhà.
+T22      | route_feedbacks        | Điều phối lộ trình           | Lưu trữ đánh giá của người dùng về độ chính xác sau khi kết thúc lộ trình.
+T23      | treatments             | Y tế (HIS)                   | Lưu trữ danh sách các chỉ định y tế được đồng bộ từ hệ thống HIS.
+T24      | prescriptions          | Y tế (HIS)                   | Lưu thông tin đơn thuốc điện tử đồng bộ từ HIS.
+T25      | queues                 | Y tế (HIS)                   | Trạng thái hàng đợi theo thời gian thực tại các phòng chức năng.
+T26      | devices                | Cơ sở vật chất               | Lưu trữ danh mục và trạng thái vật lý của các thiết bị hỗ trợ di chuyển (xe lăn, cáng).
+T27      | device_stations        | Cơ sở vật chất               | Quản lý các trạm tập kết thiết bị được định vị trên bản đồ bệnh viện.
+T28      | device_bookings        | Cơ sở vật chất               | Quản lý vòng đời của một phiên giao dịch mượn/trả thiết bị hỗ trợ.
+T29      | device_broken_reports  | Cơ sở vật chất               | Tiếp nhận và quản lý các báo cáo hỏng hóc thiết bị từ người dùng.
+T30      | notifications          | Thông báo & Hỗ trợ           | Danh sách thông báo đẩy (push notification) cho từng người dùng.
+T31      | sos_requests           | Thông báo & Hỗ trợ           | Quản lý các yêu cầu hỗ trợ y tế khẩn cấp từ người dùng kèm tọa độ.
+T32      | conversations          | Thông báo & Hỗ trợ           | Quản lý thông tin chung của các hội thoại chat giữa bệnh nhân và nhân viên.
+T33      | messages               | Thông báo & Hỗ trợ           | Lưu trữ chi tiết nội dung tin nhắn trong từng phiên hội thoại.
+T34      | facilities             | Tiện ích                     | Thông tin các tiện ích nội khu: nhà thuốc, căn tin, bãi xe, điểm phát wifi.
+T35      | feedbacks              | Tiện ích                     | Lưu trữ góp ý, đánh giá chung về tính năng ứng dụng từ người dùng.
+T36      | faqs                   | Tiện ích                     | Danh sách các câu hỏi thường gặp và hướng dẫn sử dụng.
+
+
+================================================================================
+I. NGƯỜI DÙNG & XÁC THỰC
+================================================================================
+
+[T01] Bảng: users
+--------------------------------------------------------------------------------
+Lưu thông tin tài khoản của tất cả người dùng (cả bệnh nhân lẫn nhân viên). Nhân viên sẽ có thêm row
+tương ứng trong bảng staffs. Trường user_type giúp xác định nhanh loại người dùng mà không cần JOIN thêm.
+API: Login, Signup, Get/Set Profile, Delete Account.
+
+Trường            | Kiểu dữ liệu            | Ràng buộc                          | Mô tả
+------------------|-------------------------|-------------------------------------|----------------------------------------------
+user_id           | BIGINT UNSIGNED         | PK, AUTO_INCREMENT                  | Khóa chính người dùng
+phone_number      | VARCHAR(15)             | UNIQUE NOT NULL                     | Số điện thoại đăng ký, duy nhất, dùng để đăng nhập
+password_hash     | VARCHAR(255)            | NOT NULL                            | BCrypt hash mật khẩu (cost=12)
+full_name         | VARCHAR(100)            | NOT NULL                            | Họ tên đầy đủ
+user_type         | ENUM('patient','staff') | NOT NULL DEFAULT patient            | Phân loại nhanh: patient = bệnh nhân, staff = nhân viên
+date_of_birth     | DATE                    | NULL                                | Ngày sinh (hồ sơ bệnh án)
+gender            | ENUM('M','F','O')       | NULL                                | Giới tính: M/F/O
+avatar_url        | VARCHAR(500)            | NULL                                | URL ảnh đại diện
+status            | ENUM(...)               | NOT NULL DEFAULT active             | Trạng thái tài khoản. pending = chờ xác thực OTP
+created_at        | DATETIME                | NOT NULL                            | Thời điểm đăng ký
+updated_at        | DATETIME                | NULL                                | Lần cập nhật gần nhất
+
+
+[T02] Bảng: otp_codes
+--------------------------------------------------------------------------------
+Lưu mã OTP xác thực. Trong MVP server trả otp_code plain text qua otp_debug trong response thay vì gửi
+SMS thật. Bảng này vẫn cần thiết để quản lý trạng thái, tránh sử dụng lại mã đã dùng (replay attack).
+API: SMS Verify, Forgot Password.
+
+Trường        | Kiểu dữ liệu                               | Ràng buộc          | Mô tả
+--------------|---------------------------------------------|--------------------|-------------------------------
+otp_id        | BIGINT UNSIGNED                             | PK, AUTO_INCREMENT | Khóa chính
+phone_number  | VARCHAR(15)                                 | NOT NULL INDEX     | Số điện thoại nhận OTP
+otp_code      | VARCHAR(8)                                  | NOT NULL           | Mã OTP lưu dạng hash 1 chiều
+type          | ENUM('signup','reset_password','change_phone') | NOT NULL        | Loại OTP, tránh dùng nhầm mã signup cho reset_password
+expired_at    | DATETIME                                    | NOT NULL           | Thời điểm hết hạn (10 phút trong MVP)
+is_used       | TINYINT(1)                                  | NOT NULL DEFAULT 0 | Đã dùng chưa: 0 = chưa, 1 = đã dùng
+created_at    | DATETIME                                    | NOT NULL           | Thời điểm tạo
+
+
+[T03] Bảng: user_settings
+--------------------------------------------------------------------------------
+Lưu cấu hình cá nhân của người dùng. Quan hệ one-to-one với users. Row này tự động tạo khi user đăng ký
+thành công với tất cả giá trị default. travel_mode ảnh hưởng trực tiếp đến thuật toán tìm đường.
+API: Get/Set App Settings.
+
+Trường                   | Kiểu dữ liệu                       | Ràng buộc                  | Mô tả
+-------------------------|------------------------------------|-----------------------------|---------------------------------
+setting_id               | BIGINT UNSIGNED                    | PK, AUTO_INCREMENT          | Khóa chính
+user_id                  | BIGINT UNSIGNED                    | FK users(user_id) UNIQUE    | 1 user chỉ có 1 dòng setting
+voice_guidance_enabled   | TINYINT(1)                         | NOT NULL DEFAULT 1          | Bật/tắt chỉ đường giọng nói
+notification_enabled     | TINYINT(1)                         | NOT NULL DEFAULT 1          | Bật/tắt thông báo đẩy
+travel_mode              | ENUM('walk','wheelchair','stretcher') | NOT NULL DEFAULT walk    | Chế độ di chuyển mặc định, ảnh hưởng thuật toán tìm đường
+language                 | VARCHAR(10)                        | NOT NULL DEFAULT vi         | Ngôn ngữ giao diện: vi / en
+updated_at               | DATETIME                           | NULL                        | Cập nhật lần cuối
+
+
+[T04] Bảng: fcm_tokens
+--------------------------------------------------------------------------------
+Lưu Firebase Cloud Messaging token của từng thiết bị di động. Một user có thể có nhiều row (nhiều thiết bị).
+Trong MVP chưa gửi push notification nhưng vẫn lưu để giám sát loại thiết bị và sẵn sàng tích hợp FCM sau này.
+API: Set Device Token, Logout.
+
+Trường           | Kiểu dữ liệu           | Ràng buộc              | Mô tả
+-----------------|------------------------|-------------------------|------------------------------------
+token_id         | BIGINT UNSIGNED        | PK, AUTO_INCREMENT      | Khóa chính
+user_id          | BIGINT UNSIGNED        | FK users(user_id) NOT NULL | Chủ token
+fcm_token        | VARCHAR(500)           | NOT NULL UNIQUE         | Token FCM từ Firebase SDK
+device_platform  | ENUM('ios','android')  | NOT NULL               | Nền tảng thiết bị
+device_model     | VARCHAR(100)           | NULL                    | Model máy (Samsung S24, iPhone 15...)
+app_version      | VARCHAR(20)            | NULL                    | Phiên bản app đang cài
+is_active        | TINYINT(1)             | NOT NULL DEFAULT 1      | Token còn hiệu lực. Set 0 khi logout
+created_at       | DATETIME               | NOT NULL               | Ngày đăng ký token
+last_used_at     | DATETIME               | NULL                    | Lần dùng gần nhất
+
+
+================================================================================
+II. NHÂN VIÊN & PHÂN QUYỀN
+================================================================================
+
+[T05] Bảng: staffs
+--------------------------------------------------------------------------------
+Lưu thông tin nghiệp vụ và phân quyền cho nhân viên bệnh viện. Mỗi nhân viên bắt buộc phải có row trong
+bảng users trước (với user_type=staff). Khi tạo nhân viên mới phải INSERT cả users và staffs trong 1 transaction.
+
+Trường       | Kiểu dữ liệu                        | Ràng buộc                     | Mô tả
+-------------|-------------------------------------|--------------------------------|----------------------------------------------
+staff_id     | BIGINT UNSIGNED                     | PK, AUTO_INCREMENT             | Khóa chính
+user_id      | BIGINT UNSIGNED                     | FK users(user_id) UNIQUE       | Tài khoản hệ thống, 1 user chỉ có 1 staff profile
+staff_code   | VARCHAR(20)                         | UNIQUE NOT NULL                | Mã nhân viên nội bộ (NV001...)
+role         | ENUM('admin','coordinator','staff') | NOT NULL                       | admin: toàn quyền | coordinator: giám sát | staff: hỗ trợ
+ward_id      | INT UNSIGNED                        | FK wards(ward_id) NULL         | Khoa/phòng phụ trách. NULL = quản lý toàn viện
+is_active    | TINYINT(1)                          | NOT NULL DEFAULT 1             | Đang công tác hay đã nghỉ việc
+shift_start  | VARCHAR(5)                          | NULL                           | Giờ bắt đầu ca trực, định dạng HH:MM
+shift_end    | VARCHAR(5)                          | NULL                           | Giờ kết thúc ca trực, định dạng HH:MM
+created_at   | DATETIME                            | NOT NULL                       | Ngày tạo tài khoản nhân viên
+
+
+[T06] Bảng: wards
+--------------------------------------------------------------------------------
+Danh mục khoa/viện của bệnh viện. Dùng để nhóm các phòng khám theo chuyên khoa và phân công nhân viên.
+Lưu ý circular dependency: staffs.ward_id → wards và wards.head_staff_id → staffs.
+Khi seed data phải INSERT ward với head_staff_id=NULL trước, tạo staff xong rồi UPDATE.
+
+Trường         | Kiểu dữ liệu    | Ràng buộc                       | Mô tả
+---------------|-----------------|----------------------------------|---------------------------------
+ward_id        | INT UNSIGNED    | PK, AUTO_INCREMENT               | Khóa chính
+ward_code      | VARCHAR(20)     | UNIQUE NOT NULL                  | Mã khoa (XN, PTTT, NI...)
+ward_name      | VARCHAR(200)    | NOT NULL                         | Tên đầy đủ (Khoa Nội tổng hợp...)
+head_staff_id  | BIGINT UNSIGNED | FK staffs(staff_id) NULL         | Trưởng khoa. NULL khi mới tạo
+is_active      | TINYINT(1)      | NOT NULL DEFAULT 1               | Đang hoạt động
+
+
+================================================================================
+III. HỆ THỐNG
+================================================================================
+
+[T07] Bảng: app_versions
+--------------------------------------------------------------------------------
+Lưu thông tin phiên bản ứng dụng. Client gửi lên platform + version_code hiện tại, server so sánh để biết
+có cần cập nhật không. is_force_update = true sẽ bắt client phải cập nhật trước khi tiếp tục dùng.
+API: Check New Version.
+
+Trường           | Kiểu dữ liệu  | Ràng buộc            | Mô tả
+-----------------|---------------|----------------------|------------------------------------------
+version_id       | BIGINT UNSIGNED | PK, AUTO_INCREMENT | Khóa chính
+platform         | VARCHAR(10)   | NOT NULL INDEX       | Nền tảng: ios hoặc android
+version_name     | VARCHAR(20)   | NOT NULL             | Tên phiên bản hiển thị: 1.2.0
+version_code     | INT           | NOT NULL             | Số nguyên tăng dần, dùng để so sánh
+is_force_update  | TINYINT(1)    | NOT NULL DEFAULT 0   | Bắt buộc cập nhật trước khi dùng tiếp
+change_log       | VARCHAR(1000) | NULL                 | Mô tả thay đổi trong phiên bản này
+download_url     | VARCHAR(500)  | NULL                 | Link Play Store hoặc App Store
+created_at       | DATETIME      | NOT NULL             | Thời điểm thêm phiên bản này
+
+
+================================================================================
+IV. BẢN ĐỒ SỐ (MAP)
+================================================================================
+
+[T08] Bảng: buildings
+--------------------------------------------------------------------------------
+Thông tin tòa nhà trong khuôn viên bệnh viện. Mỗi tòa nhà có nhiều tầng.
+
+Trường         | Kiểu dữ liệu  | Ràng buộc                             | Mô tả
+---------------|---------------|----------------------------------------|-------------------------
+building_id    | INT UNSIGNED  | PK, AUTO_INCREMENT                    | Khóa chính
+building_code  | VARCHAR(20)   | UNIQUE NOT NULL                       | Mã tòa nhà (VD: A, B, C...)
+building_name  | VARCHAR(200)  | NOT NULL                              | Tên tòa nhà
+total_floors   | TINYINT       | NOT NULL                              | Tổng số tầng
+is_active      | TINYINT(1)    | NOT NULL DEFAULT 1                    | Đang sử dụng (1 = Có, 0 = Không)
+created_at     | DATETIME      | NOT NULL DEFAULT CURRENT_TIMESTAMP    | Thời điểm tạo
+updated_at     | DATETIME      | ON UPDATE CURRENT_TIMESTAMP           | Thời điểm cập nhật
+
+
+[T09] Bảng: floors
+--------------------------------------------------------------------------------
+Tầng của từng tòa nhà. Mỗi tầng là 1 layer bản đồ riêng biệt. Cung cấp ảnh nền và hệ số quy đổi pixel → mét.
+
+Công thức quy đổi pixel → mét:
+  meter_x = pixel_x × (real_width_m / image_width_px)
+  meter_y = pixel_y × (real_height_m / image_height_px)
+
+Trường           | Kiểu dữ liệu  | Ràng buộc         | Mô tả
+-----------------|---------------|--------------------|-------------------------------------------------
+floor_id         | INT UNSIGNED  | PK, AUTO_INCREMENT | Khóa chính
+building_id      | INT UNSIGNED  | FK buildings(building_id) | Tòa nhà chứa tầng này
+floor_number     | TINYINT       | NOT NULL           | Số tầng (0 = trệt, 1 = lầu 1...)
+floor_name       | VARCHAR(100)  | NOT NULL           | Tên tầng hiển thị trên App (VD: "Tầng 1")
+display_order    | INT           | NOT NULL DEFAULT 0 | Số thứ tự ưu tiên sắp xếp bộ lọc tầng trên App
+map_image_url    | VARCHAR(500)  | NULL               | URL ảnh nền sơ đồ tầng (.png/.jpg/.svg)
+image_width_px   | INT           | NOT NULL           | Chiều rộng ảnh nền theo pixel
+image_height_px  | INT           | NOT NULL           | Chiều cao ảnh nền theo pixel
+real_width_m     | FLOAT         | NOT NULL DEFAULT 0 | Chiều rộng thực tế của tầng theo mét
+real_height_m    | FLOAT         | NOT NULL DEFAULT 0 | Chiều cao thực tế của tầng theo mét
+is_active        | TINYINT(1)    | NOT NULL DEFAULT 1 | Đang sử dụng
+
+
+[T10] Bảng: map_nodes
+--------------------------------------------------------------------------------
+Điểm nút trên đồ thị bản đồ: phòng khám, hành lang, thang máy, cầu thang, điểm giao nhau.
+Mỗi node được mô tả bằng polygon tọa độ pixel, hỗ trợ mọi hình dạng có góc cạnh.
+
+Trường               | Kiểu dữ liệu  | Ràng buộc                     | Mô tả
+---------------------|---------------|--------------------------------|-------------------------------------------------------
+node_id              | INT UNSIGNED  | PK, AUTO_INCREMENT             | Khóa chính
+floor_id             | INT UNSIGNED  | FK floors(floor_id) INDEX      | Tầng chứa node này
+ward_id              | INT UNSIGNED  | FK wards(ward_id) NULL         | Khoa quản lý phòng này (nếu có)
+node_code            | VARCHAR(30)   | UNIQUE NOT NULL                | Mã định danh duy nhất (VD: P04, N_ELV1)
+node_name            | VARCHAR(200)  | NOT NULL, FULLTEXT INDEX       | Tên phòng/khu vực. FULLTEXT để API search_location tìm nhanh
+node_type            | ENUM(...)     | NOT NULL                       | room, corridor, elevator, escalator, stairs, wc, entrance, pharmacy, info, restricted, other
+polygon_coords       | TEXT          | NOT NULL                       | Tọa độ các đỉnh polygon "x1,y1,x2,y2,x3,y3,..."
+center_x             | FLOAT         | NOT NULL                       | Tọa độ X trung tâm. Dùng cho Dijkstra và hiển thị nhãn
+center_y             | FLOAT         | NOT NULL                       | Tọa độ Y trung tâm. Dùng cho Dijkstra và hiển thị nhãn
+is_landmark          | TINYINT(1)    | NOT NULL DEFAULT 0             | Điểm mốc nổi bật hiển thị ưu tiên trên bản đồ
+is_accessible        | TINYINT(1)    | NOT NULL DEFAULT 1             | Có thể đi qua được không
+wheelchair_accessible| TINYINT(1)    | NOT NULL DEFAULT 0             | Cho phép xe lăn di chuyển
+is_active            | TINYINT(1)    | NOT NULL DEFAULT 1             | Đang sử dụng
+
+
+[T11] Bảng: map_edges
+--------------------------------------------------------------------------------
+Hành lang/đoạn đường nối 2 node. Có thể cùng 1 tầng hoặc cross-floor.
+weight = trọng số dùng trong thuật toán Dijkstra.
+
+Công thức tính distance_m:
+  dx = (access_x_to - access_x_from) × (real_width_m / image_width_px)
+  dy = (access_y_to - access_y_from) × (real_height_m / image_height_px)
+  distance_m = sqrt(dx² + dy²)
+
+Trường                | Kiểu dữ liệu  | Ràng buộc                       | Mô tả
+----------------------|---------------|---------------------------------|-------------------------------------------------
+edge_id               | INT UNSIGNED  | PK, AUTO_INCREMENT              | Khóa chính
+floor_id              | INT UNSIGNED  | FK floors(floor_id) INDEX       | Tầng quản lý. Nếu cross_floor thì lưu tầng xuất phát
+from_node_id          | INT UNSIGNED  | FK map_nodes(node_id)           | Node bắt đầu
+to_node_id            | INT UNSIGNED  | FK map_nodes(node_id)           | Node kết thúc
+polygon_coords        | TEXT          | NULL                            | Tọa độ polygon mô tả vùng hành lang (tuỳ chọn)
+distance_m            | FLOAT         | NOT NULL DEFAULT 0              | Khoảng cách thực tế giữa 2 node theo mét
+weight                | FLOAT         | NOT NULL DEFAULT 1.0            | Trọng số cho thuật toán Dijkstra
+is_bidirectional      | TINYINT(1)    | NOT NULL DEFAULT 1              | Đường hai chiều (1) hay một chiều (0)
+is_cross_floor        | TINYINT(1)    | NOT NULL DEFAULT 0              | Nối liên tầng (thang máy, cầu thang)
+wheelchair_accessible | TINYINT(1)    | NOT NULL DEFAULT 0              | Xe lăn có thể đi qua không
+is_active             | TINYINT(1)    | NOT NULL DEFAULT 1              | Đang sử dụng
+
+
+================================================================================
+V. LUỒNG NGƯỜI & GIAO THÔNG
+================================================================================
+
+[T12] Bảng: edge_traffic_status
+--------------------------------------------------------------------------------
+Trạng thái luồng giao thông thời gian thực mỗi hành lang. Quan hệ 1-1 với map_edges.
+Cập nhật mỗi khi có user ping hoặc admin inject.
+
+Trường         | Kiểu dữ liệu                              | Ràng buộc               | Mô tả
+---------------|-------------------------------------------|--------------------------|----------------------------------
+traffic_id     | INT UNSIGNED                              | PK, AUTO_INCREMENT       | Khóa chính
+edge_id        | INT UNSIGNED                              | FK map_edges(edge_id) UNIQUE | Hành lang tương ứng, 1 edge 1 row
+people_count   | INT                                       | NOT NULL DEFAULT 0       | Số người ước tính đang ở hành lang
+density_level  | ENUM('low','medium','high','blocked')     | NOT NULL DEFAULT low     | Cấp độ mật độ hiện tại
+updated_at     | DATETIME                                  | NOT NULL                 | Lần cập nhật gần nhất
+
+
+[T13] Bảng: user_pings
+--------------------------------------------------------------------------------
+Lưu tọa độ ping từ app người dùng để tính mật độ. Bảng này ghi nhiều, nên partition by time.
+Trong MVP dùng manual ping (người dùng bấm xác nhận khi đến node) thay vì BLE thật.
+
+Trường     | Kiểu dữ liệu    | Ràng buộc              | Mô tả
+-----------|-----------------|------------------------|------------------------
+ping_id    | BIGINT UNSIGNED | PK, AUTO_INCREMENT     | Khóa chính
+user_id    | BIGINT UNSIGNED | FK users(user_id)      | Người dùng gửi ping
+route_id   | BIGINT UNSIGNED | FK routes(route_id)    | Lộ trình của user
+node_id    | INT UNSIGNED    | FK map_nodes(node_id)  | Node người dùng đang ở
+floor_id   | INT UNSIGNED    | FK floors(floor_id)    | Tầng hiện tại
+created_at | DATETIME        | NOT NULL               | Thời điểm ping
+
+
+[T14] Bảng: obstacle_reports
+--------------------------------------------------------------------------------
+Báo cáo sự cố từ người dùng (sàn ướt, tắc nghẽn...).
+
+Trường        | Kiểu dữ liệu                                    | Ràng buộc                    | Mô tả
+--------------|-------------------------------------------------|------------------------------|---------------------------
+report_id     | BIGINT UNSIGNED                                 | PK, AUTO_INCREMENT           | Khóa chính
+user_id       | BIGINT UNSIGNED                                 | FK users(user_id)            | Người báo cáo
+route_id      | BIGINT UNSIGNED                                 | FK routes(route_id)          | Lộ trình đang đi lúc gặp sự cố
+edge_id       | INT UNSIGNED                                    | FK map_edges(edge_id) NULL   | Hành lang bị sự cố
+node_id       | INT UNSIGNED                                    | FK map_nodes(node_id) NULL   | Phòng/điểm bị sự cố
+report_type   | ENUM('wet_floor','broken_elevator','blocked','other') | NOT NULL              | Loại sự cố
+description   | TEXT                                            | NULL                         | Mô tả thêm
+resolved_by   | BIGINT UNSIGNED                                 | FK staffs(staff_id) NULL     | Staff xử lý
+status        | ENUM('pending','processing','resolved')          | NOT NULL                     | Trạng thái xử lý
+created_at    | DATETIME                                        | NOT NULL                     | Thời điểm báo cáo
+resolved_at   | DATETIME                                        | NULL                         | Thời điểm giải quyết
+
+
+[T15] Bảng: heatmap_snapshots
+--------------------------------------------------------------------------------
+Mật độ luồng người - snapshot bản đồ nhiệt.
+
+Trường        | Kiểu dữ liệu                              | Ràng buộc          | Mô tả
+--------------|-------------------------------------------|---------------------|---------------------------------------
+heatmap_id    | BIGINT UNSIGNED                           | PK, AUTO_INCREMENT  | Khóa chính
+node_id       | INT UNSIGNED                              | FK map_nodes(node_id) | Điểm nút cần vẽ heatmap
+density_level | ENUM('low','medium','high','blocked')     | NOT NULL            | Mật độ để App lấy data tô màu trực tiếp
+recorded_at   | DATETIME                                  | NOT NULL            | Thời điểm lưu snapshot bản đồ nhiệt
+
+
+[T16] Bảng: priority_routes
+--------------------------------------------------------------------------------
+Luồng ưu tiên cho ca cấp cứu (mở đường). API: Set Priority.
+
+Trường        | Kiểu dữ liệu    | Ràng buộc                     | Mô tả
+--------------|-----------------|-------------------------------|---------------------------
+priority_id   | INT UNSIGNED    | PK, AUTO_INCREMENT            | Khóa chính
+emergency_id  | VARCHAR(50)     | NOT NULL                      | Mã ca cấp cứu từ hệ thống HIS
+set_by        | BIGINT UNSIGNED | FK staffs(staff_id)           | Admin thiết lập
+from_node_id  | INT UNSIGNED    | FK map_nodes(node_id)         | Điểm đầu
+to_node_id    | INT UNSIGNED    | FK map_nodes(node_id)         | Điểm cuối
+reason        | VARCHAR(200)    | NOT NULL                      | Lý do (Cấp cứu phòng mổ 3...)
+status        | ENUM('active','expired') | NOT NULL             | Trạng thái hiệu lực
+activated_at  | DATETIME        | NOT NULL                      | Thời điểm kích hoạt
+expired_at    | DATETIME        | NULL                          | Thời điểm hết hiệu lực
+
+
+================================================================================
+VI. ĐIỀU PHỐI LỘ TRÌNH
+================================================================================
+
+[T17] Bảng: travel_modes
+--------------------------------------------------------------------------------
+Lưu trữ các phương thức di chuyển khả dụng.
+
+Trường       | Kiểu dữ liệu  | Ràng buộc  | Mô tả
+-------------|---------------|------------|------------------------------------------------
+mode_id      | VARCHAR(20)   | PK         | Khóa chính (walking, wheelchair, stretcher, hospital_cart)
+mode_name    | VARCHAR(50)   | NOT NULL   | Tên hiển thị (Đi bộ, Xe lăn, Cáng nằm, Xe điện)
+speed_factor | FLOAT         | NOT NULL   | Hệ số vận tốc để tính toán ETA
+
+
+[T18] Bảng: routes
+--------------------------------------------------------------------------------
+Quản lý thông tin tổng quát của một phiên dẫn đường.
+
+Trường                | Kiểu dữ liệu    | Ràng buộc      | Mô tả
+----------------------|-----------------|----------------|----------------------------------------------
+route_id              | VARCHAR(50)     | PK             | Khóa chính, ID duy nhất của lộ trình
+user_id               | BIGINT UNSIGNED | FK, NOT NULL   | Liên kết với bảng users
+start_node_id         | VARCHAR(50)     | NOT NULL       | Điểm xuất phát
+destination_node_id   | VARCHAR(50)     | NOT NULL       | Điểm đích cuối cùng
+mode_id               | VARCHAR(20)     | NOT NULL       | Phương thức di chuyển (walking, wheelchair,...)
+status                | ENUM('active','completed','cancelled') | NOT NULL | Trạng thái: đang đi, hoàn thành, đã hủy
+total_distance        | FLOAT           | NOT NULL       | Tổng khoảng cách tính bằng mét
+estimated_time        | INT             | NOT NULL       | Tổng thời gian dự kiến tính bằng giây
+created_at            | DATETIME        | NOT NULL       | Thời điểm bắt đầu tạo lộ trình
+
+
+[T19] Bảng: route_paths
+--------------------------------------------------------------------------------
+Lưu trữ danh sách tọa độ chi tiết để vẽ dải màu lộ trình trên bản đồ.
+
+Trường      | Kiểu dữ liệu    | Ràng buộc      | Mô tả
+------------|-----------------|----------------|----------------------------------
+path_id     | BIGINT UNSIGNED | PK, AUTO_INCREMENT | Khóa chính
+route_id    | VARCHAR(50)     | FK, NOT NULL   | Liên kết với bảng routes
+lat         | DOUBLE          | NOT NULL       | Vĩ độ của điểm tọa độ
+lng         | DOUBLE          | NOT NULL       | Kinh độ của điểm tọa độ
+step_order  | INT             | NOT NULL       | Thứ tự của điểm trong lộ trình
+
+
+[T20] Bảng: route_history_nodes
+--------------------------------------------------------------------------------
+Theo dõi nhật ký các điểm mốc (node) mà bệnh nhân đã thực tế đi qua.
+
+Trường        | Kiểu dữ liệu    | Ràng buộc      | Mô tả
+--------------|-----------------|----------------|----------------------------------------------
+history_id    | BIGINT UNSIGNED | PK, AUTO_INCREMENT | Khóa chính
+route_id      | VARCHAR(50)     | FK, NOT NULL   | Liên kết với bảng routes
+node_id       | VARCHAR(50)     | NOT NULL       | ID phòng hoặc điểm mốc đã đi qua
+status        | VARCHAR(20)     | NOT NULL       | Trạng thái: "Đã qua" hoặc "Đang ở đây"
+arrival_time  | DATETIME        | NOT NULL       | Thời gian thực tế khi bệnh nhân đến điểm này
+
+
+[T21] Bảng: route_shares
+--------------------------------------------------------------------------------
+Lưu trữ thông tin về việc chia sẻ lộ trình cho người nhà.
+
+Trường           | Kiểu dữ liệu    | Ràng buộc      | Mô tả
+-----------------|-----------------|----------------|----------------------------------------------
+share_id         | BIGINT UNSIGNED | PK, AUTO_INCREMENT | Khóa chính
+route_id         | VARCHAR(50)     | FK, NOT NULL   | Lộ trình được chia sẻ
+share_url        | TEXT            | NOT NULL       | Link rút gọn để theo dõi từ xa
+receiver_phone   | VARCHAR(15)     | NOT NULL       | Số điện thoại người nhận
+expired_at       | DATETIME        | NOT NULL       | Thời điểm link hết hạn (mặc định 24h)
+
+
+[T22] Bảng: route_feedbacks
+--------------------------------------------------------------------------------
+Lưu trữ đánh giá của người dùng sau khi kết thúc lộ trình.
+
+Trường       | Kiểu dữ liệu    | Ràng buộc              | Mô tả
+-------------|-----------------|-------------------------|----------------------------------------------
+feedback_id  | BIGINT UNSIGNED | PK, AUTO_INCREMENT      | Khóa chính
+route_id     | VARCHAR(50)     | FK, NOT NULL, UNIQUE    | Mỗi lộ trình chỉ đánh giá 1 lần
+rating       | TINYINT         | NOT NULL                | Điểm từ 1 đến 5 sao
+comment      | TEXT            | NULL                    | Nội dung góp ý văn bản
+is_accurate  | TINYINT(1)      | NOT NULL                | 1 = đúng thực tế, 0 = sai thực tế
+created_at   | DATETIME        | NOT NULL                | Thời điểm gửi phản hồi
+
+
+================================================================================
+VII. Y TẾ (HIS)
+================================================================================
+
+[T23] Bảng: treatments
+--------------------------------------------------------------------------------
+Lưu trữ danh sách các chỉ định y tế và lộ trình các phòng khám/xét nghiệm mà bệnh nhân cần đi qua,
+được đồng bộ từ hệ thống HIS (trong giai đoạn MVP sẽ sử dụng dữ liệu seed tĩnh).
+API: Get Clinical Tasks, Check-in/check-out Room, Results Status, Cancel Clinical Task, Force Sync HIS, Medical History.
+
+Trường            | Kiểu dữ liệu                                          | Ràng buộc             | Mô tả
+------------------|-------------------------------------------------------|-----------------------|------------------------------
+treatment_id      | BIGINT UNSIGNED                                       | PK, AUTO_INCREMENT    | Khóa chính
+user_id           | BIGINT UNSIGNED                                       | FK users(user_id)     | Bệnh nhân
+node_id           | INT UNSIGNED                                          | FK map_nodes(node_id) | Phòng cần đến
+ward_id           | INT UNSIGNED                                          | FK wards(ward_id)     | Khoa quản lý
+task_type         | ENUM('examination','test','imaging','pharmacy','other') | NOT NULL             | Loại chỉ định
+task_name         | VARCHAR(200)                                          | NOT NULL              | Tên chỉ định (Xét nghiệm máu...)
+priority          | TINYINT                                               | NOT NULL DEFAULT 5    | Thứ tự ưu tiên (1=cao nhất)
+sequence_number   | INT                                                   | NOT NULL              | Số thứ tự vào phòng
+status            | ENUM('pending','in_progress','completed','skipped')    | NOT NULL DEFAULT pending | Trạng thái
+note              | TEXT                                                  | NULL                  | Ghi chú thêm
+has_result        | BOOLEAN                                               | DEFAULT FALSE         | Có kết quả chưa
+updated_at        | DATETIME                                              | NULL                  | Thời điểm cập nhật cuối từ HIS
+created_at        | DATETIME                                              | NOT NULL              | Thời điểm tạo chỉ định
+checkin_at        | DATETIME                                              | NULL                  | Thời điểm vào phòng
+completed_at      | DATETIME                                              | NULL                  | Thời điểm hoàn thành
+
+
+[T24] Bảng: prescriptions
+--------------------------------------------------------------------------------
+Lưu thông tin đơn thuốc điện tử đồng bộ từ HIS. Trường items_json giúp lưu gọn danh sách thuốc.
+API: Get Prescription, Force Sync HIS, Medical History.
+
+Trường              | Kiểu dữ liệu    | Ràng buộc                        | Mô tả
+--------------------|-----------------|-----------------------------------|-------------------------------
+prescription_id     | BIGINT UNSIGNED | PK, AUTO_INCREMENT                | Khóa chính
+user_id             | BIGINT UNSIGNED | FK users(user_id)                 | Bệnh nhân
+issued_by           | BIGINT UNSIGNED | FK staffs(staff_id)               | Bác sĩ ký đơn
+pharmacy_node_id    | INT UNSIGNED    | FK map_nodes(node_id) NULL        | Nhà thuốc để lãnh thuốc
+items_json          | JSON            | NOT NULL                          | Danh sách thuốc: [{name, dose, qty}]
+status              | ENUM('issued','dispensed','cancelled') | NOT NULL  | Trạng thái đơn thuốc
+updated_at          | DATETIME        | NULL                              | Thời điểm cập nhật cuối từ HIS
+issued_at           | DATETIME        | NOT NULL                          | Thời điểm ký đơn
+dispensed_at        | DATETIME        | NULL                              | Thời điểm lãnh thuốc
+
+
+[T25] Bảng: queues
+--------------------------------------------------------------------------------
+Lưu trạng thái hàng đợi theo thời gian thực tại các phòng chức năng.
+API: Queue Status.
+
+Trường            | Kiểu dữ liệu  | Ràng buộc                       | Mô tả
+------------------|---------------|----------------------------------|-----------------------------
+queue_id          | INT UNSIGNED  | PK, AUTO_INCREMENT               | Khóa chính
+node_id           | INT UNSIGNED  | FK map_nodes(node_id) UNIQUE     | Phòng, 1 phòng 1 row
+current_number    | SMALLINT      | NOT NULL DEFAULT 0               | Số thứ tự đang phục vụ
+waiting_count     | SMALLINT      | NOT NULL DEFAULT 0               | Số người đang chờ
+avg_wait_minutes  | SMALLINT      | NOT NULL DEFAULT 0               | Thời gian chờ trung bình (phút)
+updated_at        | DATETIME      | NOT NULL                         | Lần cập nhật gần nhất
+
+
+================================================================================
+VIII. CƠ SỞ VẬT CHẤT
+================================================================================
+
+[T26] Bảng: devices
+--------------------------------------------------------------------------------
+Lưu trữ danh mục và trạng thái vật lý của các thiết bị hỗ trợ di chuyển (xe lăn, cáng).
+API: Find Wheelchair, Asset Health, Track Asset.
+
+Trường            | Kiểu dữ liệu                             | Ràng buộc                          | Mô tả
+------------------|------------------------------------------|------------------------------------|------------------------------
+device_id         | INT UNSIGNED                             | PK, AUTO_INCREMENT                 | Khóa chính
+device_code       | VARCHAR(20)                              | UNIQUE NOT NULL                    | Mã thiết bị (XL001, CG001...)
+device_type       | ENUM('wheelchair','stretcher','other')   | NOT NULL                           | Loại thiết bị
+station_id        | INT UNSIGNED                             | FK device_stations(station_id) NULL | Đang ở trạm nào (NULL = đang được mượn)
+current_node_id   | INT UNSIGNED                             | NULL, FK map_nodes                 | Vị trí Node hiện tại nếu xe đang được mượn
+status            | ENUM('available','in_use','maintenance') | NOT NULL DEFAULT available         | Trạng thái hiện tại
+battery_level     | TINYINT                                  | NULL                               | Pin của thiết bị
+is_active         | TINYINT(1)                               | NOT NULL DEFAULT 1                 | Còn sử dụng được
+
+
+[T27] Bảng: device_stations
+--------------------------------------------------------------------------------
+Quản lý các trạm tập kết thiết bị được định vị trên bản đồ bệnh viện.
+API: Asset Stations.
+
+Trường        | Kiểu dữ liệu  | Ràng buộc                     | Mô tả
+--------------|---------------|--------------------------------|---------------------
+station_id    | INT UNSIGNED  | PK, AUTO_INCREMENT             | Khóa chính
+node_id       | INT UNSIGNED  | FK map_nodes(node_id)          | Vị trí trạm trên bản đồ
+station_name  | VARCHAR(100)  | NOT NULL                       | Tên trạm
+capacity      | TINYINT       | NOT NULL                       | Sức chứa tối đa
+is_active     | TINYINT(1)    | NOT NULL DEFAULT 1             | Đang hoạt động
+
+
+[T28] Bảng: device_bookings
+--------------------------------------------------------------------------------
+Quản lý vòng đời của một phiên giao dịch mượn/trả thiết bị.
+API: Book Asset (đặt mượn), Release Asset (trả xe), Request Staff Assist (yêu cầu nhân viên đẩy xe).
+
+Trường             | Kiểu dữ liệu    | Ràng buộc                          | Mô tả
+-------------------|-----------------|-------------------------------------|-------------------------------
+booking_id         | BIGINT UNSIGNED | PK, AUTO_INCREMENT                  | Khóa chính
+device_id          | INT UNSIGNED    | FK devices(device_id)               | Thiết bị được mượn
+user_id            | BIGINT UNSIGNED | FK users(user_id)                   | Người mượn
+staff_id           | BIGINT UNSIGNED | FK staffs(staff_id) NULL            | Nhân viên duyệt mượn
+status             | ENUM('pending','approved','in_use','returned','cancelled') | NOT NULL | Trạng thái giao dịch
+borrowed_at        | DATETIME        | NOT NULL                            | Thời điểm mượn
+returned_at        | DATETIME        | NULL                                | Thời điểm trả
+return_station_id  | INT UNSIGNED    | NULL, FK device_stations            | Trạm trả thiết bị
+
+
+[T29] Bảng: device_broken_reports
+--------------------------------------------------------------------------------
+Nơi tiếp nhận các báo cáo hỏng hóc từ người dùng khi phát hiện xe lăn/cáng có sự cố.
+API: Report Broken Asset (gửi báo cáo hỏng).
+
+Trường        | Kiểu dữ liệu                          | Ràng buộc                       | Mô tả
+--------------|---------------------------------------|----------------------------------|---------------------------
+report_id     | BIGINT UNSIGNED                       | PK, AUTO_INCREMENT               | Khóa chính
+device_id     | INT UNSIGNED                          | FK devices(device_id)            | Thiết bị bị hỏng
+reported_by   | BIGINT UNSIGNED                       | FK users(user_id)                | Người báo cáo
+description   | TEXT                                  | NOT NULL                         | Mô tả tình trạng hỏng
+image_url     | VARCHAR(500)                          | NULL                             | Hình ảnh đính kèm
+status        | ENUM('pending','processing','resolved') | NOT NULL DEFAULT pending       | Trạng thái xử lý
+resolved_by   | BIGINT UNSIGNED                       | FK staffs(staff_id) NULL         | Staff xử lý
+created_at    | DATETIME                              | NOT NULL                         | Thời điểm báo cáo
+resolved_at   | DATETIME                              | NULL                             | Thời điểm giải quyết
+
+
+================================================================================
+IX. THÔNG BÁO & HỖ TRỢ
+================================================================================
+
+[T30] Bảng: notifications
+--------------------------------------------------------------------------------
+Danh sách thông báo đẩy cho từng user.
+API: Get Notification, Read Notification, Del Notification.
+
+Trường      | Kiểu dữ liệu                                        | Ràng buộc          | Mô tả
+------------|-----------------------------------------------------|---------------------|-------------------------------
+notif_id    | BIGINT UNSIGNED                                     | PK, AUTO_INCREMENT  | Khóa chính
+user_id     | BIGINT UNSIGNED                                     | FK users(user_id)   | Người nhận
+title       | VARCHAR(200)                                        | NOT NULL            | Tiêu đề thông báo
+content     | TEXT                                                | NOT NULL            | Nội dung chi tiết
+notif_type  | ENUM('medical','billing','queue','emergency','system') | NOT NULL         | Loại thông báo
+is_read     | TINYINT(1)                                          | NOT NULL DEFAULT 0  | Đã đọc chưa
+expires_at  | DATETIME                                            | NULL                | Thời điểm hết hạn thông báo
+created_at  | DATETIME                                            | NOT NULL            | Thời điểm tạo
+read_at     | DATETIME                                            | NULL                | Thời điểm đọc
+
+
+[T31] Bảng: sos_requests
+--------------------------------------------------------------------------------
+Yêu cầu hỗ trợ y tế khẩn cấp.
+API: SOS Request.
+
+Trường              | Kiểu dữ liệu                           | Ràng buộc                      | Mô tả
+--------------------|----------------------------------------|--------------------------------|------------------------------
+sos_id              | BIGINT UNSIGNED                        | PK, AUTO_INCREMENT             | Khóa chính
+user_id             | BIGINT UNSIGNED                        | FK users(user_id)              | Người gửi SOS
+location_node_id    | INT UNSIGNED                           | FK map_nodes(node_id)          | Vị trí gần nhất
+pos_x               | FLOAT                                  | NULL                           | Tọa độ X chính xác
+pos_y               | FLOAT                                  | NULL                           | Tọa độ Y chính xác
+note                | TEXT                                   | NULL                           | Mô tả tình trạng khẩn cấp
+status              | ENUM('received','processing','resolved') | NOT NULL                     | Trạng thái xử lý
+assigned_staff_id   | BIGINT UNSIGNED                        | FK staffs(staff_id) NULL       | Nhân viên được phân công
+created_at          | DATETIME                               | NOT NULL                       | Thời điểm gửi SOS
+resolved_at         | DATETIME                               | NULL                           | Thời điểm giải quyết
+
+
+[T32] Bảng: conversations
+--------------------------------------------------------------------------------
+Hội thoại chat giữa bệnh nhân và nhân viên điều phối.
+API: Create Chat, List Conversations.
+
+Trường           | Kiểu dữ liệu     | Ràng buộc               | Mô tả
+-----------------|------------------|--------------------------|---------------------------------------------
+conversation_id  | BIGINT UNSIGNED  | PK, AUTO_INCREMENT       | Khóa chính
+user_id          | BIGINT UNSIGNED  | FK users(user_id)        | Bệnh nhân
+staff_id         | BIGINT UNSIGNED  | FK staffs(staff_id)      | Nhân viên hỗ trợ
+topic            | VARCHAR(200)     | NOT NULL                 | Chủ đề hội thoại
+status           | ENUM('open','closed') | NOT NULL            | Trạng thái cuộc chat
+last_message     | TEXT             | NULL                     | Nội dung tin nhắn cuối cùng (cache hiển thị)
+unread_count     | SMALLINT UNSIGNED | NOT NULL DEFAULT 0      | Số tin nhắn chưa đọc
+created_at       | DATETIME         | NOT NULL                 | Thời điểm mở cuộc chat
+updated_at       | DATETIME         | NULL                     | Tin nhắn cuối gần nhất
+closed_at        | DATETIME         | NULL                     | Thời điểm đóng cuộc chat
+
+
+[T33] Bảng: messages
+--------------------------------------------------------------------------------
+Tin nhắn trong từng hội thoại. Cần auto-purge sau 30 ngày.
+API: Send Message, Get Messages, Mark Message Read.
+
+Trường           | Kiểu dữ liệu    | Ràng buộc                         | Mô tả
+-----------------|-----------------|-----------------------------------|-------------------------------
+message_id       | BIGINT UNSIGNED | PK, AUTO_INCREMENT                | Khóa chính
+conversation_id  | BIGINT UNSIGNED | FK conversations(conversation_id) | Hội thoại chứa tin nhắn
+sender_id        | BIGINT UNSIGNED | NOT NULL                          | user_id hoặc staff_id gửi tin
+sender_type      | ENUM('user','staff') | NOT NULL                    | Phân biệt loại người gửi
+type             | ENUM('text','image') | NOT NULL DEFAULT 'text'     | Loại tin nhắn
+text_content     | TEXT            | NULL                              | Nội dung văn bản
+media_url        | VARCHAR(500)    | NULL                              | Đường dẫn hình ảnh đính kèm
+is_deleted       | TINYINT(1)      | NOT NULL DEFAULT 0                | Đã xóa mềm
+is_read          | TINYINT(1)      | NOT NULL DEFAULT 0                | Đã đọc bởi bên kia
+created_at       | DATETIME        | NOT NULL                          | Thời điểm gửi
+deleted_at       | DATETIME        | NULL                              | Thời điểm xóa
+
+
+================================================================================
+X. TIỆN ÍCH
+================================================================================
+
+[T34] Bảng: facilities
+--------------------------------------------------------------------------------
+Tiện ích nội khu: nhà thuốc, căn tin, bãi xe, wifi.
+API: Find Pharmacy, Canteen Info, Parking Status, Wifi Hospital.
+
+Trường            | Kiểu dữ liệu                                           | Ràng buộc          | Mô tả
+------------------|--------------------------------------------------------|--------------------|------------------------------------------
+facility_id       | INT UNSIGNED                                           | PK, AUTO_INCREMENT | Khóa chính
+facility_type     | ENUM('pharmacy','canteen','parking','wifi','atm','other') | NOT NULL         | Loại tiện ích
+node_id           | INT UNSIGNED                                           | FK map_nodes(node_id) | Vị trí trên bản đồ
+name              | VARCHAR(100)                                           | NOT NULL           | Tên tiện ích
+vehicle_type      | ENUM('car','motorbike')                                | NULL               | Loại xe áp dụng (chỉ dùng khi facility_type = 'parking')
+total_slots       | SMALLINT UNSIGNED                                      | NULL               | Tổng số chỗ đỗ xe
+available_slots   | SMALLINT UNSIGNED                                      | NULL               | Số chỗ còn trống hiện tại
+ssid              | VARCHAR(100)                                           | NULL               | Tên mạng Wifi (chỉ dùng khi facility_type = 'wifi')
+wifi_password     | VARCHAR(100)                                           | NULL               | Mật khẩu Wifi, NULL nếu mạng mở
+coverage_zone     | VARCHAR(200)                                           | NULL               | Khu vực phủ sóng Wifi
+details           | JSON                                                   | NULL               | Chi tiết: menu, số chỗ, SSID/pass wifi...
+open_hours        | VARCHAR(100)                                           | NULL               | Giờ hoạt động
+is_active         | TINYINT(1)                                             | NOT NULL DEFAULT 1 | Đang hoạt động
+
+
+[T35] Bảng: feedbacks
+--------------------------------------------------------------------------------
+Góp ý tính năng từ người dùng.
+API: App Feedback.
+
+Trường           | Kiểu dữ liệu    | Ràng buộc          | Mô tả
+-----------------|-----------------|---------------------|---------------------------
+feedback_id      | BIGINT UNSIGNED | PK, AUTO_INCREMENT  | Khóa chính
+user_id          | BIGINT UNSIGNED | FK users(user_id)   | Người gửi góp ý
+rating           | TINYINT         | NOT NULL            | Đánh giá 1-5 sao
+comment          | TEXT            | NULL                | Nhận xét chi tiết
+attached_images  | JSON            | NULL                | Mảng URL hình ảnh đính kèm
+created_at       | DATETIME        | NOT NULL            | Thời điểm gửi
+
+
+[T36] Bảng: faqs
+--------------------------------------------------------------------------------
+Câu hỏi thường gặp.
+API: FAQ List.
+
+Trường      | Kiểu dữ liệu  | Ràng buộc              | Mô tả
+------------|---------------|-------------------------|-----------------------------------
+faq_id      | INT UNSIGNED  | PK, AUTO_INCREMENT      | Khóa chính
+category    | VARCHAR(50)   | NOT NULL DEFAULT 'general' | Nhóm câu hỏi (VD: 'app_guide', 'hospital_rules')
+question    | TEXT          | NOT NULL                | Câu hỏi
+answer      | TEXT          | NOT NULL                | Câu trả lời
+sort_order  | SMALLINT      | NOT NULL                | Thứ tự hiển thị
+is_active   | TINYINT(1)    | NOT NULL DEFAULT 1      | Đang hiển thị

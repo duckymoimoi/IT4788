@@ -1,0 +1,70 @@
+Dựa trên tài liệu thiết kế hệ thống của dự án, dưới đây là tổng hợp toàn bộ các mã response (mã phản hồi) bao gồm mã thành công và các mã lỗi, được phân loại theo từng nhóm chức năng (Module):
+
+### 1. Nhóm Thành công (SUCCESS) & Lỗi chung
+| Mã Code | Thông báo (Message) | Ý nghĩa / Ghi chú |
+| :--- | :--- | :--- |
+| **1000** | OK | Xử lý request thành công (Request processed successfully). |
+| **4000** | Bad Request | Yêu cầu không hợp lệ (Ví dụ: Không tìm thấy đường đi khả dụng, đích đến bị cô lập),. |
+| **5000** | Internal Server Error | Lỗi máy chủ nội bộ (Ví dụ: Lỗi kết nối truy vấn Database, lỗi kết nối dịch vụ bên thứ 3),,. |
+
+### 2. Nhóm Xác thực dữ liệu (VALIDATION)
+| Mã Code | Thông báo (Message) | Ý nghĩa / Ghi chú |
+| :--- | :--- | :--- |
+| **2001** | Missing required parameter | Thiếu tham số bắt buộc đầu vào. |
+| **2002** | Invalid parameter type | Sai kiểu dữ liệu của tham số. |
+| **2003** | Invalid parameter value | Giá trị tham số không hợp lệ (Ví dụ: Tọa độ ngoài phạm vi, độ dài quá quy định, chứa ký tự độc hại),,. |
+| **2004** | Method not allowed | Sai phương thức HTTP (Ví dụ: Gọi GET thay vì POST). |
+| **2005** | Request body invalid / Too many requests | Body sai định dạng JSON hoặc truy cập quá tải (Spam gọi API liên tục),. |
+
+### 3. Nhóm Người dùng & Phân quyền (AUTH / AUTHORIZATION)
+| Mã Code | Thông báo (Message) | Ý nghĩa / Ghi chú |
+| :--- | :--- | :--- |
+| **1004** | Invalid Token | Token không hợp lệ hoặc không đủ quyền,,. |
+| **1009** | Not access | Truy cập bị từ chối do không có quyền (Ví dụ: Người dùng bình thường gọi API của Admin, hoặc cố tình truy cập dữ liệu người khác),,. |
+| **3001** | Token is invalid | Mã phiên đăng nhập (Token) bị sai. |
+| **3002** | Token expired | Mã phiên đăng nhập (Token) đã hết hạn. |
+| **3003** | User not authenticated | Người dùng chưa đăng nhập. |
+| **3004** | OTP incorrect | Sai mã xác thực OTP. |
+| **3005** | OTP expired | Mã xác thực OTP đã hết hạn. |
+| **3006** | User already exists | Đăng ký trùng lặp (Tài khoản/SĐT đã tồn tại). |
+| **3007** | User not found | Tài khoản không tồn tại. |
+| **3008** | Password incorrect | Sai mật khẩu. |
+| **3101** | Permission denied | Không có quyền thực hiện thao tác. |
+| **3102** | Admin role required | Tính năng chỉ dành riêng cho Admin. |
+
+### 4. Nhóm Bản đồ (MAP)
+| Mã Code | Thông báo (Message) | Ý nghĩa / Ghi chú |
+| :--- | :--- | :--- |
+| **4001** | Floor not found | Tầng không tồn tại trong hệ thống. |
+| **4002** | Node not found | Phòng/Điểm nút không tồn tại. |
+| **4003** | Edge not found | Hành lang hoặc đoạn đường nối không tồn tại,,. |
+| **4004** | Invalid coordinate / Not Found | Tọa độ sai. *(Lưu ý: Tùy thuộc vào từng API, mã 4004 còn được dùng để báo lỗi không tìm thấy tài nguyên như: Route not found, Asset not found, Conversation not found, Station not found)*,,,,. |
+
+### 5. Nhóm Điều phối lộ trình (ROUTE) & Luồng người (FLOW)
+| Mã Code | Thông báo (Message) | Ý nghĩa / Ghi chú |
+| :--- | :--- | :--- |
+| **5001** | Invalid start location | Điểm xuất phát bắt đầu sai. |
+| **5002** | Invalid destination | Điểm đích đến sai. |
+| **5003** | Path not found | Không tìm thấy đường đi khả dụng. |
+| **6001** | Invalid location data | Tọa độ ping vị trí bị sai. |
+| **6002** | Density data unavailable | Không có dữ liệu mật độ luồng người. |
+
+### 6. Nhóm Y tế (MEDICAL) & Thiết bị cơ sở vật chất (ASSET)
+| Mã Code | Thông báo (Message) | Ý nghĩa / Ghi chú |
+| :--- | :--- | :--- |
+| **1010** | Limit exceeded | Vượt quá giới hạn nghiệp vụ (Ví dụ: Cố tình mượn chiếc xe lăn thứ 2 khi chưa trả chiếc cũ). |
+| **7001** | HIS service unavailable | Dịch vụ hệ thống Y tế (HIS) bị down hoặc mất kết nối. |
+| **7002** | Clinical task not found | Không tìm thấy mục chỉ định khám bệnh của bệnh nhân. |
+| **8001** | Asset not found | Xe lăn/cáng hoặc thiết bị không tồn tại. |
+| **8002** | Asset not available | Thiết bị đang bận, không có chiếc nào đang trống. |
+
+### 7. Nhóm Hệ thống & Thuật toán (ENGINE / SYSTEM)
+| Mã Code | Thông báo (Message) | Ý nghĩa / Ghi chú |
+| :--- | :--- | :--- |
+| **9001** | Engine unavailable | Server chạy thuật toán (tìm đường, dự báo) bị down,. |
+| **9002** | Engine timeout | Thuật toán quá thời gian xử lý (Timeout),. |
+| **9901** | Database connection failed | Lỗi mất kết nối với Cơ sở dữ liệu. |
+| **9902** | Database query failed | Lỗi truy vấn SQL. |
+| **9999** | Unexpected exception | Lỗi hệ thống ngoại lệ không xác định. |
+
+Bạn có muốn tôi làm rõ thêm cách xử lý trên giao diện (Test case ứng xử của App) đối với các mã lỗi cụ thể nào không?
