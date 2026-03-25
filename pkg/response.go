@@ -29,6 +29,18 @@ type Response struct {
 const CodeOK = 1000
 
 // =====================================
+// MA RESPONSE - LOI CHUNG (1xxx / 4000 / 5000)
+// =====================================
+
+const (
+	CodeInvalidToken  = 1004 // Token khong hop le hoac khong du quyen
+	CodeNotAccess     = 1009 // Truy cap bi tu choi (vd: user goi API admin)
+	CodeLimitExceeded = 1010 // Vuot qua gioi han nghiep vu
+	CodeBadRequest    = 4000 // Yeu cau khong hop le
+	CodeInternalError = 5000 // Loi may chu noi bo
+)
+
+// =====================================
 // MA RESPONSE - VALIDATION (2xxx)
 // Loi du lieu dau vao tu phia client
 // =====================================
@@ -221,4 +233,39 @@ func ErrAdminRequired(c *gin.Context) {
 
 func ErrUnexpected(c *gin.Context) {
 	Error(c, CodeUnexpected, "Unexpected exception")
+}
+
+func ErrBadRequest(c *gin.Context, msg string) {
+	if msg == "" {
+		msg = "Bad request"
+	}
+	Error(c, CodeBadRequest, msg)
+}
+
+func ErrInternalError(c *gin.Context) {
+	Error(c, CodeInternalError, "Internal server error")
+}
+
+func ErrInvalidToken(c *gin.Context) {
+	Error(c, CodeInvalidToken, "Invalid token")
+}
+
+func ErrNotAccess(c *gin.Context) {
+	Error(c, CodeNotAccess, "Not access")
+}
+
+func ErrLimitExceeded(c *gin.Context) {
+	Error(c, CodeLimitExceeded, "Limit exceeded")
+}
+
+func ErrInvalidType(c *gin.Context) {
+	Error(c, CodeInvalidType, "Invalid parameter type")
+}
+
+func ErrInvalidValue(c *gin.Context) {
+	Error(c, CodeInvalidValue, "Invalid parameter value")
+}
+
+func ErrMethodNotAllowed(c *gin.Context) {
+	Error(c, CodeMethodNotAllow, "Method not allowed")
 }
