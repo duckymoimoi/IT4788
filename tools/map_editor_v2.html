@@ -459,6 +459,10 @@
           <div class="pr"><label class="pchk"><input type="checkbox" id="p-wc"
                 onchange="setProp('wheelchair',this.checked)"> Hỗ trợ xe lăn</label></div>
           <div class="pr"><label>Phòng cha (code)</label><input id="p-parent" placeholder="VD: R101 (trống = không có)" oninput="setProp('parentCode',this.value)"></div>
+          <div class="pr" id="p-crossfloor-wrap" style="display:none;margin-top:6px">
+            <button class="btn btn-b" style="width:100%" onclick="openCrossFloorModal()">🔗 Nối liên tầng</button>
+            <div id="p-crossfloor-list" style="font-size:11px;color:#8b949e;margin-top:4px"></div>
+          </div>
           <div class="pr" style="margin-top:10px"><button class="btn btn-r" style="width:100%"
               onclick="delSel()">Xóa</button></div>
         </div>
@@ -498,6 +502,7 @@
         onchange="loadImg(this)"></label>
     <button class="btn btn-g" onclick="openMetaModal()">Thông tin tầng</button>
     <button class="btn btn-grn" onclick="autoConnect()">Tự động nối cửa</button>
+    <button class="btn" style="background:#6366f1;color:#fff" onclick="manageCrossFloor()">🔗 Quản lý liên tầng</button>
     <button class="btn btn-b" onclick="doExport()">Xuất JSON</button>
     <button class="btn btn-g" onclick="doImport()">Nhập JSON</button>
     <button class="btn btn-r" onclick="clearFloor()">Xóa tầng này</button>
@@ -560,9 +565,21 @@
     </div>
   </div>
 
+  <!-- CROSS-FLOOR MODAL -->
+  <div class="modal-bg" id="ov-crossfloor">
+    <div class="modal-box" style="max-height:80vh;overflow-y:auto">
+      <h3 id="cf-title">Nối liên tầng</h3>
+      <div style="font-size:12px;color:#8b949e;margin-bottom:10px">Chọn node trên tầng khác để tạo edge liên tầng.</div>
+      <div id="cf-list" style="display:flex;flex-direction:column;gap:6px"></div>
+      <div id="cf-existing" style="margin-top:12px"></div>
+      <div style="margin-top:14px"><button class="btn btn-g" style="width:100%" onclick="closeCrossFloor()">Đóng</button></div>
+    </div>
+  </div>
+
   <script>
     // ============ MULTI-FLOOR STATE ============
     const floors = [];  // [{meta, nodes, edges, corridors, img, imgData}]
+    const crossFloorEdges = []; // [{id, fromFloorIdx, fromNodeId, toFloorIdx, toNodeId, weight, wheelchair}]
     let curFloor = 0;
     function F() { return floors[curFloor] }
     function mkFloor(num) {
@@ -788,7 +805,23 @@
       const pe = document.getElementById('pp-empty'), pn = document.getElementById('pp-node'), ep = document.getElementById('pp-edge'), sp = document.getElementById('pp-seg');
       const hide = () => { pe.style.display = 'none'; pn.style.display = 'none'; ep.style.display = 'none'; sp.style.display = 'none' };
       if (!sel) { pe.style.display = ''; pn.style.display = 'none'; ep.style.display = 'none'; sp.style.display = 'none'; return }
-      if (sel.t === 'node') { const n = fNode(sel.id); if (!n) return; hide(); pn.style.display = ''; document.getElementById('p-code').value = n.code; document.getElementById('p-name').value = n.name; document.getElementById('p-type').value = n.type; document.getElementById('p-lm').checked = n.landmark; document.getElementById('p-wc').checked = n.wheelchair; document.getElementById('p-parent').value = n.parentCode || '' }
+      if (sel.t === 'node') { const n = fNode(sel.id); if (!n) return; hide(); pn.style.display = ''; document.getElementById('p-code').value = n.code; document.getElementById('p-name').value = n.name; document.getElementById('p-type').value = n.type; document.getElementById('p-lm').checked = n.landmark; document.getElementById('p-wc').checked = n.wheelchair; document.getElementById('p-parent').value = n.parentCode || '';
+        const cfWrap = document.getElementById('p-crossfloor-wrap');
+        const cfTypes = ['elevator','escalator','stairs'];
+        if (cfTypes.includes(n.type) && floors.length > 1) {
+          cfWrap.style.display = '';
+          const cfList = document.getElementById('p-crossfloor-list');
+          const links = crossFloorEdges.filter(e => (e.fromFloorIdx === curFloor && e.fromNodeId === n.id) || (e.toFloorIdx === curFloor && e.toNodeId === n.id));
+          if (links.length > 0) {
+            cfList.innerHTML = '<b>Đã nối:</b><br>' + links.map(e => {
+              const otherFi = e.fromFloorIdx === curFloor && e.fromNodeId === n.id ? e.toFloorIdx : e.fromFloorIdx;
+              const otherNid = e.fromFloorIdx === curFloor && e.fromNodeId === n.id ? e.toNodeId : e.fromNodeId;
+              const otherN = floors[otherFi]?.nodes.find(x => x.id === otherNid);
+              return '↔ ' + (floors[otherFi]?.meta.floorName || '?') + ' / ' + (otherN?.code || '?');
+            }).join('<br>');
+          } else { cfList.innerHTML = '<i>Chưa nối tầng nào</i>' }
+        } else { cfWrap.style.display = 'none' }
+      }
       else if (sel.t === 'edge') { const e = fEdge(sel.id); if (!e) return; hide(); ep.style.display = ''; document.getElementById('e-w').value = e.weight; document.getElementById('e-bi').checked = e.bidirectional; document.getElementById('e-wc').checked = e.wheelchair; document.getElementById('e-cf').checked = e.crossFloor || false }
       else if (sel.t === 'seg') { const s = fSeg(sel.id); if (!s) return; hide(); sp.style.display = ''; document.getElementById('s-w').value = s.weight; document.getElementById('s-wc').checked = s.wheelchair !== false }
     }
@@ -885,8 +918,168 @@
       alert('Tự động nối xong!\n- ' + nn + ' junction mới\n- ' + ne + ' edge mới');
     }
 
+    // ============ CROSS-FLOOR MANAGEMENT ============
+    const cfTypes = ['elevator','escalator','stairs'];
+    const cfWeights = { elevator: 1.0, escalator: 1.5, stairs: 2.0 };
+    const cfWcDefault = { elevator: true, escalator: false, stairs: false };
+
+    function openCrossFloorModal() {
+      if (!sel || sel.t !== 'node') return;
+      const n = fNode(sel.id);
+      if (!n || !cfTypes.includes(n.type)) return;
+      document.getElementById('cf-title').textContent = 'Nối liên tầng: ' + n.code + ' (' + F().meta.floorName + ')';
+      const listEl = document.getElementById('cf-list');
+      const existEl = document.getElementById('cf-existing');
+      listEl.innerHTML = ''; existEl.innerHTML = '';
+
+      // Find candidate nodes on other floors (same type)
+      let hasCandidates = false;
+      floors.forEach((f, fi) => {
+        if (fi === curFloor) return;
+        const candidates = f.nodes.filter(cn => cfTypes.includes(cn.type));
+        if (candidates.length === 0) return;
+        candidates.forEach(cn => {
+          hasCandidates = true;
+          const alreadyLinked = crossFloorEdges.some(e =>
+            (e.fromFloorIdx === curFloor && e.fromNodeId === n.id && e.toFloorIdx === fi && e.toNodeId === cn.id) ||
+            (e.toFloorIdx === curFloor && e.toNodeId === n.id && e.fromFloorIdx === fi && e.fromNodeId === cn.id)
+          );
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:#161b22;border-radius:6px';
+          const label = document.createElement('span');
+          label.style.fontSize = '12px';
+          const typeLabel = cn.type === 'elevator' ? '🛗' : cn.type === 'escalator' ? '↗' : '🪜';
+          label.textContent = f.meta.floorName + '  →  ' + typeLabel + ' ' + cn.code + (cn.name ? ' (' + cn.name + ')' : '');
+          row.appendChild(label);
+          if (alreadyLinked) {
+            const badge = document.createElement('span');
+            badge.style.cssText = 'font-size:11px;color:#10b981;font-weight:bold';
+            badge.textContent = '✓ Đã nối';
+            row.appendChild(badge);
+          } else {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-b'; btn.style.cssText = 'font-size:11px;padding:3px 10px';
+            btn.textContent = '+ Nối';
+            btn.onclick = () => { addCrossFloorEdge(curFloor, n.id, fi, cn.id, n.type); openCrossFloorModal(); updProps() };
+            row.appendChild(btn);
+          }
+          listEl.appendChild(row);
+        });
+      });
+      if (!hasCandidates) { listEl.innerHTML = '<div style="color:#8b949e;font-size:12px;padding:8px">Không có node thang nào trên tầng khác. Hãy tạo node thang trên các tầng khác trước.</div>' }
+
+      // Show existing cross-floor edges for this node
+      const existing = crossFloorEdges.filter(e =>
+        (e.fromFloorIdx === curFloor && e.fromNodeId === n.id) ||
+        (e.toFloorIdx === curFloor && e.toNodeId === n.id)
+      );
+      if (existing.length > 0) {
+        existEl.innerHTML = '<div style="font-size:12px;color:#c9d1d9;font-weight:bold;margin-bottom:6px">Liên kết hiện có:</div>';
+        existing.forEach(e => {
+          const otherFi = (e.fromFloorIdx === curFloor && e.fromNodeId === n.id) ? e.toFloorIdx : e.fromFloorIdx;
+          const otherNid = (e.fromFloorIdx === curFloor && e.fromNodeId === n.id) ? e.toNodeId : e.fromNodeId;
+          const otherN = floors[otherFi]?.nodes.find(x => x.id === otherNid);
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 8px;background:#1c2128;border-radius:4px;margin-bottom:4px';
+          const label = document.createElement('span');
+          label.style.fontSize = '12px';
+          label.textContent = '↔ ' + (floors[otherFi]?.meta.floorName || '?') + ' / ' + (otherN?.code || '?');
+          row.appendChild(label);
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-r'; btn.style.cssText = 'font-size:11px;padding:2px 8px';
+          btn.textContent = 'Xóa';
+          btn.onclick = () => { removeCrossFloorEdge(e.id); openCrossFloorModal(); updProps() };
+          row.appendChild(btn);
+          existEl.appendChild(row);
+        });
+      }
+
+      document.getElementById('ov-crossfloor').classList.add('show');
+    }
+    function closeCrossFloor() { document.getElementById('ov-crossfloor').classList.remove('show') }
+
+    function addCrossFloorEdge(fi1, nid1, fi2, nid2, type) {
+      const already = crossFloorEdges.some(e =>
+        (e.fromFloorIdx === fi1 && e.fromNodeId === nid1 && e.toFloorIdx === fi2 && e.toNodeId === nid2) ||
+        (e.toFloorIdx === fi1 && e.toNodeId === nid1 && e.fromFloorIdx === fi2 && e.fromNodeId === nid2)
+      );
+      if (already) return;
+      crossFloorEdges.push({
+        id: gid(),
+        fromFloorIdx: fi1, fromNodeId: nid1,
+        toFloorIdx: fi2, toNodeId: nid2,
+        weight: cfWeights[type] || 1.5,
+        wheelchair: cfWcDefault[type] || false
+      });
+    }
+    function removeCrossFloorEdge(id) {
+      const idx = crossFloorEdges.findIndex(e => e.id === id);
+      if (idx >= 0) crossFloorEdges.splice(idx, 1);
+    }
+
+    function manageCrossFloor() {
+      if (floors.length < 2) { alert('Cần ít nhất 2 tầng để nối liên tầng.'); return }
+      const listEl = document.getElementById('cf-list');
+      const existEl = document.getElementById('cf-existing');
+      document.getElementById('cf-title').textContent = 'Quản lý liên kết liên tầng';
+      listEl.innerHTML = '';
+      existEl.innerHTML = '';
+
+      // Summary by floor pair
+      const floorPairs = new Map();
+      crossFloorEdges.forEach(e => {
+        const key = Math.min(e.fromFloorIdx, e.toFloorIdx) + '-' + Math.max(e.fromFloorIdx, e.toFloorIdx);
+        if (!floorPairs.has(key)) floorPairs.set(key, []);
+        floorPairs.get(key).push(e);
+      });
+
+      if (crossFloorEdges.length === 0) {
+        listEl.innerHTML = '<div style="color:#f59e0b;font-size:12px;padding:8px">⚠ Chưa có liên kết liên tầng nào! Hãy chọn node thang (elevator/stairs/escalator) và bấm "Nối liên tầng".</div>';
+      } else {
+        crossFloorEdges.forEach(e => {
+          const fn = floors[e.fromFloorIdx]?.nodes.find(n => n.id === e.fromNodeId);
+          const tn = floors[e.toFloorIdx]?.nodes.find(n => n.id === e.toNodeId);
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:#161b22;border-radius:6px';
+          const label = document.createElement('span');
+          label.style.fontSize = '12px';
+          label.textContent = (floors[e.fromFloorIdx]?.meta.floorName || '?') + '/' + (fn?.code || '?') + '  ↔  ' + (floors[e.toFloorIdx]?.meta.floorName || '?') + '/' + (tn?.code || '?');
+          row.appendChild(label);
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-r'; btn.style.cssText = 'font-size:11px;padding:2px 8px';
+          btn.textContent = 'Xóa';
+          btn.onclick = () => { removeCrossFloorEdge(e.id); manageCrossFloor() };
+          row.appendChild(btn);
+          listEl.appendChild(row);
+        });
+      }
+
+      // Warn about floors with no cross-floor connection
+      const connectedFloors = new Set();
+      crossFloorEdges.forEach(e => { connectedFloors.add(e.fromFloorIdx); connectedFloors.add(e.toFloorIdx) });
+      const unlinked = floors.map((f, i) => ({ idx: i, name: f.meta.floorName })).filter(f => !connectedFloors.has(f.idx));
+      if (unlinked.length > 0 && floors.length > 1) {
+        const warn = document.createElement('div');
+        warn.style.cssText = 'color:#f59e0b;font-size:12px;padding:8px;margin-top:8px;background:#2d1f00;border-radius:6px';
+        warn.textContent = '⚠ Tầng chưa nối: ' + unlinked.map(f => f.name).join(', ');
+        existEl.appendChild(warn);
+      }
+
+      document.getElementById('ov-crossfloor').classList.add('show');
+    }
+
     // ============ EXPORT / IMPORT ============
     function doExport() {
+      // Validate cross-floor connections
+      if (floors.length > 1) {
+        const connectedFloors = new Set();
+        crossFloorEdges.forEach(e => { connectedFloors.add(e.fromFloorIdx); connectedFloors.add(e.toFloorIdx) });
+        const unlinked = floors.map((f, i) => ({ idx: i, name: f.meta.floorName })).filter(f => !connectedFloors.has(f.idx));
+        if (unlinked.length > 0) {
+          const msg = '⚠ Cảnh báo: Các tầng sau chưa có liên kết liên tầng:\n' + unlinked.map(f => '  - ' + f.name).join('\n') + '\n\nBạn vẫn muốn xuất JSON?';
+          if (!confirm(msg)) return;
+        }
+      }
       const out = {
         floors: floors.map(f => {
           const sx = f.meta.realWidthM / (f.img ? f.img.width : 1), sy = f.meta.realHeightM / (f.img ? f.img.height : 1);
@@ -895,6 +1088,21 @@
             nodes: f.nodes.map(n => ({ node_code: n.code, node_name: n.name, node_type: n.type, polygon_coords: n.isPoly ? n.poly.map(p => p.join(',')).join(',') : '', center_x: Math.round(n.cx * 10) / 10, center_y: Math.round(n.cy * 10) / 10, parent_room_code: n.parentCode || '', is_landmark: n.landmark, is_accessible: true, wheelchair_accessible: n.wheelchair, is_active: true })),
             edges: f.edges.map(e => { const fn = f.nodes.find(n => n.id === e.from), tn = f.nodes.find(n => n.id === e.to); const dx = ((tn?.cx || 0) - (fn?.cx || 0)) * sx, dy = ((tn?.cy || 0) - (fn?.cy || 0)) * sy; const dm = Math.round(Math.sqrt(dx * dx + dy * dy) * 100) / 100; const crossTypes = ['elevator','escalator','stairs']; const autoCross = e.crossFloor || (fn && crossTypes.includes(fn.type)) || (tn && crossTypes.includes(tn.type)); return { from_code: fn?.code, to_code: tn?.code, polygon_coords: e.waypoints.length ? e.waypoints.map(p => Math.round(p[0] * 10) / 10 + ',' + Math.round(p[1] * 10) / 10).join(',') : null, distance_m: dm, weight: e.weight, is_bidirectional: e.bidirectional, is_cross_floor: !!autoCross, wheelchair_accessible: e.wheelchair, is_active: true } }),
             corridors: f.corridors.map(s => ({ ax: Math.round(s.ax), ay: Math.round(s.ay), bx: Math.round(s.bx), by: Math.round(s.by), weight: s.weight, wheelchair_accessible: s.wheelchair !== false }))
+          }
+        }),
+        cross_floor_edges: crossFloorEdges.map(e => {
+          const fn = floors[e.fromFloorIdx]?.nodes.find(n => n.id === e.fromNodeId);
+          const tn = floors[e.toFloorIdx]?.nodes.find(n => n.id === e.toNodeId);
+          return {
+            from_floor_number: floors[e.fromFloorIdx]?.meta.floorNumber,
+            from_node_code: fn?.code || '',
+            to_floor_number: floors[e.toFloorIdx]?.meta.floorNumber,
+            to_node_code: tn?.code || '',
+            weight: e.weight,
+            is_bidirectional: true,
+            is_cross_floor: true,
+            wheelchair_accessible: e.wheelchair,
+            is_active: true
           }
         })
       };
@@ -916,9 +1124,22 @@
                 f.meta.realWidthM = fl.meta?.real_width_m || 50; f.meta.realHeightM = fl.meta?.real_height_m || 30;
                 const codeToId = {};
                 for (const n of (fl.nodes || [])) { let poly = null; if (n.polygon_coords && n.polygon_coords.length > 0) { const nums = n.polygon_coords.split(',').map(Number); poly = []; for (let i = 0; i < nums.length; i += 2)poly.push([nums[i], nums[i + 1]]) } const id = gid(); codeToId[n.node_code] = id; f.nodes.push({ id, code: n.node_code, name: n.node_name, type: n.node_type, isPoly: !!poly, poly, cx: n.center_x, cy: n.center_y, landmark: n.is_landmark || false, wheelchair: n.wheelchair_accessible !== false, parentCode: n.parent_room_code || '' }) }
-                for (const e of (fl.edges || [])) { let wpts = []; if (e.polygon_coords) { const nums = e.polygon_coords.split(',').map(Number); for (let i = 0; i < nums.length; i += 2) wpts.push([nums[i], nums[i + 1]]) } else if (e.waypoints) { wpts = e.waypoints.map(p => [p.x, p.y]) } f.edges.push({ id: gid(), from: codeToId[e.from_code], to: codeToId[e.to_code], waypoints: wpts, weight: e.weight || 1, bidirectional: e.is_bidirectional !== false, wheelchair: e.wheelchair_accessible !== false, crossFloor: e.is_cross_floor || false }) }
+              for (const e of (fl.edges || [])) { let wpts = []; if (e.polygon_coords) { const nums = e.polygon_coords.split(',').map(Number); for (let i = 0; i < nums.length; i += 2) wpts.push([nums[i], nums[i + 1]]) } else if (e.waypoints) { wpts = e.waypoints.map(p => [p.x, p.y]) } f.edges.push({ id: gid(), from: codeToId[e.from_code], to: codeToId[e.to_code], waypoints: wpts, weight: e.weight || 1, bidirectional: e.is_bidirectional !== false, wheelchair: e.wheelchair_accessible !== false, crossFloor: e.is_cross_floor || false }) }
                 for (const s of (fl.corridors || [])) f.corridors.push({ id: gid(), ax: s.ax, ay: s.ay, bx: s.bx, by: s.by, weight: s.weight || 1, wheelchair: s.wheelchair_accessible !== false });
                 floors.push(f);
+              }
+              // Import cross-floor edges
+              crossFloorEdges.length = 0;
+              if (d.cross_floor_edges && Array.isArray(d.cross_floor_edges)) {
+                for (const cfe of d.cross_floor_edges) {
+                  const fi1 = floors.findIndex(f => f.meta.floorNumber === cfe.from_floor_number);
+                  const fi2 = floors.findIndex(f => f.meta.floorNumber === cfe.to_floor_number);
+                  if (fi1 < 0 || fi2 < 0) continue;
+                  const nid1 = floors[fi1].nodes.find(n => n.code === cfe.from_node_code)?.id;
+                  const nid2 = floors[fi2].nodes.find(n => n.code === cfe.to_node_code)?.id;
+                  if (!nid1 || !nid2) continue;
+                  crossFloorEdges.push({ id: gid(), fromFloorIdx: fi1, fromNodeId: nid1, toFloorIdx: fi2, toNodeId: nid2, weight: cfe.weight || 1.5, wheelchair: cfe.wheelchair_accessible || false });
+                }
               }
               curFloor = 0; resetEditorState(); renderTabs(); loadFloorToCanvas(); render(); updateHeader();
               alert('Nhập xong: ' + floors.length + ' tầng');
