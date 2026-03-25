@@ -1,5 +1,5 @@
 ================================================================================
-PHÂN TÍCH PHỤ THUỘC & PHÂN CÔNG 5 NGƯỜI
+PHÂN TÍCH PHỤ THUỘC & PHÂN CÔNG 5 NGƯỜI (Cập nhật 25/03)
 Hospital Navigation & Coordination System
 ================================================================================
 
@@ -11,23 +11,29 @@ I. SƠ ĐỒ PHỤ THUỘC GIỮA CÁC SLICE
   Slice 2 (Dijkstra + Modes) ──────────────────── ĐỘC LẬP
   Slice 3 (Route Core)       ──── phụ thuộc ───── Slice 2
   Slice 4 (Route Mở Rộng)   ──── phụ thuộc ───── Slice 3
-  Slice 5 (Flow)             ─────────────────── ĐỘC LẬP
+  Slice 5 (Flow + Simulate)  ─────────────────── ĐỘC LẬP
   Slice 6 (Medical)          ─────────────────── ĐỘC LẬP
   Slice 7 (Device)           ─────────────────── ĐỘC LẬP
   Slice 8 (Notifications)    ─────────────────── ĐỘC LẬP
-  Slice 9 (SOS + Chat)       ─────────────────── ĐỘC LẬP
-  Slice 10 (Voice)           ──── phụ thuộc ───── map_service (đã có)
-  Slice 11 (Utilities)       ─────────────────── ĐỘC LẬP
-  Slice 12 (Engine + Admin)  ──── phụ thuộc ───── Slice 2 + Slice 5
+  Slice 9 (SOS + Chat WS)   ─────────────────── ĐỘC LẬP
+  Slice 10 (Utilities)       ─────────────────── ĐỘC LẬP
+  Slice 11 (Engine + Admin)  ──── phụ thuộc ───── Slice 2 + Slice 5
 
 Sơ đồ chuỗi:
 
   [Slice 2] → [Slice 3] → [Slice 4]
       ↓
-  [Slice 12] ← [Slice 5]
+  [Slice 11] ← [Slice 5]
 
   Các slice sau hoàn toàn độc lập với nhau:
-  [1] [5] [6] [7] [8] [9] [10] [11]
+  [1] [5] [6] [7] [8] [9] [10]
+
+THAY ĐỔI SO VỚI BẢN CŨ:
+  - Bỏ Slice 10 Voice (gộp voice_text vào Route/Slice 3)
+  - Slice 5 thêm 3 API simulate (11→14 API)
+  - Slice 9 Chat dùng WebSocket thay polling
+  - Slice 8 tích hợp FCM push notification
+  - Đánh số lại: Slice 11→10, Slice 12→11
 
 
 II. ĐIỂM XUNG ĐỘT KHI LÀM SONG SONG
@@ -35,31 +41,29 @@ II. ĐIỂM XUNG ĐỘT KHI LÀM SONG SONG
 
   File                    | Ai sửa                  | Mức độ xung đột
   ------------------------|-------------------------|------------------
-  handler/routes.go       | TẤT CẢ 5 người          | CAO — merge conflict
-  database/database.go    | TẤT CẢ 5 người          | CAO — merge conflict
-  service/auth_service.go | Người 1 + Người 5       | THẤP
-  handler/user_handler.go | Người 1 + Người 5       | THẤP
+  handler/routes.go       | Leader merge cuối       | KHÔNG — dùng file riêng
+  database/database.go    | Leader merge cuối       | KHÔNG — leader thêm
+  service/auth_service.go | Người E                 | THẤP
+  handler/user_handler.go | Người E                 | THẤP
 
   GIẢI PHÁP TRÁNH XUNG ĐỘT:
 
   1. handler/routes.go:
-     → Mỗi người KHÔNG sửa trực tiếp file routes.go
-     → Thay vào đó, mỗi người tạo file riêng:
+     → Mỗi người tạo file riêng:
          handler/routes_route.go    (Người A)
          handler/routes_flow.go     (Người B)
          handler/routes_medical.go  (Người C)
          handler/routes_device.go   (Người D)
          handler/routes_support.go  (Người E)
-     → Mỗi file export 1 function: RegisterXxxRoutes(r *gin.RouterGroup)
+     → Mỗi file export: RegisterXxxRoutes(r *gin.RouterGroup)
      → File routes.go chính chỉ gọi các function này
-     → NGƯỜI CUỐI CÙNG XONG sẽ gộp vào routes.go
+     → Leader merge cuối cùng
 
   2. database/database.go:
-     → Tương tự: mỗi người thêm bảng vào AutoMigrate sau khi merge
-     → Hoặc: 1 người (leader) chịu trách nhiệm file này
+     → Leader chịu trách nhiệm file này
      → Mỗi người xong schema → báo leader → leader thêm vào migrate
 
-  3. Các file schema/, repository/, service/, handler/ riêng module:
+  3. Các file riêng module:
      → KHÔNG xung đột vì mỗi người tạo file riêng
 
 
@@ -75,12 +79,12 @@ NGƯỜI A — Route (Leader kỹ thuật)
 Phụ trách: Slice 2 → Slice 3 → Slice 4
 
   TUẦN TỰ (vì có phụ thuộc chuỗi):
-    Bước 1: pkg/dijkstra.go, pkg/navigation.go
+    Bước 1: pkg/dijkstra.go, pkg/navigation.go (+ BuildVoiceText)
     Bước 2: schema/route.go (travel_modes)
-    Bước 3: schema/route.go (routes, route_paths)
+    Bước 3: schema/route.go (routes, route_paths + voice_text)
     Bước 4: schema/route.go (history_nodes, shares, feedbacks)
     Bước 5: repository/route_repo.go
-    Bước 6: service/route_service.go
+    Bước 6: service/route_service.go (get_steps trả voice_text)
     Bước 7: handler/route_handler.go
     Bước 8: handler/routes_route.go (đăng ký 14 endpoint)
     Bước 9: database/seed_route.go
@@ -96,21 +100,32 @@ Phụ trách: Slice 2 → Slice 3 → Slice 4
     handler/routes_route.go  [MỚI]
     database/seed_route.go   [MỚI]
 
-  Tổng: 14 API, 6 bảng mới, phức tạp nhất
+  Tổng: 14 API, 6 bảng mới
+  Lưu ý: Dijkstra cần xử lý cross-floor edges (is_cross_floor=true)
+          get_steps trả thêm voice_text cho TTS frontend
 
 ─────────────────────────────────────────────────────────────────
 
-NGƯỜI B — Flow & Density
+NGƯỜI B — Flow & Density + Simulate
 Phụ trách: Slice 5
 
   SONG SONG với Người A (không phụ thuộc):
     Bước 1: schema/flow.go (5 bảng)
     Bước 2: database/seed_flow.go
     Bước 3: repository/flow_repo.go
-    Bước 4: service/flow_service.go
+    Bước 4: service/flow_service.go (11 flow + 3 simulate)
     Bước 5: handler/flow_handler.go
-    Bước 6: handler/routes_flow.go (đăng ký 11 endpoint)
-    Bước 7: Test 11 flow API
+    Bước 6: handler/routes_flow.go (đăng ký 14 endpoint)
+    Bước 7: Test 14 flow API + simulate
+
+  Simulate logic (trong flow_service.go):
+    - StartSimulate(N, interval, duration)
+        → Tạo N goroutine, mỗi cái = 1 user ảo
+        → Mỗi goroutine gọi PingLocation mỗi interval giây
+        → User ảo di chuyển theo edge ngẫu nhiên trên map
+        → Lưu simulation_id để quản lý
+    - StopSimulate(simulationID) → cancel context, dừng goroutines
+    - GetSimulateStatus() → trả số user ảo, thời gian đã chạy
 
   Files sở hữu:
     schema/flow.go          [MỚI]
@@ -120,31 +135,30 @@ Phụ trách: Slice 5
     handler/routes_flow.go  [MỚI]
     database/seed_flow.go   [MỚI]
 
-  Tổng: 11 API, 5 bảng mới
+  Tổng: 14 API (11 flow + 3 simulate), 5 bảng mới
 
 ─────────────────────────────────────────────────────────────────
 
-NGƯỜI C — Medical + Voice
-Phụ trách: Slice 6 + Slice 10
+NGƯỜI C — Medical
+Phụ trách: Slice 6
 
   SONG SONG với tất cả (không phụ thuộc):
     Bước 1: schema/medical.go (3 bảng)
     Bước 2: database/seed_medical.go
     Bước 3: repository/medical_repo.go
-    Bước 4: service/medical_service.go
+    Bước 4: service/medical_service.go (sync_now = random treatments)
     Bước 5: handler/medical_handler.go
-    Bước 6: service/voice_service.go
-    Bước 7: handler/voice_handler.go
-    Bước 8: handler/routes_medical.go (đăng ký 10 endpoint)
-    Bước 9: Test 10 API (8 medical + 2 voice)
+    Bước 6: handler/routes_medical.go (đăng ký 10 endpoint)
+    Bước 7: Test 10 API
+
+  Lưu ý: SyncHIS() random 3-5 treatments từ danh sách mẫu:
+    Xét nghiệm máu, Siêu âm, Khám Nội, X-quang, Lãnh thuốc
 
   Files sở hữu:
     schema/medical.go          [MỚI]
     repository/medical_repo.go [MỚI]
     service/medical_service.go [MỚI]
     handler/medical_handler.go [MỚI]
-    service/voice_service.go   [MỚI]
-    handler/voice_handler.go   [MỚI]
     handler/routes_medical.go  [MỚI]
     database/seed_medical.go   [MỚI]
 
@@ -153,7 +167,7 @@ Phụ trách: Slice 6 + Slice 10
 ─────────────────────────────────────────────────────────────────
 
 NGƯỜI D — Device + Utilities
-Phụ trách: Slice 7 + Slice 11
+Phụ trách: Slice 7 + Slice 10
 
   SONG SONG với tất cả (không phụ thuộc):
     Bước 1: schema/device.go (4 bảng)
@@ -166,8 +180,8 @@ Phụ trách: Slice 7 + Slice 11
     Bước 8: service/util_service.go
     Bước 9: handler/device_handler.go
     Bước 10: handler/util_handler.go
-    Bước 11: handler/routes_device.go (đăng ký 14 endpoint)
-    Bước 12: Test 14 API (8 device + 6 util)
+    Bước 11: handler/routes_device.go (đăng ký 16 endpoint)
+    Bước 12: Test 16 API (8 device + 8 util)
 
   Files sở hữu:
     schema/device.go          [MỚI]
@@ -182,31 +196,32 @@ Phụ trách: Slice 7 + Slice 11
     database/seed_device.go   [MỚI]
     database/seed_util.go     [MỚI]
 
-  Tổng: 14 API, 7 bảng mới
+  Tổng: 16 API, 7 bảng mới
 
 ─────────────────────────────────────────────────────────────────
 
-NGƯỜI E — Auth bổ sung + Support + Engine
-Phụ trách: Slice 1 + Slice 8 + Slice 9 + Slice 12
+NGƯỜI E — Auth bổ sung + Support (Notif + SOS + Chat WS) + Engine
+Phụ trách: Slice 1 + Slice 8 + Slice 9 + Slice 11
 
-  SONG SONG phần lớn, Slice 12 chờ Người A + B xong:
+  SONG SONG phần lớn, Slice 11 chờ Người A + B xong:
     Bước 1: Slice 1 — bổ sung auth (sửa file có sẵn)
-    Bước 2: Slice 8 — schema/support.go (notifications)
-    Bước 3: Slice 9 — bổ sung support.go (sos, chat, messages)
-    Bước 4: database/seed_support.go
+    Bước 2: Slice 8 — schema/support.go (notifications) + FCM
+    Bước 3: Slice 9 — bổ sung support.go (sos, conversations, messages)
+    Bước 4: go get github.com/gorilla/websocket
     Bước 5: repository/support_repo.go
-    Bước 6: service/notif_service.go
+    Bước 6: service/notif_service.go (+ SendNotification qua FCM)
     Bước 7: service/sos_service.go
     Bước 8: service/chat_service.go
     Bước 9: handler/notif_handler.go
     Bước 10: handler/support_handler.go
     Bước 11: handler/chat_handler.go
-    Bước 12: handler/routes_support.go (đăng ký 18 endpoint)
-    Bước 13: Test 18 API (5 auth + 3 notif + 5 chat/sos + 1 sos)
-    Bước 14: Slice 12 — service/engine_service.go (CHỜ Người A + B)
-    Bước 15: handler/engine_handler.go
-    Bước 16: Bổ sung user settings/delete (sửa user_service, user_handler)
-    Bước 17: Test 8 API cuối
+    Bước 12: handler/ws_handler.go (WebSocket chat real-time)
+    Bước 13: handler/routes_support.go (đăng ký endpoint HTTP + WS)
+    Bước 14: Test (5 auth + 3 notif + 5 chat/sos + WS)
+    Bước 15: Slice 11 — service/engine_service.go (CHỜ Người A + B)
+    Bước 16: handler/engine_handler.go
+    Bước 17: Bổ sung user settings/delete (sửa user_service, user_handler)
+    Bước 18: Test 8 API cuối
 
   Files sở hữu:
     schema/support.go           [MỚI]
@@ -218,6 +233,7 @@ Phụ trách: Slice 1 + Slice 8 + Slice 9 + Slice 12
     handler/notif_handler.go    [MỚI]
     handler/support_handler.go  [MỚI]
     handler/chat_handler.go     [MỚI]
+    handler/ws_handler.go       [MỚI]   ← WebSocket handler
     handler/engine_handler.go   [MỚI]
     handler/routes_support.go   [MỚI]
     database/seed_support.go    [MỚI]
@@ -228,7 +244,8 @@ Phụ trách: Slice 1 + Slice 8 + Slice 9 + Slice 12
     service/user_service.go     → +4 methods
     handler/user_handler.go     → +4 endpoints
 
-  Tổng: 21 API (nhiều nhất nhưng phần lớn đơn giản)
+  Tổng: 25 API + 1 WS endpoint
+  Env cần: FCM_SERVER_KEY (Firebase Cloud Messaging)
 
 
 IV. TIMELINE SONG SONG
@@ -240,22 +257,25 @@ IV. TIMELINE SONG SONG
 
   Người A:
   [Dijkstra]→[Route Core]→[Route MR]→[Test]|                    XONG
+   +voice_text
 
   Người B:
-  [Flow schema+seed]→[Flow API]→[Test]     |                    XONG
+  [Flow schema+seed]→[Flow API]→[Simulate] |→[Test]             XONG
+   +3 API simulate
 
   Người C:
-  [Medical schema]→[Medical API]→[Voice]   |→[Test]             XONG
+  [Medical schema]→[Medical API]→[Test]     |                    XONG
+   +random sync_his
 
   Người D:
   [Device schema]→[Device API]→[Util]      |→[Test]             XONG
 
   Người E:
-  [Auth bổ sung]→[Support schema]→[Chat]   |→[Engine*]→[Test]   XONG
-                                               * chờ A+B
+  [Auth bổ sung]→[Support+FCM]→[Chat WS]  |→[Engine*]→[Test]   XONG
+   +WebSocket +FCM                              * chờ A+B
 
   ────────────────────────────────────────────────────────────
-  Ngày 6 chiều: MERGE + Integration Test toàn bộ (~92 API)
+  Ngày 6 chiều: MERGE + Integration Test toàn bộ (~90 API)
 
 
 V. QUY TRÌNH LÀM VIỆC CHUNG CHO CẢ TEAM
@@ -265,6 +285,7 @@ BƯỚC 1 — TRƯỚC KHI BẮT ĐẦU (Leader / Người A làm, 30 phút)
   □ Tạo nhánh develop từ main
   □ Sửa handler/routes.go: tạo cấu trúc gọi RegisterXxxRoutes()
   □ Tạo file mẫu handler/routes_template.go để các người khác copy
+  □ Thêm .env.example: FCM_SERVER_KEY=
   □ Commit & push → tất cả pull về
 
 BƯỚC 2 — MỖI NGƯỜI TẠO NHÁNH RIÊNG
@@ -296,7 +317,7 @@ BƯỚC 5 — MERGE VÀO DEVELOP
 
 BƯỚC 6 — INTEGRATION TEST
   Sau khi merge hết 5 nhánh:
-    □ Chạy cmd/test_full_system/main.go
+    □ Chạy test toàn bộ ~105 API
     □ Fix conflict nếu có
     □ Tag version mới
 
@@ -345,28 +366,29 @@ File routes.go chính chỉ cần:
       RegisterRouteRoutes(public, private, admin, routeHandler)
       RegisterFlowRoutes(public, private, admin, flowHandler)
       RegisterMedicalRoutes(public, private, admin, medicalHandler)
-      RegisterDeviceRoutes(public, private, admin, deviceHandler)
-      RegisterSupportRoutes(public, private, admin, supportHandler)
+      RegisterDeviceRoutes(public, private, admin, deviceHandler, utilHandler)
+      RegisterSupportRoutes(public, private, admin, notifHandler, sosHandler, chatHandler, wsHandler)
   }
 
 
 VII. TÓM TẮT PHÂN CÔNG
 ================================================================================
 
-  Người | Module            | API | Bảng | Phụ thuộc        | Độ khó
-  ------|-------------------|-----|------|------------------|--------
-  A     | Route (leader)    | 14  | 6    | Không            | Cao
-  B     | Flow & Density    | 11  | 5    | Không            | Trung bình
-  C     | Medical + Voice   | 10  | 3    | Không            | Trung bình
-  D     | Device + Utility  | 14  | 7    | Không            | Trung bình
-  E     | Auth+Support+Eng  | 21  | 4    | Slice 12 chờ A+B | Thấp-TB
-  ------|-------------------|-----|------|------------------|--------
-  TỔNG  |                   | 70  | 25   |                  |
+  Người | Module              | API  | Bảng | Phụ thuộc        | Độ khó
+  ------|---------------------|------|------|------------------|--------
+  A     | Route (leader)      | 14   | 6    | Không            | Cao
+  B     | Flow + Simulate     | 14   | 5    | Không            | Trung bình
+  C     | Medical             | 10   | 3    | Không            | Trung bình
+  D     | Device + Utility    | 16   | 7    | Không            | Trung bình
+  E     | Auth+Support+Engine | 25+WS| 4    | Slice 11 chờ A+B | Trung bình
+  ------|---------------------|------|------|------------------|--------
+  TỔNG  |                     | ~79  | 25   |                  |
+  + 26 API đã có (Map + Auth cũ) = ~105 API tổng
 
-  Người E có nhiều API nhất (21) nhưng phần lớn là CRUD đơn giản.
-  Người A có ít API hơn (14) nhưng phức tạp nhất (Dijkstra + tìm đường).
+  Người E có nhiều API nhất nhưng phần lớn là CRUD đơn giản.
+  Người A có ít API hơn nhưng phức tạp nhất (Dijkstra + tìm đường).
 
-  5 người bắt đầu ĐỒNG THỜI. Chỉ Slice 12 của Người E phải chờ.
+  5 người bắt đầu ĐỒNG THỜI. Chỉ Slice 11 của Người E phải chờ.
   Dự kiến tất cả xong trong 3-4 ngày làm việc.
 
 
