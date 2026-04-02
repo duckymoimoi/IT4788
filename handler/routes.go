@@ -1,4 +1,4 @@
-﻿package handler
+package handler
 
 import (
 	"github.com/gin-gonic/gin"
@@ -129,11 +129,12 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	engine.GET("/mapf_info", engineH.GetMAPFInfo)
 
 	// =============================================
-	// MODULE STUBS  - Team khac implement
+	// MODULE STUBS - Team khac implement
 	// =============================================
-	RegisterFlowRoutes(api, db)
-	RegisterMedicalRoutes(api, db)
-	RegisterDeviceRoutes(api, db)
-	RegisterSupportRoutes(api, db)
-	RegisterUtilRoutes(api, db)
+	RegisterFlowRoutes(api, db)       // Person B
+	RegisterMedicalRoutes(api, db)    // Person C
+	RegisterNotifRoutes(api, db)      // Person C
+	RegisterDeviceRoutes(api, db)     // Person D
+	RegisterUtilRoutes(api, db)       // Person D
+	RegisterSupportRoutes(api, db)    // Person E
 }

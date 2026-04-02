@@ -1,339 +1,357 @@
 ================================================================================
-PHAN TICH PHU THUOC & PHAN CONG 5 NGUOI
+PHAN CONG CONG VIEC NHOM -- 5 NGUOI
 Hospital Navigation & Coordination System
 Kien truc: Grid 2D + Dijkstra (real-time) + MAPF (offline pre-computed)
+Cap nhat: 2026-04-03
 ================================================================================
 
 
-I. SO DO PHU THUOC GIUA CAC SLICE
+I. TONG QUAN TIEN DO
 ================================================================================
 
-  [DA XONG] Slice 0  (Grid Map + POI)       -- Person A
-  [DA XONG] Slice 1  (Auth & User)          -- Person A
-  [DA XONG] Slice 2  (Engine core)          -- Person A
-  [DA XONG] Slice 3  (Route Core)           -- Person A
-  [DA XONG] Slice 4  (Route Mo Rong)        -- Person A
-  [DA XONG] Slice 11 (Engine Admin)         -- Person A
-  [DA XONG] TOAN BO SCHEMA                  -- 25 bang
-  [DA XONG] ROUTE STUBS                     -- 5 file routes_xxx.go cho team
+  Person A (Leader): DA XONG TAT CA
+    - Slice 0 (Grid Map & POI)     -- 15 API
+    - Slice 1 (Auth & User)        -- 15 API
+    - Slice 2 (Engine core)        -- Dijkstra + MAPF parser
+    - Slice 3 (Route Core)         -- 4 API
+    - Slice 4 (Route Mo Rong)      -- 10 API
+    - Slice 11 (Engine Admin)      -- 9 API (6 engine + 3 MAPF replay)
+    - Security fixes               -- Auth checks, transactions, json tags
+    - Test suite                   -- 71/71 PASS (10 parts)
+    Tong: 44 API da implement
 
-  [CAN LAM] Slice 5  (Flow + Simulate)      -- Person B
-  [CAN LAM] Slice 6  (Medical)              -- Person C
-  [CAN LAM] Slice 7  (Device)               -- Person D
-  [CAN LAM] Slice 8  (Notifications)        -- Person E
-  [CAN LAM] Slice 9  (SOS + Chat WS)        -- Person E
-  [CAN LAM] Slice 10 (Utilities)            -- Person C
+  Person B: BAT DAU NGAY
+    - Slice 5 (Flow + Simulate)    -- 15 API
 
-  -> TAT CA 4 nguoi (B/C/D/E) co the bat dau NGAY, KHONG ai phai cho!
+  Person C: BAT DAU NGAY
+    - Slice 6 (Medical)            -- 10 API
+    - Slice 8 (Notification)       -- 3 API
+    Tong: 13 API
 
-So do:
-  [XONG Slice 0] -> [XONG Slice 2] -> [XONG Slice 3] -> [XONG Slice 4]
-                          |
-                     [XONG Slice 11]
+  Person D: BAT DAU NGAY
+    - Slice 7 (Device)             -- 8 API
+    - Slice 10 (Utilities)         -- 10 API
+    Tong: 18 API
 
-  San sang bat dau: [5] [6] [7] [8] [9] [10]
+  Person E: BAT DAU NGAY
+    - Slice 9 (SOS + Chat WS)      -- 12 API + WebSocket
+    Tong: 12 API + 1 WS
+
+  KHONG AI CHO AI -- tat ca bat dau song song!
 
 
-II. KIEN TRUC HIEN TAI (SAU KHI REFACTOR)
+II. BANG PHAN CONG CHI TIET
 ================================================================================
 
-  QUAN TRONG - Da thay doi kien truc:
-  - MAPF solver chay OFFLINE (khong tich hop vao Go server)
-  - parser.go chi DOC file output.json co san
-  - Dijkstra = mode chinh cho benh nhan tim duong real-time
-
-  THAY DOI KIEN TRUC GAM NAY:
-  1. routes_route.go va routes_engine.go DA XOA
-     -> Route + Engine endpoints dang ky truc tiep trong routes.go
-     -> Ly do: Shared service instances (1 grid cache duy nhat)
-
-  2. routes.go hien tai:
-     - Tao shared repos + services (1 lan duy nhat)
-     - Dang ky Auth, User, Sys, Map, Route, Engine truc tiep
-     - Goi 5 ham RegisterXxxRoutes() cho team B/C/D/E
-
-  3. Schema da co json tags (snake_case) cho tat ca 11 files
-  4. Route APIs da co authorization check (verify route ownership)
-  5. DB transactions cho OrderRoute, RecalculateRoute
-  6. Grid map path doc tu env GRID_MAP_PATH (khong hardcode)
-  7. Thread-safe gridCache (sync.RWMutex)
-  8. Graceful shutdown (SIGINT/SIGTERM)
-
-  File                    | Trang thai              | Ai sua
-  ------------------------|-------------------------|------------------
-  handler/routes.go       | DA SUA XONG             | KHONG AI -- shared services
-  database/database.go    | DA SUA XONG             | KHONG AI -- 25 bang da migrate
-  schema/*.go (11 file)   | DA SUA XONG             | KHONG AI -- co json tags
-  pkg/mapf/*.go           | DA SUA XONG             | KHONG AI (tru B them manager.go)
-  cmd/main.go             | DA SUA XONG             | KHONG AI -- graceful shutdown
-
-  PATTERN: Stub-based route registration (CHI AP DUNG CHO TEAM B/C/D/E)
-  -----------------------------------------------------------------------
-  routes.go goi san 5 ham RegisterXxxRoutes() cho 5 module con lai.
-  Moi nguoi chi sua DUY NHAT file routes_xxx.go cua minh.
-  Khong can ghep, khong can merge, khong conflict!
-
-  Vi du: Nguoi B chi sua handler/routes_flow.go:
-    func RegisterFlowRoutes(api *gin.RouterGroup, db *gorm.DB) {
-        flowRepo := repository.NewFlowRepo(db)
-        flowSvc := service.NewFlowService(flowRepo)
-        flowH := NewFlowHandler(flowSvc)
-        flow := api.Group("/flow")
-        flow.POST("/ping", flowH.Ping)
-        ...
-    }
+  Nguoi | Module                    | APIs   | File routes          | Phu thuoc
+  ------|--------------------------|--------|----------------------|-----------
+  A     | Map+Route+Engine         | 44     | routes.go (truc tiep)| DA XONG
+  B     | Flow + MAPF Simulate     | 15     | routes_flow.go       | Khong
+  C     | Medical + Notification   | 10+3   | routes_medical.go    | Khong
+        |                          |        | routes_notif.go      |
+  D     | Device + Utilities       | 8+10   | routes_device.go     | Khong
+        |                          |        | routes_util.go       |
+  E     | SOS + Chat WebSocket     | 12+WS  | routes_support.go    | Khong
+  ------|--------------------------|--------|----------------------|-----------
+  TONG  |                          | 102+WS |                      |
 
 
-III. PHAN CONG 5 NGUOI
+III. HUONG DAN CHI TIET MOI NGUOI
 ================================================================================
 
 ---------------------------------------------------------------
-
-NGUOI A -- Map + Route + Engine (Leader ky thuat)
-Phu trach: Slice 0, 1, 2, 3, 4, 11
-
-  DA XONG TAT CA:
-    [XONG] 25 bang schema (11 files, tat ca co json tags)
-    [XONG] pkg/mapf/dijkstra.go     -- Dijkstra on grid
-    [XONG] pkg/mapf/parser.go       -- Parse output.json
-    [XONG] database/seed.go         -- Seed users, staffs, wards
-    [XONG] database/seed_map.go     -- Seed grid_maps, grid_pois
-    [XONG] database/seed_route.go   -- Seed 4 travel_modes
-    [XONG] repository/route_repo.go -- 14 methods + 2 transactions
-    [XONG] service/route_service.go -- 14 methods + VerifyRouteOwner
-    [XONG] handler/route_handler.go -- 14 handlers (co auth check)
-    [XONG] service/engine_service.go -- 6 engine + 3 MAPF
-    [XONG] handler/engine_handler.go -- 9 handlers
-    [XONG] handler/routes.go        -- Shared services + 5 stubs
-    [XONG] cmd/main.go              -- Graceful shutdown
-    [XONG] cmd/test_all/main.go     -- 71/71 test PASS
-    [XONG] 5 stub files routes_xxx.go cho team B/C/D/E
-
-  Files da xoa (gop vao routes.go):
-    [XOA] handler/routes_route.go
-    [XOA] handler/routes_engine.go
-
-  Tong API da implement: 44 endpoints
-  Tong test: 71 PASS (unit + integration + API + security + validation)
-
+NGUOI A -- DA XONG (Leader ky thuat)
 ---------------------------------------------------------------
 
-NGUOI B -- Flow & Density + MAPF Simulate
-Phu trach: Slice 5
+  Vai tro hien tai:
+    - Review code cua team
+    - Ho tro debug khi can
+    - Merge Pull Request
+    - Viet them test khi team submit code
 
-  BAT DAU NGAY (tat ca dependencies da xong):
-    Buoc 1: pkg/mapf/manager.go -- AgentManager
-    Buoc 2: database/seed_flow.go
-    Buoc 3: repository/flow_repo.go
-    Buoc 4: service/flow_service.go (12 flow + 3 simulate)
-    Buoc 5: handler/flow_handler.go
-    Buoc 6: handler/routes_flow.go (dang ky 15 endpoint)
-    Buoc 7: Test 15 flow API + simulate
+  Files da lam (KHONG AI SUA):
+    handler/routes.go           -- shared services, dang ky tat ca module
+    handler/route_handler.go    -- 14 handlers (co auth check)
+    handler/engine_handler.go   -- 9 handlers
+    service/route_service.go    -- Dijkstra + VerifyRouteOwner
+    service/engine_service.go   -- Engine admin + MAPF replay
+    repository/route_repo.go    -- 14 methods + 2 transactions
+    pkg/mapf/dijkstra.go        -- Dijkstra on grid
+    pkg/mapf/parser.go          -- Parse output.json
+    schema/*.go (11 files)      -- 25 bang, tat ca co json tags
+    database/*.go               -- Connect, Migrate, Seed
+    middleware/*.go              -- Auth, RequireAdmin, RequireStaff
+    cmd/main.go                 -- Graceful shutdown
+    cmd/test_all/main.go        -- 71 tests
 
-  Files so huu:
-    pkg/mapf/manager.go        -> AgentManager
+---------------------------------------------------------------
+NGUOI B -- Flow & Density + MAPF Simulate (15 API)
+---------------------------------------------------------------
+
+  Slice 5: Quan ly luong nguoi + mo phong MAPF.
+
+  Cac buoc thuc hien:
+    Buoc 1: pkg/mapf/manager.go        -- AgentManager (doc output.json)
+    Buoc 2: database/seed_flow.go      -- Seed du lieu mau
+    Buoc 3: repository/flow_repo.go    -- CRUD cho 4 bang flow
+    Buoc 4: service/flow_service.go    -- 12 flow + 3 simulate methods
+    Buoc 5: handler/flow_handler.go    -- 15 HTTP handlers
+    Buoc 6: handler/routes_flow.go     -- Dang ky 15 endpoint
+    Buoc 7: Test 15 API
+
+  Files SO HUU (chi B sua):
+    pkg/mapf/manager.go
     repository/flow_repo.go
     service/flow_service.go
     handler/flow_handler.go
     handler/routes_flow.go
     database/seed_flow.go
 
-  Tong: 15 API, 6 bang (da tao)
+  Bang su dung: user_pings (T10), obstacle_reports (T11),
+                heatmap_snapshots (T12), priority_routes (T13)
+                + simulation_runs, simulation_agents (T20, T21)
+
+  API list:
+    #46 POST ping              -- Gui vi tri hien tai
+    #47 GET  get_flow           -- Lay flow map
+    #48 GET  get_heatmap        -- Lay heatmap density
+    #49 POST report_obstacle    -- Bao cao chuong ngai vat
+    #50 GET  get_obstacles      -- Danh sach obstacle reports
+    #51 POST resolve_obstacle   -- Staff xu ly obstacle
+    #52 GET  get_density        -- Tinh density tai 1 diem
+    #53 POST set_priority       -- Dat priority route (staff)
+    #54 GET  get_priority       -- Xem priority routes
+    #55 DELETE del_priority     -- Xoa priority route
+    #56 GET  get_stats          -- Thong ke flow
+    #57 GET  get_agent_flow     -- Xem flow cua 1 agent
+    #58 POST start_simulation   -- Bat dau mo phong MAPF
+    #59 GET  sim_status         -- Trang thai mo phong
+    #60 POST stop_simulation    -- Dung mo phong
 
 ---------------------------------------------------------------
+NGUOI C -- Medical (10 API) + Notification (3 API) = 13 API
+---------------------------------------------------------------
 
-NGUOI C -- Medical + Utilities
-Phu trach: Slice 6 + Slice 10
+  Slice 6: Quan ly kham benh, hang doi, don thuoc.
+  Slice 8: Thong bao (CRUD + FCM push).
 
-  BAT DAU NGAY (schema da co san):
-    Buoc 1: database/seed_medical.go
-    Buoc 2: repository/medical_repo.go
-    Buoc 3: service/medical_service.go
-    Buoc 4: handler/medical_handler.go
-    Buoc 5: handler/routes_medical.go (dang ky 10 endpoint)
-    Buoc 6: repository/util_repo.go
-    Buoc 7: service/util_service.go
-    Buoc 8: handler/util_handler.go
-    Buoc 9: handler/routes_util.go (dang ky 10 endpoint)
-    Buoc 10: database/seed_util.go
-    Buoc 11: Test 20 API (10 medical + 10 util)
+  Cac buoc thuc hien:
+    -- MEDICAL --
+    Buoc 1:  database/seed_medical.go    -- Seed treatments, queues
+    Buoc 2:  repository/medical_repo.go  -- CRUD cho 3 bang medical
+    Buoc 3:  service/medical_service.go  -- 10 methods
+    Buoc 4:  handler/medical_handler.go  -- 10 handlers
+    Buoc 5:  handler/routes_medical.go   -- Dang ky 10 endpoint
 
-  Files so huu:
+    -- NOTIFICATION --
+    Buoc 6:  repository/notif_repo.go    -- CRUD notifications
+    Buoc 7:  service/notif_service.go    -- 3 methods + SendNotification()
+    Buoc 8:  handler/notif_handler.go    -- 3 handlers
+    Buoc 9:  handler/routes_notif.go     -- Dang ky 3 endpoint
+    Buoc 10: Test 13 API
+
+  Files SO HUU (chi C sua):
     repository/medical_repo.go
     service/medical_service.go
     handler/medical_handler.go
     handler/routes_medical.go
     database/seed_medical.go
+    repository/notif_repo.go
+    service/notif_service.go
+    handler/notif_handler.go
+    handler/routes_notif.go
+
+  Bang su dung: treatments (T22), prescriptions (T23),
+                treatment_queues (T24), notifications (T29)
+
+  Medical APIs:
+    #61 GET  get_treatments     -- Danh sach dich vu kham
+    #62 GET  get_queue          -- Hang doi kham benh
+    #63 POST join_queue         -- Vao hang doi
+    #64 POST leave_queue        -- Roi hang doi
+    #65 POST call_next          -- Goi so tiep theo (staff)
+    #66 GET  get_prescription   -- Xem don thuoc
+    #67 POST create_prescription -- Tao don thuoc (staff)
+    #68 GET  get_medical_history -- Lich su kham
+    #69 POST update_treatment   -- Cap nhat trang thai (staff)
+    #70 GET  get_queue_status   -- Trang thai hang doi chi tiet
+
+  Notification APIs:
+    #71 GET    get_list          -- Danh sach thong bao (pagination)
+    #72 POST   set_read          -- Danh dau da doc
+    #73 DELETE delete            -- Xoa thong bao
+
+  Luu y: service/notif_service.go can co ham SendNotification() internal
+         de cac module khac goi (SOS, Queue, ...). Dung interface neu can.
+
+---------------------------------------------------------------
+NGUOI D -- Device (8 API) + Utilities (10 API) = 18 API
+---------------------------------------------------------------
+
+  Slice 7: Quan ly xe lan, cang -- muon/tra/bao hong.
+  Slice 10: Tien ich (ngon ngu, huong dan, FAQ, thong ke).
+
+  Cac buoc thuc hien:
+    -- DEVICE --
+    Buoc 1:  database/seed_device.go     -- Seed stations, devices
+    Buoc 2:  repository/device_repo.go   -- CRUD cho 4 bang device
+    Buoc 3:  service/device_service.go   -- 8 methods
+    Buoc 4:  handler/device_handler.go   -- 8 handlers
+    Buoc 5:  handler/routes_device.go    -- Dang ky 8 endpoint
+
+    -- UTILITIES --
+    Buoc 6:  database/seed_util.go       -- Seed FAQ, huong dan
+    Buoc 7:  repository/util_repo.go     -- CRUD cho bang util
+    Buoc 8:  service/util_service.go     -- 10 methods
+    Buoc 9:  handler/util_handler.go     -- 10 handlers
+    Buoc 10: handler/routes_util.go      -- Dang ky 10 endpoint
+    Buoc 11: Test 18 API
+
+  Files SO HUU (chi D sua):
+    repository/device_repo.go
+    service/device_service.go
+    handler/device_handler.go
+    handler/routes_device.go
+    database/seed_device.go
     repository/util_repo.go
     service/util_service.go
     handler/util_handler.go
     handler/routes_util.go
     database/seed_util.go
 
-  Tong: 20 API (10 medical + 10 util), 5 bang (da tao)
+  Bang su dung: devices (T25), device_stations (T26),
+                device_bookings (T27), device_broken_reports (T28)
+                + app_versions (T07), faqs, guides (util tables)
+
+  Device APIs:
+    #83 GET  get_wheelchairs    -- Danh sach xe lan trong
+    #84 POST book               -- Muon thiet bi
+    #85 POST release            -- Tra thiet bi
+    #86 POST request_staff      -- Yeu cau nhan vien ho tro
+    #87 GET  get_stations       -- Danh sach tram
+    #88 GET  get_status         -- Trang thai thiet bi
+    #89 POST report_broken      -- Bao cao hong
+    #90 GET  track              -- Theo doi vi tri thiet bi
+
+  Utility APIs:
+    #74 GET  get_languages      -- Danh sach ngon ngu
+    #75 POST set_language       -- Doi ngon ngu
+    #76 GET  get_guide          -- Huong dan su dung
+    #77 GET  get_faq            -- Cau hoi thuong gap
+    #78 GET  get_about          -- Gioi thieu benh vien
+    #79 GET  get_contact        -- Thong tin lien he
+    #80 GET  get_stats          -- Thong ke (admin)
+    #81 GET  get_feedback_summary -- Tong hop danh gia
+    #82 POST submit_feedback    -- Gui phan hoi chung
+    #95 GET  check_version      -- Kiem tra phien ban app
 
 ---------------------------------------------------------------
-
-NGUOI D -- Device
-Phu trach: Slice 7
-
-  BAT DAU NGAY (schema da co san):
-    Buoc 1: database/seed_device.go
-    Buoc 2: repository/device_repo.go
-    Buoc 3: service/device_service.go
-    Buoc 4: handler/device_handler.go
-    Buoc 5: handler/routes_device.go (dang ky 8 endpoint)
-    Buoc 6: Test 8 API
-
-  Files so huu:
-    repository/device_repo.go
-    service/device_service.go
-    handler/device_handler.go
-    handler/routes_device.go
-    database/seed_device.go
-
-  Tong: 8 API, 4 bang (da tao)
-
+NGUOI E -- SOS + Chat WebSocket (12 API + 1 WS) 
 ---------------------------------------------------------------
 
-NGUOI E -- Support (Notif + SOS + Chat WS)
-Phu trach: Slice 8 + Slice 9
+  Slice 9: Tinh nang khan cap + chat real-time.
 
-  BAT DAU NGAY, KHONG CHO AI (schema da co san):
+  Cac buoc thuc hien:
     Buoc 1:  go get github.com/gorilla/websocket
-    Buoc 2:  repository/support_repo.go
-    Buoc 3:  service/notif_service.go (+ FCM push)
-    Buoc 4:  service/sos_service.go
-    Buoc 5:  service/chat_service.go
-    Buoc 6:  handler/notif_handler.go
-    Buoc 7:  handler/support_handler.go
-    Buoc 8:  handler/chat_handler.go
-    Buoc 9:  handler/ws_handler.go (WebSocket)
-    Buoc 10: handler/routes_support.go
-    Buoc 11: Test (3 notif + 8 chat/sos + WS)
+    Buoc 2:  repository/support_repo.go  -- CRUD SOS + chat
+    Buoc 3:  service/sos_service.go      -- 5 SOS methods
+    Buoc 4:  service/chat_service.go     -- 7 chat methods
+    Buoc 5:  handler/support_handler.go  -- SOS handlers
+    Buoc 6:  handler/chat_handler.go     -- Chat handlers
+    Buoc 7:  handler/ws_handler.go       -- WebSocket hub
+    Buoc 8:  handler/routes_support.go   -- Dang ky 12 endpoint + WS
+    Buoc 9:  Test 12 API + WS
 
-  Files so huu:
+  Files SO HUU (chi E sua):
     repository/support_repo.go
-    service/notif_service.go
     service/sos_service.go
     service/chat_service.go
-    handler/notif_handler.go
     handler/support_handler.go
     handler/chat_handler.go
     handler/ws_handler.go
     handler/routes_support.go
 
-  Tong: 15 API + 1 WS endpoint, 4 bang (da tao)
-  Env can: FCM_SERVER_KEY (Firebase Cloud Messaging)
+  Bang su dung: sos_alerts (T30), sos_responses (T31),
+                chat_rooms (T32), chat_messages (T33)
+
+  SOS APIs:
+    #96 POST create_sos         -- Gui tin hieu khan cap
+    #97 GET  get_sos_list       -- Danh sach SOS (staff)
+    #98 POST respond_sos        -- Staff phan hoi SOS
+    #99 POST resolve_sos        -- Dong vu viec SOS
+   #100 GET  get_sos_detail     -- Chi tiet 1 SOS case
+
+  Chat APIs:
+   #101 POST create_room        -- Tao phong chat
+   #102 GET  get_rooms          -- Danh sach phong
+   #103 GET  get_messages       -- Lich su tin nhan
+   #104 POST send_message       -- Gui tin nhan (REST fallback)
+   #105 POST close_room         -- Dong phong chat
+   #106 GET  get_unread_count   -- So tin chua doc
+   #107 POST mark_read          -- Danh dau da doc
+
+  WebSocket:
+    WS /api/ws/chat              -- Chat real-time
 
 
-IV. TIMELINE
+IV. QUY TRINH LAM VIEC
 ================================================================================
 
-                  Tuan 1                    |    Tuan 2
-  Ngay 1    Ngay 2    Ngay 3    Ngay 4     | Ngay 5    Ngay 6
-  ---------------------------------------------------------------------------
-
-  Nguoi A:
-  [XONG - tat ca 44 API + 71 tests]                           XONG
-
-  Nguoi B:
-  [Flow repo+svc]->[Handlers]->[Simulate]->[Test]              XONG
-   Slice 5
-
-  Nguoi C:
-  [Medical schema]->[API]->[Util]->[Test]                       XONG
-   Slice 6+10
-
-  Nguoi D:
-  [Device schema]->[API]->[Test]                                XONG
-   Slice 7
-
-  Nguoi E:
-  [Support+FCM]->[Chat WS]->[Test]                              XONG
-   Slice 8+9
-
-  ---------------------------------------------------------------------------
-  MERGE + Integration Test
-
-
-V. QUY TRINH LAM VIEC CHUNG
-================================================================================
-
-BUOC 1 -- DA XONG (Person A)
-  - Slice 0-4 + 11 hoan thanh: 44 API, 71 test PASS
-  - Tat ca schema + json tags + auth checks + transactions
-  - Graceful shutdown, thread-safe cache
-
-BUOC 2 -- MOI NGUOI TAO NHANH RIENG
+BUOC 1 -- TAO NHANH GIT RIENG
   Nguoi B: git checkout -b feature/flow-simulate
-  Nguoi C: git checkout -b feature/medical
+  Nguoi C: git checkout -b feature/medical-notif
   Nguoi D: git checkout -b feature/device-util
-  Nguoi E: git checkout -b feature/support
+  Nguoi E: git checkout -b feature/sos-chat
 
-BUOC 3 -- PHAT TRIEN SONG SONG
-  Moi nguoi CHI sua file trong danh sach "Files so huu".
-  Neu can sua file chung -> bao leader truoc.
+BUOC 2 -- CODE THEO THU TU
+  seed -> repo -> service -> handler -> routes_xxx.go -> test
 
-BUOC 4 -- CHECKPOINT HANG NGAY
-  - go build ./... -> phai pass
-  - Test API cua minh -> phai pass
-  - Commit + push nhanh rieng
-  - Bao cao tien do cho leader
+BUOC 3 -- CHECKPOINT HANG NGAY
+  - go build ./... -> phai PASS
+  - Test API cua minh -> phai PASS
+  - git commit + push nhanh rieng
 
-BUOC 5 -- MERGE VAO MAIN
-  - Rebase nhanh rieng len main moi nhat
+BUOC 4 -- MERGE
   - Tao Pull Request
-  - Leader review + merge
-  - Leader them seed moi vao database/ neu can
-  - KHONG can sua routes.go (da goi san RegisterXxxRoutes)
+  - Leader review + merge vao main
+  - KHONG can sua routes.go (da goi san 6 RegisterXxxRoutes)
 
-BUOC 6 -- INTEGRATION TEST
-  - Chay go run cmd/test_all/main.go
-  - Fix conflict neu co
-  - Tag version moi
+BUOC 5 -- INTEGRATION TEST
+  - go run cmd/test_all/main.go
 
 
-VI. LUU Y QUAN TRONG CHO TEAM
+V. LUU Y QUAN TRONG
 ================================================================================
 
-  1. KHONG sua nhung file nay (da hoan thanh):
-     - handler/routes.go (shared services)
-     - database/database.go (25 bang da migrate)
-     - schema/*.go (da co json tags)
-     - cmd/main.go (graceful shutdown)
+  1. KHONG sua nhung file nay:
+     - handler/routes.go
+     - database/database.go
+     - schema/*.go
+     - cmd/main.go
+     - middleware/*.go
 
-  2. KHONG tao routes_route.go hay routes_engine.go
-     (Da gop vao routes.go)
+  2. MOI NGUOI chi sua file trong "Files SO HUU" cua minh
 
-  3. Khi tao handler, PHAI them json tags cho request/response structs
-     Vi du: json:"field_name"
+  3. Khi tao struct, PHAI them json tags:
+     Vi du: FieldName string `json:"field_name"`
 
-  4. Khi tao service, NEN dung DB transaction cho multi-step operations
-     Vi du: repo.db.Transaction(func(tx *gorm.DB) error { ... })
+  4. Khi thao tac nhieu bang, PHAI dung DB Transaction:
+     db.Transaction(func(tx *gorm.DB) error { ... })
 
-  5. Khi tao API can auth, PHAI check middleware.GetUserID(c)
-     va verify ownership truoc khi thao tac du lieu
+  5. API can dang nhap PHAI check:
+     userID := middleware.GetUserID(c)
 
-  6. Chay test: go run cmd/test_all/main.go (71 tests hien tai)
+  6. Env vars:
+     - DB_PATH         (default: hospital.db)
+     - GRID_MAP_PATH   (default: data/warehouse_small.map)
+     - JWT_SECRET      (default: hardcoded dev key)
+     - PORT            (default: 8080)
+     - APP_ENV         (set "production" de tat SQL log)
+     - FCM_SERVER_KEY  (Person C can cho push notification)
 
-  7. Build check: go build ./... (phai pass truoc khi commit)
-
-
-VII. TOM TAT PHAN CONG
-================================================================================
-
-  Nguoi | Module                | Tong API | Bang | Trang thai
-  ------|----------------------|----------|------|----------
-  A     | Map+Route+Engine     | 44       | 25   | [DA XONG] 71 test PASS
-  B     | Flow + MAPF Sim      | 15       | 6    | [BAT DAU NGAY]
-  C     | Medical + Utilities  | 20       | 5    | [BAT DAU NGAY]
-  D     | Device               | 8        | 4    | [BAT DAU NGAY]
-  E     | Support (Notif+Chat) | 15+WS    | 4    | [BAT DAU NGAY]
-  ------|----------------------|----------|------|----------
-  TONG  |                      | ~102+WS  | 25   |
-
-  44 API da implement + 58 API con lai = 102 API + 1 WS = 103 endpoint
+  7. Test:  go run cmd/test_all/main.go
+     Build: go build ./...
+     Run:   go run cmd/main.go
 
 
 ================================================================================
