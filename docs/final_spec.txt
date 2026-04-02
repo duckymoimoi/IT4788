@@ -2,6 +2,19 @@
 PHẦN A — DANH SÁCH API
 ================================================================================
 
+TRẠNG THÁI TRIỂN KHAI:
+  ✅ Nhóm 1 — Xác thực & Tài khoản (15 API)  → ĐÃ CÓ TRONG CODE
+  ✅ Nhóm 2 — Bản đồ & POI (15 API)           → ĐÃ REFACTOR SANG GRID 2D
+     (test_map: 24/24 PASS, test_all: 64/64 PASS)
+  ☐  Nhóm 3 — Tìm đường (14 API)              → Chưa làm (Slice 2-4)
+  ☐  Nhóm 4 — Luồng & Mật độ (15 API)         → Chưa làm (Slice 5)
+  ☐  Nhóm 5 — Y tế (10 API)                   → Chưa làm (Slice 6)
+  ☐  Nhóm 6 — Thiết bị (12 API)               → Chưa làm (Slice 7)
+  ☐  Nhóm 7 — Tiện ích (6 API)                → Chưa làm (Slice 10)
+  ☐  Nhóm 8 — Hỗ trợ & Liên lạc (15+WS API)  → Chưa làm (Slice 8-9)
+  ☐  Nhóm 9 — Admin Engine (6 API)            → Chưa làm (Slice 11)
+================================================================================
+
 Quy ước:
   Method : POST / GET / DELETE / PATCH
   Auth   : X = Public (không cần token)
@@ -10,6 +23,11 @@ Quy ước:
 
 Format response chuẩn:
   { "code": 1000, "message": "OK", "data": { ... } }
+
+Kiến trúc bản đồ & tìm đường:
+  • Bản đồ: Grid 2D (file .map format MovingAI), chỉ 1 tầng
+  • Dijkstra Mode — tìm đường on-demand trên grid (từ POI → POI)
+  • MAPF Mode    — gán patient vào agent pre-computed từ output.json
 
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -83,113 +101,134 @@ NHÓM 1 — XÁC THỰC & TÀI KHOẢN (15 API)
 NHÓM 2 — BẢN ĐỒ & HẠ TẦNG (15 API)
 ────────────────────────────────────────────────────────────────────────────────
 
+  Bản đồ sử dụng grid 2D (format .map MovingAI).
+  Mỗi ô trên grid: "." = đi được, "@" = tường/vật cản.
+  POI (Point of Interest) = gán tên/loại cho ô cụ thể trên grid.
+  Hệ thống chỉ hỗ trợ 1 tầng (single floor).
+
  16. GET X api/map/get_floors
-     → READ floors JOIN buildings WHERE is_active=1
-     → Trả: floor_id, floor_name, building_name, map_image_url
+     → READ grid_maps WHERE is_active=1
+     → Trả: map_id, map_name, rows, cols
 
  17. GET X api/map/get_nodes
-     → READ map_nodes WHERE floor_id + is_active=1
+     → READ grid_pois WHERE map_id + is_active=1
      → LEFT JOIN wards (ward_name)
-     → Trả: node_id, code, name, type, center_x, center_y, polygon_coords
+     → Trả: poi_id, poi_name, poi_type, grid_row, grid_col, grid_location
 
  18. GET X api/map/get_edges
-     → READ map_edges WHERE floor_id + is_active=1
-     → Bao gồm cả edge có is_cross_floor=1
-     → Trả: edge_id, from_node_id, to_node_id, distance_m, weight
+     → Tính adjacency từ grid: mỗi ô "." kề 4 hướng (N,S,E,W)
+     → Trả danh sách cặp {from_loc, to_loc, weight=1.0}
 
  19. GET X api/map/get_meta
-     → READ floors WHERE floor_id
-     → Trả: image_width_px, image_height_px, real_width_m, real_height_m, map_image_url
+     → READ grid_maps WHERE map_id
+     → Trả: rows, cols, map_file_path, map_image_url
 
  20. GET X api/map/get_depts
      → READ wards WHERE is_active=1
-     → JOIN map_nodes WHERE ward_id (đếm số phòng mỗi khoa)
+     → JOIN grid_pois WHERE ward_id (đếm số POI mỗi khoa)
 
  21. GET X api/map/search_location
-     → FULLTEXT SEARCH map_nodes WHERE MATCH(node_name) AGAINST(keyword)
-     → JOIN floors (floor_name cho kết quả)
+     → FULLTEXT SEARCH grid_pois WHERE MATCH(poi_name) AGAINST(keyword)
 
  22. GET X api/map/get_landmarks
-     → READ map_nodes WHERE is_landmark=1 + is_active=1
+     → READ grid_pois WHERE is_landmark=1 + is_active=1
 
  23. GET O api/map/get_beacons
-     → Bảng riêng (chưa có trong schema hiện tại, trả data tĩnh)
+     → Trả data tĩnh (chưa dùng beacon thật)
 
  24. GET X api/map/sync_full
-     → READ floors + map_nodes + map_edges (toàn bộ)
+     → READ grid_maps + grid_pois (toàn bộ)
+     → Kèm grid data (mảng 2D: 0=free, 1=obstacle)
      → Gộp thành 1 JSON lớn để frontend lưu offline
 
  25. POST A api/admin/add_node
-     → INSERT map_nodes
+     → INSERT grid_pois (gán tên/loại cho 1 ô trên grid)
+     → Kiểm tra grid_location phải là ô free (không phải tường)
 
  26. POST A api/admin/edit_node
-     → UPDATE map_nodes WHERE node_id
+     → UPDATE grid_pois WHERE poi_id
 
  27. DELETE A api/admin/del_node
-     → UPDATE map_nodes SET is_active=0 (soft delete)
-     → UPDATE map_edges SET is_active=0 WHERE from/to_node_id
+     → UPDATE grid_pois SET is_active=0 (soft delete)
 
  28. POST A api/admin/add_edge
-     → INSERT map_edges
-     → Tính distance_m từ tọa độ 2 node + tỷ lệ pixel/m
+     → Edges tự tính từ grid adjacency, không cần thêm thủ công
+     → Trả code 2003 "Edges auto-computed from grid"
 
  29. DELETE A api/admin/del_edge
-     → UPDATE map_edges SET is_active=0
+     → Tương tự #28
+     → Trả code 2003
 
  30. PATCH A api/admin/set_weight
-     → UPDATE map_edges SET weight WHERE edge_id
+     → UPDATE grid_pois SET custom_weight (penalty cho khu vực)
+     → Ảnh hưởng Dijkstra: cells xung quanh POI có weight cao hơn
 
 
 ────────────────────────────────────────────────────────────────────────────────
 NHÓM 3 — ĐIỀU PHỐI LỘ TRÌNH (15 API)
 ────────────────────────────────────────────────────────────────────────────────
 
+  Hai chế độ tìm đường:
+  • Dijkstra — chạy on-demand trên grid, nhanh, cho single user
+  • MAPF     — gán patient vào agent pre-computed, cho simulation
+
+  API route/ordered tự chọn mode:
+  • Nếu simulation đang chạy → MAPF mode (gán agent)
+  • Nếu không → Dijkstra mode (tính đường mới)
+
  31. POST O api/route/ordered
-     → READ map_nodes + map_edges (build Dijkstra graph)
+     [DIJKSTRA MODE]
+     → READ grid_maps + grid_pois (build grid graph in memory)
      → READ travel_modes WHERE mode_id (speed_factor)
-     → Chạy Dijkstra từng cặp node theo thứ tự
+     → Chạy Dijkstra trên grid: start_loc → dest_loc
+     → Convert path (list of grid_locations) → list of [row, col]
      → INSERT routes (status=active)
-     → INSERT route_paths (bulk, mỗi step gồm instruction + voice_text)
+     → INSERT route_paths (mỗi step = 1 grid cell + instruction)
      → Trả: route_id, path_coords, total_distance, estimated_time
 
+     [MAPF MODE]
+     → AgentManager.AssignPatient(user_id)
+     → Lấy trajectory pre-computed từ output.json
+     → INSERT routes (status=active, route_mode=mapf)
+     → INSERT route_paths từ trajectory
+     → Trả: route_id, path_coords, agent_id
+
  32. POST O api/route/unordered
-     → Giống #31 nhưng thêm bước tối ưu thứ tự (TSP/greedy)
-     → READ edge_traffic_status (trọng số động theo mật độ)
-     → INSERT routes + route_paths
+     → Giống #31 Dijkstra mode
+     → Nhiều điểm đích → chạy Dijkstra từng cặp, chọn thứ tự tối ưu
 
  33. POST O api/route/recalculate
      → READ routes WHERE route_id + user_id
      → DELETE route_paths WHERE route_id (xóa path cũ)
-     → Chạy Dijkstra mới với avoid_edges từ request
+     → Chạy Dijkstra mới (chỉ Dijkstra mode)
      → INSERT route_paths mới
      → UPDATE routes SET total_distance, estimated_time
 
  34. GET O api/route/get_active
      → READ routes WHERE user_id + status=active
      → READ route_paths WHERE route_id
+     → Nếu route_mode=mapf: kèm current_timestep
 
  35. POST O api/route/cancel
      → UPDATE routes SET status=cancelled WHERE route_id + user_id
+     → Nếu route_mode=mapf: AgentManager.ReleasePatient(user_id)
 
  36. GET O api/route/get_steps
      → READ route_paths WHERE route_id ORDER BY step_order
-     → JOIN map_nodes (node_name cho instruction)
-     → JOIN floors (floor_name cho chuyển tầng)
-     → Trả: step_order, instruction, voice_text, x, y, floor_name
+     → Trả: step_order, grid_row, grid_col, instruction
 
  37. POST O api/route/preview
      → Giống #31 nhưng KHÔNG INSERT vào DB
      → Chỉ chạy Dijkstra và trả path_coords
 
  38. POST O api/route/get_eta
-     → READ routes WHERE route_id (total_distance, mode_id)
-     → READ travel_modes (speed_factor)
-     → READ route_history_nodes (tìm current node)
-     → Tính: distance_còn_lại ÷ (1.2 × speed_factor)
+     → READ routes WHERE route_id
+     → Dijkstra: remaining_steps × avg_step_time ÷ speed_factor
+     → MAPF: remaining_steps × tickRate
 
  39. GET O api/route/get_history
      → READ routes WHERE user_id ORDER BY created_at DESC
-     → JOIN map_nodes (start_node_name, dest_node_name)
+     → JOIN grid_pois (start_poi_name, dest_poi_name)
      → Pagination: page, limit
 
  40. DELETE O api/route/clear_history
@@ -209,123 +248,121 @@ NHÓM 3 — ĐIỀU PHỐI LỘ TRÌNH (15 API)
  44. GET O api/route/get_next
      → READ routes WHERE user_id + status=active
      → READ route_paths WHERE route_id + step_order > current
-     → Trả: next node_name, instruction
+     → Trả: next poi_name, instruction
 
  45. GET X api/route/get_modes
      → READ travel_modes (toàn bộ)
 
 
 ────────────────────────────────────────────────────────────────────────────────
-NHÓM 4 — QUẢN LÝ LUỒNG NGƯỜI (12 API gốc + 3 simulate = 15)
+NHÓM 4 — QUẢN LÝ LUỒNG NGƯỜI (15 API)
 ────────────────────────────────────────────────────────────────────────────────
 
  46. POST O api/flow/ping_location
-     → INSERT user_pings (user_id, node_id, floor_id)
-     → Tìm edge gần nhất → UPDATE edge_traffic_status (people_count+1)
-     → Dùng cho cả user thật và user ảo (simulate)
+     → Dijkstra mode: INSERT user_pings (user_id, grid_location)
+     → MAPF mode: Server tự biết vị trí — chỉ ghi log
 
  47. GET X api/flow/get_density
-     → READ edge_traffic_status WHERE edge_id IN (edges of floor_id)
-     → JOIN map_edges (from_node, to_node)
+     → Đếm agents/users per grid cell
+     → Trả density_level per khu vực
 
  48. GET X api/flow/get_heatmap
-     → READ heatmap_snapshots WHERE recorded_at > now-30min
-     → GROUP BY node_id, trả density_level mỗi node
+     → MAPF: AgentManager.GetAllPositions() → đếm per cell
+     → Dijkstra: READ user_pings WHERE created_at > now-30min
+     → Trả: grid_location, density_level
 
  49. GET X api/flow/get_bottlenecks
-     → READ edge_traffic_status WHERE density_level IN ('high','blocked')
-     → JOIN map_edges + map_nodes
+     → Tìm cells có density cao nhất (top 10)
+     → Trả: grid_location, row, col, people_count
 
  50. POST O api/flow/report_obstacle
      → INSERT obstacle_reports (status=pending)
 
  51. PATCH A api/admin/set_capacity
-     → UPDATE edge_traffic_status hoặc map_edges metadata
+     → UPDATE grid_pois SET capacity WHERE poi_id
 
  52. GET X api/flow/get_forecast
-     → READ heatmap_snapshots WHERE recorded_at > now-2h
-     → Tính trend → dự báo (giả lập: trả data tĩnh)
+     → READ user_pings gần đây → tính trend
+     → Trả data dự báo (MVP: data tĩnh)
 
  53. POST A api/flow/set_priority
      → INSERT priority_routes (status=active)
-     → Ảnh hưởng đến Dijkstra: giảm weight cho edges trên tuyến ưu tiên
+     → Dijkstra: giảm weight cho cells trên tuyến ưu tiên
 
  54. GET O api/flow/get_alerts
-     → READ edge_traffic_status WHERE density_level='blocked'
-     → JOIN routes WHERE user_id (kiểm tra route đang đi có đi qua ko)
+     → Kiểm tra route đang đi có đi qua khu vực đông không
+     → Trả cảnh báo nếu có
 
  55. GET X api/flow/edge_status
-     → READ edge_traffic_status WHERE edge_id
+     → Trả density info cho grid cell hoặc khu vực
 
  56. GET A api/admin/stats_flow
-     → READ user_pings GROUP BY HOUR(created_at), floor_id
+     → READ user_pings GROUP BY HOUR(created_at)
      → Aggregate thống kê
 
  57. POST A api/admin/reset_flow
-     → UPDATE edge_traffic_status SET people_count=0, density_level='low' (toàn bộ)
-     → DELETE heatmap_snapshots WHERE recorded_at < now
+     → Xóa cache density
+     → DELETE user_pings WHERE created_at < now
 
  58. POST A api/flow/simulate/start
-     → Tạo N goroutine trong RAM (không INSERT bảng mới)
-     → Mỗi goroutine gọi PingLocation (INSERT user_pings, UPDATE edge_traffic_status)
+     → Load output.json
+     → Khởi tạo AgentManager với tickRate
+     → INSERT simulation_runs (status=running)
      → Trả simulation_id
 
  59. POST A api/flow/simulate/stop
-     → Cancel context → dừng tất cả goroutine
-     → Không thay đổi DB (dữ liệu ping đã ghi vẫn giữ)
+     → Dừng simulation → release tất cả agents
+     → UPDATE simulation_runs SET status=stopped
 
  60. GET A api/flow/simulate/status
-     → Đọc từ RAM: số goroutine đang chạy, thời gian chạy
-     → Không truy vấn DB
+     → Đọc AgentManager: active_agents, current_timestep, elapsed_time
 
 
 ────────────────────────────────────────────────────────────────────────────────
 NHÓM 5 — TÍCH HỢP Y TẾ HIS (10 API)
 ────────────────────────────────────────────────────────────────────────────────
 
- 58. GET O api/medical/get_tasks
+ 61. GET O api/medical/get_tasks
      → READ treatments WHERE user_id + status IN (pending, in_progress)
-     → JOIN map_nodes (node_name = tên phòng)
+     → JOIN grid_pois (poi_name = tên phòng)
      → JOIN wards (ward_name = tên khoa)
      → ORDER BY priority, sequence_number
 
- 59. GET O api/medical/get_queue
-     → READ queues WHERE node_id
+ 62. GET O api/medical/get_queue
+     → READ queues WHERE poi_id
      → Trả: current_number, waiting_count, avg_wait_minutes
 
- 60. POST O api/medical/checkin_room
+ 63. POST O api/medical/checkin_room
      → UPDATE treatments SET status=in_progress, checkin_at=now
        WHERE treatment_id + user_id
-     → UPDATE queues SET waiting_count-1 WHERE node_id
+     → UPDATE queues SET waiting_count-1 WHERE poi_id
 
- 61. POST O api/medical/checkout_room
+ 64. POST O api/medical/checkout_room
      → UPDATE treatments SET status=completed, completed_at=now
        WHERE treatment_id + user_id + status=in_progress
      → UPDATE queues SET current_number+1
 
- 62. GET O api/medical/result_status
+ 65. GET O api/medical/result_status
      → READ treatments WHERE treatment_id + user_id
      → Trả: has_result, status
 
- 63. GET O api/medical/get_prescription
+ 66. GET O api/medical/get_prescription
      → READ prescriptions WHERE user_id ORDER BY issued_at DESC
-     → JOIN map_nodes (pharmacy_node_id → tên nhà thuốc)
+     → JOIN grid_pois (pharmacy poi → tên nhà thuốc)
      → Parse items_json → danh sách thuốc
 
- 64. POST A api/medical/sync_now
-     → Random chọn 3-5 từ danh sách mẫu:
-       [Xét nghiệm máu, Siêu âm, Khám Nội, X-quang, Lãnh thuốc]
-     → READ map_nodes WHERE node_type IN (room, pharmacy) (random node)
-     → INSERT treatments (mỗi cái 1 row, priority tăng dần)
-     → INSERT prescriptions (1 đơn nếu có task Lãnh thuốc)
+ 67. POST A api/medical/sync_now
+     → Random chọn 3-5 từ danh sách mẫu
+     → READ grid_pois WHERE poi_type IN (room, pharmacy)
+     → INSERT treatments + prescriptions
 
- 65. GET X api/medical/room_open
-     → READ map_nodes WHERE node_id (trả giờ mở: data tĩnh hoặc từ details JSON)
+ 68. GET X api/medical/room_open
+     → READ grid_pois WHERE poi_id (trả giờ mở: data tĩnh)
 
- 66. POST O api/medical/cancel_task
+ 69. POST O api/medical/cancel_task
      → UPDATE treatments SET status=skipped WHERE treatment_id + user_id
 
- 67. GET O api/medical/get_history
+ 70. GET O api/medical/get_history
      → READ treatments WHERE user_id + status=completed
      → ORDER BY completed_at DESC
 
@@ -334,55 +371,52 @@ NHÓM 5 — TÍCH HỢP Y TẾ HIS (10 API)
 NHÓM 6 — HỖ TRỢ & THÔNG BÁO (12 API + 1 WS)
 ────────────────────────────────────────────────────────────────────────────────
 
- 68. GET O api/notif/get_list
+ 71. GET O api/notif/get_list
      → READ notifications WHERE user_id ORDER BY created_at DESC
      → Pagination: page, limit
 
- 69. POST O api/notif/set_read
+ 72. POST O api/notif/set_read
      → UPDATE notifications SET is_read=1, read_at=now WHERE notif_id + user_id
 
- 70. DELETE O api/notif/delete
+ 73. DELETE O api/notif/delete
      → DELETE notifications WHERE notif_id + user_id
 
- 71. POST O api/help/sos
+ 74. POST O api/help/sos
      → INSERT sos_requests (status=received)
      → Internal: gọi SendNotification →
        INSERT notifications cho staff on-duty
        → READ fcm_tokens WHERE user_id IN (staff list)
        → POST FCM API gửi push
 
- 72. POST O api/chat/create
+ 75. POST O api/chat/create
      → INSERT conversations (status=open)
      → Tìm staff rảnh: READ staffs WHERE is_active=1 + role=coordinator
 
- 73. POST O api/chat/send
+ 76. POST O api/chat/send
      → INSERT messages (sender_id, sender_type, text_content)
      → UPDATE conversations SET last_message, updated_at, unread_count+1
      → WebSocket: push message đến recipient nếu đang online
      → FCM push nếu recipient offline
 
- 74. GET O api/chat/get_messages
+ 77. GET O api/chat/get_messages
      → READ messages WHERE conversation_id ORDER BY created_at
      → Pagination: page, limit
 
- 75. GET O api/chat/get_list
+ 78. GET O api/chat/get_list
      → READ conversations WHERE user_id ORDER BY updated_at DESC
 
- 76. GET X api/sys/get_voice_key
+ 79. GET X api/sys/get_voice_key
      → Trả API key Speech-to-text (config tĩnh từ env)
-     → Không truy vấn DB
 
- 77. GET X api/sys/get_voice_files
+ 80. GET X api/sys/get_voice_files
      → Trả danh sách URL file âm thanh chỉ đường (config tĩnh)
-     → Không truy vấn DB
 
- 78. POST O api/chat/mark_read
+ 81. POST O api/chat/mark_read
      → UPDATE messages SET is_read=1 WHERE conversation_id + sender_type≠current
      → UPDATE conversations SET unread_count=0
 
- 79. POST X api/chat/bot_query
-     → Không truy vấn DB (hoặc FULLTEXT search map_nodes)
-     → Tích hợp LLM API bên ngoài
+ 82. POST X api/chat/bot_query
+     → Tích hợp LLM API bên ngoài hoặc FULLTEXT search grid_pois
 
  WS. WebSocket /ws/chat?token=<JWT>
      → Xác thực JWT → lấy user_id
@@ -396,119 +430,113 @@ NHÓM 6 — HỖ TRỢ & THÔNG BÁO (12 API + 1 WS)
 NHÓM 7 — QUẢN LÝ XE LĂN / CÁNG (8 API)
 ────────────────────────────────────────────────────────────────────────────────
 
- 80. GET O api/asset/get_wheelchairs
+ 83. GET O api/asset/get_wheelchairs
      → READ devices WHERE device_type + status=available
-     → JOIN device_stations + map_nodes (vị trí trạm)
+     → JOIN device_stations + grid_pois (vị trí trạm)
      → Tính khoảng cách đến user → sắp xếp gần nhất
 
- 81. POST O api/asset/book
-     → UPDATE devices SET status=in_use, station_id=NULL, current_node_id
+ 84. POST O api/asset/book
+     → UPDATE devices SET status=in_use, station_id=NULL, current_poi_id
      → INSERT device_bookings (status=in_use, borrowed_at=now)
 
- 82. POST O api/asset/release
-     → UPDATE devices SET status=available, station_id=return_station, current_node_id=NULL
-     → UPDATE device_bookings SET status=returned, returned_at=now, return_station_id
+ 85. POST O api/asset/release
+     → UPDATE devices SET status=available, station_id=return_station
+     → UPDATE device_bookings SET status=returned, returned_at=now
 
- 83. POST O api/asset/request_staff
+ 86. POST O api/asset/request_staff
      → UPDATE device_bookings SET staff_id (gán nhân viên)
      → INSERT notifications cho staff được gán
      → FCM push đến staff
 
- 84. GET X api/asset/get_stations
+ 87. GET X api/asset/get_stations
      → READ device_stations WHERE is_active=1
-     → JOIN map_nodes (vị trí trên bản đồ)
+     → JOIN grid_pois (vị trí trên bản đồ)
      → COUNT devices WHERE station_id (số xe tại trạm)
 
- 85. GET O api/asset/get_status
+ 88. GET O api/asset/get_status
      → READ devices WHERE device_id
      → Trả: status, battery_level, device_type
 
- 86. POST O api/asset/report_broken
+ 89. POST O api/asset/report_broken
      → INSERT device_broken_reports (status=pending)
      → UPDATE devices SET status=maintenance
 
- 87. GET O api/asset/track
+ 90. GET O api/asset/track
      → READ devices WHERE device_id
-     → JOIN map_nodes WHERE node_id=current_node_id (vị trí hiện tại)
+     → JOIN grid_pois WHERE poi_id=current_poi_id (vị trí hiện tại)
 
 
 ────────────────────────────────────────────────────────────────────────────────
 NHÓM 8 — ALGORITHM ENGINE (8 API)
 ────────────────────────────────────────────────────────────────────────────────
 
- 88. POST A api/engine/solve_mcmf
-     → READ map_nodes + map_edges + edge_traffic_status
-     → Chạy Dijkstra (giả lập MCMF)
+ 91. POST A api/engine/solve_mcmf
+     → READ grid_maps + grid_pois (build grid graph)
+     → Chạy Dijkstra trên grid
      → Trả routing suggestion (không lưu DB)
 
- 89. POST A api/engine/update_cost
-     → READ edge_traffic_status (mật độ hiện tại)
-     → UPDATE map_edges SET weight (cập nhật trọng số theo mật độ N)
+ 92. POST A api/engine/update_cost
+     → Đọc density data
+     → Cập nhật weight grid cells theo mật độ
 
- 90. GET A api/engine/get_convergence
+ 93. GET A api/engine/get_convergence
      → READ từ RAM (kết quả tính toán gần nhất)
-     → Không truy vấn DB thường xuyên
 
- 91. POST A api/engine/set_params
-     → Lưu Alpha/Beta vào config RAM hoặc file env
-     → Không truy vấn DB
+ 94. POST A api/engine/set_params
+     → Lưu Alpha/Beta/tickRate vào config RAM hoặc file env
 
- 92. POST A api/engine/simulate
+ 95. POST A api/engine/simulate
      → Giống #58 (simulate/start) nhưng qua engine endpoint
-     → INSERT user_pings, UPDATE edge_traffic_status
+     → Load output.json → khởi tạo AgentManager
 
- 93. GET A api/engine/get_logs
+ 96. GET A api/engine/get_logs
      → READ từ file log hoặc RAM buffer
-     → Không truy vấn DB
 
- 94. GET X api/engine/health
+ 97. GET X api/engine/health
      → Kiểm tra DB connection status
-     → Trả: uptime, db_status, memory_usage
+     → Trả: uptime, db_status, memory_usage, simulation_active
 
- 95. POST A api/engine/clear_cache
+ 98. POST A api/engine/clear_cache
      → Xóa cache Dijkstra graph trong RAM
-     → Không truy vấn DB
 
 
 ────────────────────────────────────────────────────────────────────────────────
 NHÓM 9 — QUẢN TRỊ & TIỆN ÍCH (10 API)
 ────────────────────────────────────────────────────────────────────────────────
 
- 96. GET X api/util/pharmacy
-     → READ facilities WHERE facility_type=pharmacy + is_active=1
-     → JOIN map_nodes (vị trí trên bản đồ)
+ 99. GET X api/util/pharmacy
+     → READ grid_pois WHERE poi_type=pharmacy + is_active=1
 
- 97. GET X api/util/canteen
-     → READ facilities WHERE facility_type=canteen
-     → Trả: name, open_hours, details (menu trong JSON)
+100. GET X api/util/canteen
+     → READ grid_pois WHERE poi_type=canteen
+     → Trả: poi_name, open_hours, details (menu trong JSON)
 
- 98. GET X api/util/parking
-     → READ facilities WHERE facility_type=parking
-     → Trả: vehicle_type, total_slots, available_slots
+101. GET X api/util/parking
+     → READ grid_pois WHERE poi_type=parking
+     → Trả: total_slots, available_slots (từ details JSON)
 
- 99. GET X api/util/wifi
-     → READ facilities WHERE facility_type=wifi
-     → Trả: ssid, wifi_password, coverage_zone
+102. GET X api/util/wifi
+     → READ grid_pois WHERE poi_type=wifi
+     → Trả: ssid, wifi_password, coverage_zone (từ details JSON)
 
-100. POST O api/util/upload
+103. POST O api/util/upload
      → Lưu file vào local storage hoặc S3
-     → Trả URL file — không INSERT bảng DB mới
+     → Trả URL file
 
-101. POST O api/util/feedback
+104. POST O api/util/feedback
      → INSERT feedbacks (rating, comment, attached_images)
 
-102. GET X api/util/faq
+105. GET X api/util/faq
      → READ faqs WHERE is_active=1 ORDER BY sort_order
 
-103. GET X api/util/weather
+106. GET X api/util/weather
      → Gọi API thời tiết bên ngoài (OpenWeather)
-     → Không truy vấn DB
 
-104. GET A api/admin/get_list
+107. GET A api/admin/get_list
      → READ staffs JOIN users WHERE is_active=1
      → Trả: staff_code, full_name, role, ward_name
 
-105. POST A api/admin/set_role
+108. POST A api/admin/set_role
      → UPDATE staffs SET role WHERE staff_id
 
 
@@ -533,7 +561,7 @@ TỔNG KẾT API
 
 
 ================================================================================
-PHẦN B — CƠ SỞ DỮ LIỆU (36 BẢNG)
+PHẦN B — CƠ SỞ DỮ LIỆU (34 BẢNG)
 ================================================================================
 
 
@@ -589,7 +617,7 @@ I. NGƯỜI DÙNG & XÁC THỰC
   created_at        DATETIME         NOT NULL
   last_used_at      DATETIME         NULL
 
-  Dùng bởi: #2 #11 #15 + FCM push internal (#71 #73 #83)
+  Dùng bởi: #2 #11 #15 + FCM push internal (#74 #76 #86)
 
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -607,7 +635,7 @@ II. NHÂN VIÊN & PHÂN QUYỀN
   shift_end         VARCHAR(5)       NULL
   created_at        DATETIME         NOT NULL
 
-  Dùng bởi: #9 #72 #104 #105 + auth middleware
+  Dùng bởi: #9 #75 #107 #108 + auth middleware
 
 [T06] wards
   ward_id           INT UNSIGNED     PK AUTO_INCREMENT
@@ -616,7 +644,7 @@ II. NHÂN VIÊN & PHÂN QUYỀN
   head_staff_id     BIGINT UNSIGNED  FK staffs NULL
   is_active         TINYINT(1)       NOT NULL DEFAULT 1
 
-  Dùng bởi: #20 #58
+  Dùng bởi: #20 #61
 
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -637,99 +665,77 @@ III. HỆ THỐNG
 
 
 ────────────────────────────────────────────────────────────────────────────────
-IV. BẢN ĐỒ SỐ (MAP)
+IV. BẢN ĐỒ SỐ — GRID 2D
 ────────────────────────────────────────────────────────────────────────────────
 
-[T08] buildings
-  building_id       INT UNSIGNED     PK AUTO_INCREMENT
-  building_code     VARCHAR(20)      UNIQUE NOT NULL
-  building_name     VARCHAR(200)     NOT NULL
-  total_floors      TINYINT          NOT NULL
+  Bản đồ là grid 2D (file .map format MovingAI).
+  Chỉ hỗ trợ 1 tầng (single floor).
+  POI = admin gán tên/loại cho ô cụ thể.
+  Edges tự tính từ grid adjacency (4 hướng N/S/E/W).
+
+[T08] grid_maps
+  map_id            INT UNSIGNED     PK AUTO_INCREMENT
+  map_name          VARCHAR(200)     NOT NULL
+  map_file_path     VARCHAR(500)     NOT NULL
+  rows              INT              NOT NULL
+  cols              INT              NOT NULL
+  grid_data         LONGTEXT         NOT NULL  -- JSON array 2D: [[0,1,0,...],...]
+  map_image_url     VARCHAR(500)     NULL
   is_active         TINYINT(1)       NOT NULL DEFAULT 1
   created_at        DATETIME         NOT NULL
   updated_at        DATETIME         NULL
 
-  Dùng bởi: #16
+  Ghi chú: grid_data lưu mảng 2D, 0=free cell, 1=obstacle
+  grid_location = row * cols + col (tương thích MAPF format)
+  Dùng bởi: #16 #17 #18 #19 #24 #31 #91
 
-[T09] floors
-  floor_id          INT UNSIGNED     PK AUTO_INCREMENT
-  building_id       INT UNSIGNED     FK buildings
-  floor_number      TINYINT          NOT NULL
-  floor_name        VARCHAR(100)     NOT NULL
-  display_order     INT              NOT NULL DEFAULT 0
-  map_image_url     VARCHAR(500)     NULL
-  image_width_px    INT              NOT NULL
-  image_height_px   INT              NOT NULL
-  real_width_m      FLOAT            NOT NULL DEFAULT 0
-  real_height_m     FLOAT            NOT NULL DEFAULT 0
-  is_active         TINYINT(1)       NOT NULL DEFAULT 1
-
-  Dùng bởi: #16 #17 #19 #24 #36
-
-[T10] map_nodes
-  node_id           INT UNSIGNED     PK AUTO_INCREMENT
-  floor_id          INT UNSIGNED     FK floors INDEX
+[T09] grid_pois (Point of Interest)
+  poi_id            INT UNSIGNED     PK AUTO_INCREMENT
+  map_id            INT UNSIGNED     FK grid_maps
   ward_id           INT UNSIGNED     FK wards NULL
-  parent_node_id    INT UNSIGNED     FK map_nodes NULL
-  node_code         VARCHAR(30)      UNIQUE NOT NULL
-  node_name         VARCHAR(200)     NOT NULL FULLTEXT
-  node_type         ENUM('room','corridor','elevator','escalator','stairs',
-                         'wc','entrance','pharmacy','info','restricted','other')
-  polygon_coords    TEXT             NOT NULL
-  center_x          FLOAT            NOT NULL
-  center_y          FLOAT            NOT NULL
+  poi_code          VARCHAR(30)      UNIQUE NOT NULL
+  poi_name          VARCHAR(200)     NOT NULL FULLTEXT
+  poi_type          ENUM('room','corridor','elevator','stairs',
+                         'wc','entrance','pharmacy','canteen',
+                         'parking','wifi','info','other')
+  grid_row          INT              NOT NULL
+  grid_col          INT              NOT NULL
+  grid_location     INT              NOT NULL INDEX  -- row * cols + col
   is_landmark       TINYINT(1)       NOT NULL DEFAULT 0
   is_accessible     TINYINT(1)       NOT NULL DEFAULT 1
   wheelchair_accessible  TINYINT(1)  NOT NULL DEFAULT 0
+  custom_weight     FLOAT            NOT NULL DEFAULT 1.0
+  capacity          SMALLINT         NULL
+  details           JSON             NULL
+  open_hours        VARCHAR(100)     NULL
   is_active         TINYINT(1)       NOT NULL DEFAULT 1
 
-  Dùng bởi: #17 #20 #21 #22 #24 #25 #26 #27 #31 #36 #64 #80 #84
-
-[T11] map_edges
-  edge_id           INT UNSIGNED     PK AUTO_INCREMENT
-  floor_id          INT UNSIGNED     FK floors INDEX
-  from_node_id      INT UNSIGNED     FK map_nodes
-  to_node_id        INT UNSIGNED     FK map_nodes
-  polygon_coords    TEXT             NULL
-  distance_m        FLOAT            NOT NULL DEFAULT 0
-  weight            FLOAT            NOT NULL DEFAULT 1.0
-  is_bidirectional  TINYINT(1)       NOT NULL DEFAULT 1
-  is_cross_floor    TINYINT(1)       NOT NULL DEFAULT 0
-  wheelchair_accessible  TINYINT(1)  NOT NULL DEFAULT 0
-  is_active         TINYINT(1)       NOT NULL DEFAULT 1
-
-  Dùng bởi: #18 #24 #28 #29 #30 #31 #33 #89
+  Ghi chú: Mỗi POI = 1 ô cụ thể trên grid, được admin gán tên/loại
+  grid_location phải trỏ đến ô free (grid_data[row][col] == 0)
+  details JSON lưu thêm data (ssid, password, slots, menu...)
+  Dùng bởi: #17 #20 #21 #22 #25 #26 #27 #31 #61 #67 #83 #87 #99-102
 
 
 ────────────────────────────────────────────────────────────────────────────────
 V. LUỒNG NGƯỜI & GIAO THÔNG
 ────────────────────────────────────────────────────────────────────────────────
 
-[T12] edge_traffic_status
-  traffic_id        INT UNSIGNED     PK AUTO_INCREMENT
-  edge_id           INT UNSIGNED     FK map_edges UNIQUE
-  people_count      INT              NOT NULL DEFAULT 0
-  density_level     ENUM('low','medium','high','blocked')  NOT NULL DEFAULT 'low'
-  updated_at        DATETIME         NOT NULL
-
-  Dùng bởi: #32 #46 #47 #49 #51 #54 #55 #57 #88 #89
-
-[T13] user_pings
+[T10] user_pings
   ping_id           BIGINT UNSIGNED  PK AUTO_INCREMENT
   user_id           BIGINT UNSIGNED  FK users
-  route_id          BIGINT UNSIGNED  FK routes NULL
-  node_id           INT UNSIGNED     FK map_nodes
-  floor_id          INT UNSIGNED     FK floors
+  route_id          VARCHAR(50)      FK routes NULL
+  grid_location     INT              NOT NULL
+  grid_row          INT              NOT NULL
+  grid_col          INT              NOT NULL
   created_at        DATETIME         NOT NULL
 
-  Dùng bởi: #46 #56 #58(simulate)
+  Dùng bởi: #46 #48 #56 #58
 
-[T14] obstacle_reports
+[T11] obstacle_reports
   report_id         BIGINT UNSIGNED  PK AUTO_INCREMENT
   user_id           BIGINT UNSIGNED  FK users
-  route_id          BIGINT UNSIGNED  FK routes NULL
-  edge_id           INT UNSIGNED     FK map_edges NULL
-  node_id           INT UNSIGNED     FK map_nodes NULL
+  route_id          VARCHAR(50)      FK routes NULL
+  grid_location     INT              NULL
   report_type       ENUM('wet_floor','broken_elevator','blocked','other')  NOT NULL
   description       TEXT             NULL
   resolved_by       BIGINT UNSIGNED  FK staffs NULL
@@ -739,20 +745,20 @@ V. LUỒNG NGƯỜI & GIAO THÔNG
 
   Dùng bởi: #50
 
-[T15] heatmap_snapshots
+[T12] heatmap_snapshots
   heatmap_id        BIGINT UNSIGNED  PK AUTO_INCREMENT
-  node_id           INT UNSIGNED     FK map_nodes
+  grid_location     INT              NOT NULL
   density_level     ENUM('low','medium','high','blocked')  NOT NULL
   recorded_at       DATETIME         NOT NULL
 
   Dùng bởi: #48 #52 #57
 
-[T16] priority_routes
+[T13] priority_routes
   priority_id       INT UNSIGNED     PK AUTO_INCREMENT
   emergency_id      VARCHAR(50)      NOT NULL
   set_by            BIGINT UNSIGNED  FK staffs
-  from_node_id      INT UNSIGNED     FK map_nodes
-  to_node_id        INT UNSIGNED     FK map_nodes
+  from_location     INT              NOT NULL  -- grid_location
+  to_location       INT              NOT NULL  -- grid_location
   reason            VARCHAR(200)     NOT NULL
   status            ENUM('active','expired')  NOT NULL
   activated_at      DATETIME         NOT NULL
@@ -765,7 +771,7 @@ V. LUỒNG NGƯỜI & GIAO THÔNG
 VI. ĐIỀU PHỐI LỘ TRÌNH
 ────────────────────────────────────────────────────────────────────────────────
 
-[T17] travel_modes
+[T14] travel_modes
   mode_id           VARCHAR(20)      PK
   mode_name         VARCHAR(50)      NOT NULL
   speed_factor      FLOAT            NOT NULL
@@ -773,12 +779,14 @@ VI. ĐIỀU PHỐI LỘ TRÌNH
   Seed: walking(1.0), wheelchair(0.7), stretcher(0.5), hospital_cart(1.5)
   Dùng bởi: #31 #32 #38 #45
 
-[T18] routes
+[T15] routes
   route_id          VARCHAR(50)      PK
   user_id           BIGINT UNSIGNED  FK users NOT NULL
-  start_node_id     VARCHAR(50)      NOT NULL
-  destination_node_id  VARCHAR(50)   NOT NULL
+  start_location    INT              NOT NULL  -- grid_location
+  dest_location     INT              NOT NULL  -- grid_location
   mode_id           VARCHAR(20)      NOT NULL
+  route_mode        ENUM('dijkstra','mapf')  NOT NULL DEFAULT 'dijkstra'
+  agent_id          INT              NULL  -- chỉ dùng khi route_mode=mapf
   status            ENUM('active','completed','cancelled')  NOT NULL
   total_distance    FLOAT            NOT NULL
   estimated_time    INT              NOT NULL
@@ -786,30 +794,28 @@ VI. ĐIỀU PHỐI LỘ TRÌNH
 
   Dùng bởi: #31 #32 #33 #34 #35 #39 #40 #41 #42
 
-[T19] route_paths
+[T16] route_paths
   path_id           BIGINT UNSIGNED  PK AUTO_INCREMENT
   route_id          VARCHAR(50)      FK routes NOT NULL
   step_order        INT              NOT NULL
-  node_id           INT UNSIGNED     FK map_nodes
-  floor_id          INT UNSIGNED     FK floors
-  x                 FLOAT            NOT NULL
-  y                 FLOAT            NOT NULL
-  distance_m        FLOAT            NOT NULL DEFAULT 0
+  grid_row          INT              NOT NULL
+  grid_col          INT              NOT NULL
+  grid_location     INT              NOT NULL
   instruction       TEXT             NULL
   voice_text        TEXT             NULL
 
   Dùng bởi: #31 #33 #34 #36 #44
 
-[T20] route_history_nodes
+[T17] route_history_nodes
   history_id        BIGINT UNSIGNED  PK AUTO_INCREMENT
   route_id          VARCHAR(50)      FK routes NOT NULL
-  node_id           VARCHAR(50)      NOT NULL
+  grid_location     INT              NOT NULL
   status            VARCHAR(20)      NOT NULL
   arrival_time      DATETIME         NOT NULL
 
   Dùng bởi: #38 #43
 
-[T21] route_shares
+[T18] route_shares
   share_id          BIGINT UNSIGNED  PK AUTO_INCREMENT
   route_id          VARCHAR(50)      FK routes NOT NULL
   share_url         TEXT             NOT NULL
@@ -818,7 +824,7 @@ VI. ĐIỀU PHỐI LỘ TRÌNH
 
   Dùng bởi: #41
 
-[T22] route_feedbacks
+[T19] route_feedbacks
   feedback_id       BIGINT UNSIGNED  PK AUTO_INCREMENT
   route_id          VARCHAR(50)      FK routes UNIQUE NOT NULL
   rating            TINYINT          NOT NULL
@@ -830,13 +836,47 @@ VI. ĐIỀU PHỐI LỘ TRÌNH
 
 
 ────────────────────────────────────────────────────────────────────────────────
-VII. Y TẾ (HIS)
+VII. MAPF SIMULATION
 ────────────────────────────────────────────────────────────────────────────────
 
-[T23] treatments
+  Dữ liệu pre-computed từ MAPF solver (output.json).
+  Server đọc output.json, gán patient vào agent, theo dõi vị trí theo thời gian.
+
+[T20] simulation_runs
+  run_id            INT UNSIGNED     PK AUTO_INCREMENT
+  map_id            INT UNSIGNED     FK grid_maps
+  output_file       VARCHAR(500)     NOT NULL  -- path tới output.json
+  team_size         INT              NOT NULL  -- số agents
+  makespan          INT              NOT NULL  -- tổng timesteps
+  tick_rate_ms      INT              NOT NULL DEFAULT 2000  -- ms per timestep
+  tasks_finished    INT              NOT NULL DEFAULT 0
+  status            ENUM('loaded','running','stopped')  NOT NULL DEFAULT 'loaded'
+  started_at        DATETIME         NULL
+  ended_at          DATETIME         NULL
+  created_at        DATETIME         NOT NULL
+
+  Dùng bởi: #58 #59 #60 #95
+
+[T21] patient_agents
+  id                INT UNSIGNED     PK AUTO_INCREMENT
+  run_id            INT UNSIGNED     FK simulation_runs
+  user_id           BIGINT UNSIGNED  FK users
+  agent_id          INT              NOT NULL  -- index trong output.json
+  assigned_at       DATETIME         NOT NULL
+  released_at       DATETIME         NULL
+
+  INDEX: (run_id, user_id) UNIQUE khi released_at IS NULL
+  Dùng bởi: #31(mapf) #35(mapf)
+
+
+────────────────────────────────────────────────────────────────────────────────
+VIII. Y TẾ (HIS)
+────────────────────────────────────────────────────────────────────────────────
+
+[T22] treatments
   treatment_id      BIGINT UNSIGNED  PK AUTO_INCREMENT
   user_id           BIGINT UNSIGNED  FK users
-  node_id           INT UNSIGNED     FK map_nodes
+  poi_id            INT UNSIGNED     FK grid_pois
   ward_id           INT UNSIGNED     FK wards
   task_type         ENUM('examination','test','imaging','pharmacy','other')  NOT NULL
   task_name         VARCHAR(200)     NOT NULL
@@ -850,58 +890,58 @@ VII. Y TẾ (HIS)
   checkin_at        DATETIME         NULL
   completed_at      DATETIME         NULL
 
-  Dùng bởi: #58 #60 #61 #62 #64 #66 #67
+  Dùng bởi: #61 #63 #64 #65 #67 #69 #70
 
-[T24] prescriptions
+[T23] prescriptions
   prescription_id   BIGINT UNSIGNED  PK AUTO_INCREMENT
   user_id           BIGINT UNSIGNED  FK users
   issued_by         BIGINT UNSIGNED  FK staffs
-  pharmacy_node_id  INT UNSIGNED     FK map_nodes NULL
+  pharmacy_poi_id   INT UNSIGNED     FK grid_pois NULL
   items_json        JSON             NOT NULL
   status            ENUM('issued','dispensed','cancelled')  NOT NULL
   issued_at         DATETIME         NOT NULL
   dispensed_at      DATETIME         NULL
   updated_at        DATETIME         NULL
 
-  Dùng bởi: #63 #64
+  Dùng bởi: #66 #67
 
-[T25] queues
+[T24] queues
   queue_id          INT UNSIGNED     PK AUTO_INCREMENT
-  node_id           INT UNSIGNED     FK map_nodes UNIQUE
+  poi_id            INT UNSIGNED     FK grid_pois UNIQUE
   current_number    SMALLINT         NOT NULL DEFAULT 0
   waiting_count     SMALLINT         NOT NULL DEFAULT 0
   avg_wait_minutes  SMALLINT         NOT NULL DEFAULT 0
   updated_at        DATETIME         NOT NULL
 
-  Dùng bởi: #59 #60 #61
+  Dùng bởi: #62 #63 #64
 
 
 ────────────────────────────────────────────────────────────────────────────────
-VIII. CƠ SỞ VẬT CHẤT
+IX. CƠ SỞ VẬT CHẤT
 ────────────────────────────────────────────────────────────────────────────────
 
-[T26] devices
+[T25] devices
   device_id         INT UNSIGNED     PK AUTO_INCREMENT
   device_code       VARCHAR(20)      UNIQUE NOT NULL
   device_type       ENUM('wheelchair','stretcher','other')  NOT NULL
   station_id        INT UNSIGNED     FK device_stations NULL
-  current_node_id   INT UNSIGNED     FK map_nodes NULL
+  current_poi_id    INT UNSIGNED     FK grid_pois NULL
   status            ENUM('available','in_use','maintenance')  NOT NULL DEFAULT 'available'
   battery_level     TINYINT          NULL
   is_active         TINYINT(1)       NOT NULL DEFAULT 1
 
-  Dùng bởi: #80 #81 #82 #85 #86 #87
+  Dùng bởi: #83 #84 #85 #88 #89 #90
 
-[T27] device_stations
+[T26] device_stations
   station_id        INT UNSIGNED     PK AUTO_INCREMENT
-  node_id           INT UNSIGNED     FK map_nodes
+  poi_id            INT UNSIGNED     FK grid_pois
   station_name      VARCHAR(100)     NOT NULL
   capacity          TINYINT          NOT NULL
   is_active         TINYINT(1)       NOT NULL DEFAULT 1
 
-  Dùng bởi: #82 #84
+  Dùng bởi: #85 #87
 
-[T28] device_bookings
+[T27] device_bookings
   booking_id        BIGINT UNSIGNED  PK AUTO_INCREMENT
   device_id         INT UNSIGNED     FK devices
   user_id           BIGINT UNSIGNED  FK users
@@ -911,9 +951,9 @@ VIII. CƠ SỞ VẬT CHẤT
   returned_at       DATETIME         NULL
   return_station_id INT UNSIGNED     FK device_stations NULL
 
-  Dùng bởi: #81 #82 #83
+  Dùng bởi: #84 #85 #86
 
-[T29] device_broken_reports
+[T28] device_broken_reports
   report_id         BIGINT UNSIGNED  PK AUTO_INCREMENT
   device_id         INT UNSIGNED     FK devices
   reported_by       BIGINT UNSIGNED  FK users
@@ -924,14 +964,14 @@ VIII. CƠ SỞ VẬT CHẤT
   created_at        DATETIME         NOT NULL
   resolved_at       DATETIME         NULL
 
-  Dùng bởi: #86
+  Dùng bởi: #89
 
 
 ────────────────────────────────────────────────────────────────────────────────
-IX. THÔNG BÁO & HỖ TRỢ
+X. THÔNG BÁO & HỖ TRỢ
 ────────────────────────────────────────────────────────────────────────────────
 
-[T30] notifications
+[T29] notifications
   notif_id          BIGINT UNSIGNED  PK AUTO_INCREMENT
   user_id           BIGINT UNSIGNED  FK users
   title             VARCHAR(200)     NOT NULL
@@ -942,12 +982,12 @@ IX. THÔNG BÁO & HỖ TRỢ
   created_at        DATETIME         NOT NULL
   read_at           DATETIME         NULL
 
-  Dùng bởi: #68 #69 #70 + internal: #71 #73 #83 (tạo + FCM push)
+  Dùng bởi: #71 #72 #73 + internal: #74 #76 #86
 
-[T31] sos_requests
+[T30] sos_requests
   sos_id            BIGINT UNSIGNED  PK AUTO_INCREMENT
   user_id           BIGINT UNSIGNED  FK users
-  location_node_id  INT UNSIGNED     FK map_nodes
+  grid_location     INT              NULL
   pos_x             FLOAT            NULL
   pos_y             FLOAT            NULL
   note              TEXT             NULL
@@ -956,9 +996,9 @@ IX. THÔNG BÁO & HỖ TRỢ
   created_at        DATETIME         NOT NULL
   resolved_at       DATETIME         NULL
 
-  Dùng bởi: #71
+  Dùng bởi: #74
 
-[T32] conversations
+[T31] conversations
   conversation_id   BIGINT UNSIGNED  PK AUTO_INCREMENT
   user_id           BIGINT UNSIGNED  FK users
   staff_id          BIGINT UNSIGNED  FK staffs
@@ -970,9 +1010,9 @@ IX. THÔNG BÁO & HỖ TRỢ
   updated_at        DATETIME         NULL
   closed_at         DATETIME         NULL
 
-  Dùng bởi: #72 #73 #75 #78 + WS
+  Dùng bởi: #75 #76 #78 #81 + WS
 
-[T33] messages
+[T32] messages
   message_id        BIGINT UNSIGNED  PK AUTO_INCREMENT
   conversation_id   BIGINT UNSIGNED  FK conversations
   sender_id         BIGINT UNSIGNED  NOT NULL
@@ -985,31 +1025,17 @@ IX. THÔNG BÁO & HỖ TRỢ
   created_at        DATETIME         NOT NULL
   deleted_at        DATETIME         NULL
 
-  Dùng bởi: #73 #74 #78 + WS
+  Dùng bởi: #76 #77 #81 + WS
 
 
 ────────────────────────────────────────────────────────────────────────────────
-X. TIỆN ÍCH
+XI. TIỆN ÍCH
 ────────────────────────────────────────────────────────────────────────────────
 
-[T34] facilities
-  facility_id       INT UNSIGNED     PK AUTO_INCREMENT
-  facility_type     ENUM('pharmacy','canteen','parking','wifi','atm','other')  NOT NULL
-  node_id           INT UNSIGNED     FK map_nodes
-  name              VARCHAR(100)     NOT NULL
-  vehicle_type      ENUM('car','motorbike')  NULL
-  total_slots       SMALLINT UNSIGNED  NULL
-  available_slots   SMALLINT UNSIGNED  NULL
-  ssid              VARCHAR(100)     NULL
-  wifi_password     VARCHAR(100)     NULL
-  coverage_zone     VARCHAR(200)     NULL
-  details           JSON             NULL
-  open_hours        VARCHAR(100)     NULL
-  is_active         TINYINT(1)       NOT NULL DEFAULT 1
+  Dữ liệu tiện ích (pharmacy, canteen, parking, wifi) nằm trong grid_pois.
+  Query theo poi_type, thông tin chi tiết lưu trong details JSON.
 
-  Dùng bởi: #96 #97 #98 #99
-
-[T35] feedbacks
+[T33] feedbacks
   feedback_id       BIGINT UNSIGNED  PK AUTO_INCREMENT
   user_id           BIGINT UNSIGNED  FK users
   rating            TINYINT          NOT NULL
@@ -1017,9 +1043,9 @@ X. TIỆN ÍCH
   attached_images   JSON             NULL
   created_at        DATETIME         NOT NULL
 
-  Dùng bởi: #101
+  Dùng bởi: #104
 
-[T36] faqs
+[T34] faqs
   faq_id            INT UNSIGNED     PK AUTO_INCREMENT
   category          VARCHAR(50)      NOT NULL DEFAULT 'general'
   question          TEXT             NOT NULL
@@ -1027,7 +1053,29 @@ X. TIỆN ÍCH
   sort_order        SMALLINT         NOT NULL
   is_active         TINYINT(1)       NOT NULL DEFAULT 1
 
-  Dùng bởi: #102
+  Dùng bởi: #105
+
+
+────────────────────────────────────────────────────────────────────────────────
+TỔNG KẾT DATABASE
+────────────────────────────────────────────────────────────────────────────────
+
+  Nhóm                        | Bảng
+  ----------------------------|------
+  I. Người dùng & Xác thực   | T01-T04 (4)
+  II. Nhân viên & Phân quyền | T05-T06 (2)
+  III. Hệ thống              | T07     (1)
+  IV. Bản đồ Grid 2D         | T08-T09 (2)
+  V. Luồng người             | T10-T13 (4)
+  VI. Điều phối Lộ trình     | T14-T19 (6)
+  VII. MAPF Simulation        | T20-T21 (2)
+  VIII. Y tế HIS             | T22-T24 (3)
+  IX. Cơ sở vật chất         | T25-T28 (4)
+  X. Thông báo & Hỗ trợ     | T29-T32 (4)
+  XI. Tiện ích               | T33-T34 (2)
+  ----------------------------|------
+  TỔNG                        | 34 bảng
+
 
 
 ================================================================================
@@ -1055,17 +1103,19 @@ PHẦN C — MÃ RESPONSE CHUẨN
   3101  | Permission denied          | Không có quyền
   3102  | Admin role required        | Chỉ Admin mới được
 
-  4001  | Floor not found            | Tầng không tồn tại
-  4002  | Node not found             | Phòng không tồn tại
-  4003  | Edge not found             | Hành lang không tồn tại
-  4004  | Invalid coordinate         | Tọa độ sai
+  4001  | Map not found              | Bản đồ không tồn tại
+  4002  | POI not found              | Điểm quan trọng không tồn tại
+  4003  | Invalid grid location      | Vị trí grid không hợp lệ
+  4004  | Location is obstacle       | Vị trí là tường/vật cản
 
   5001  | Invalid start location     | Điểm đầu sai
   5002  | Invalid destination        | Điểm đích sai
   5003  | Path not found             | Không có đường đi
+  5004  | No agent available         | Không còn agent rảnh (MAPF)
 
   6001  | Invalid location data      | Tọa độ ping sai
   6002  | Density data unavailable   | Không có dữ liệu mật độ
+  6003  | Simulation not running     | MAPF simulation chưa chạy
 
   7001  | HIS service unavailable    | HIS đang hỏng
   7002  | Clinical task not found    | Không có chỉ định
@@ -1079,4 +1129,3 @@ PHẦN C — MÃ RESPONSE CHUẨN
   9901  | Database connection failed | Lỗi kết nối DB
   9902  | Database query failed      | Lỗi truy vấn SQL
   9999  | Unexpected exception       | Lỗi không xác định
-

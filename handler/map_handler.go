@@ -1,4 +1,4 @@
-package handler
+﻿package handler
 
 import (
 	"errors"
@@ -19,188 +19,137 @@ func NewMapHandler(svc *service.MapService) *MapHandler {
 }
 
 // ========================================
-// REQUEST STRUCTS — Admin APIs
+// REQUEST STRUCTS  - Admin APIs
 // ========================================
 
 type addNodeRequest struct {
-	FloorID              uint32  `json:"floor_id"`
+	MapID                uint32  `json:"map_id"`
 	WardID               *uint32 `json:"ward_id"`
-	ParentNodeID         *uint32 `json:"parent_node_id"`
-	NodeCode             string  `json:"node_code"`
-	NodeName             string  `json:"node_name"`
-	NodeType             string  `json:"node_type"`
-	PolygonCoords        string  `json:"polygon_coords"`
-	CenterX              float32 `json:"center_x"`
-	CenterY              float32 `json:"center_y"`
+	POICode              string  `json:"poi_code"`
+	POIName              string  `json:"poi_name"`
+	POIType              string  `json:"poi_type"`
+	GridRow              int     `json:"grid_row"`
+	GridCol              int     `json:"grid_col"`
 	IsLandmark           bool    `json:"is_landmark"`
 	WheelchairAccessible bool    `json:"wheelchair_accessible"`
+	Capacity             *int    `json:"capacity"`
+	Details              *string `json:"details"`
+	OpenHours            *string `json:"open_hours"`
 }
 
 type editNodeRequest struct {
-	NodeID               uint32   `json:"node_id"`
-	ParentNodeID         *uint32  `json:"parent_node_id"`
-	NodeCode             *string  `json:"node_code"`
-	NodeName             *string  `json:"node_name"`
-	NodeType             *string  `json:"node_type"`
-	PolygonCoords        *string  `json:"polygon_coords"`
-	CenterX              *float32 `json:"center_x"`
-	CenterY              *float32 `json:"center_y"`
+	POIID                uint32   `json:"poi_id"`
+	POICode              *string  `json:"poi_code"`
+	POIName              *string  `json:"poi_name"`
+	POIType              *string  `json:"poi_type"`
 	IsLandmark           *bool    `json:"is_landmark"`
 	WheelchairAccessible *bool    `json:"wheelchair_accessible"`
 	IsAccessible         *bool    `json:"is_accessible"`
-}
-
-type addEdgeRequest struct {
-	FloorID              uint32   `json:"floor_id"`
-	FromNodeID           uint32   `json:"from_node_id"`
-	ToNodeID             uint32   `json:"to_node_id"`
-	PolygonCoords        *string  `json:"polygon_coords"`
-	DistanceM            *float32 `json:"distance_m"`
-	Weight               float32  `json:"weight"`
-	IsBidirectional      bool     `json:"is_bidirectional"`
-	IsCrossFloor         bool     `json:"is_cross_floor"`
-	WheelchairAccessible bool     `json:"wheelchair_accessible"`
+	Capacity             *int     `json:"capacity"`
+	Details              *string  `json:"details"`
+	OpenHours            *string  `json:"open_hours"`
+	CustomWeight         *float32 `json:"custom_weight"`
 }
 
 type setWeightRequest struct {
-	EdgeID uint32  `json:"edge_id"`
-	Weight float32 `json:"weight"`
+	POIID  uint32  `json:"poi_id" binding:"required"`
+	Weight float32 `json:"weight" binding:"required"`
 }
 
 // ========================================
-// HELPER
+// PUBLIC APIs [16-24]
 // ========================================
 
-func parseUint32Query(c *gin.Context, key string) uint32 {
-	val := c.Query(key)
-	if val == "" {
-		return 0
-	}
-	n, err := strconv.ParseUint(val, 10, 32)
-	if err != nil {
-		return 0
-	}
-	return uint32(n)
-}
-
-func (h *MapHandler) handleMapError(c *gin.Context, err error) {
-	switch {
-	case errors.Is(err, service.ErrFloorNotFound):
-		response.Error(c, response.CodeFloorNotFound, "Floor not found")
-	case errors.Is(err, service.ErrNodeNotFound):
-		response.Error(c, response.CodeNodeNotFound, "Node not found")
-	case errors.Is(err, service.ErrEdgeNotFound):
-		response.Error(c, response.CodeEdgeNotFound, "Edge not found")
-	case errors.Is(err, service.ErrNodeCodeExist):
-		response.Error(c, response.CodeInvalidValue, "Node code already exists")
-	case errors.Is(err, service.ErrMissingField):
-		response.ErrMissingParam(c)
-	default:
-		response.ErrUnexpected(c)
-	}
-}
-
-// ========================================
-// PUBLIC READ APIs (khong can token)
-// ========================================
-
-// [16] GetFloors — GET /api/map/get_floors
+// [16] GET /api/map/get_floors
 func (h *MapHandler) GetFloors(c *gin.Context) {
-	result, err := h.svc.GetFloors()
+	items, err := h.svc.GetFloors()
 	if err != nil {
-		h.handleMapError(c, err)
+		response.ErrUnexpected(c)
 		return
 	}
-	response.Success(c, result)
+	response.Success(c, items)
 }
 
-// [17] GetNodes — GET /api/map/get_nodes?floor_id=
+// [17] GET /api/map/get_nodes?map_id=
 func (h *MapHandler) GetNodes(c *gin.Context) {
-	floorID := parseUint32Query(c, "floor_id")
-	result, err := h.svc.GetNodes(floorID)
+	mapID := parseUint32(c.Query("map_id"))
+	items, err := h.svc.GetNodes(mapID)
 	if err != nil {
-		h.handleMapError(c, err)
+		response.ErrUnexpected(c)
 		return
 	}
-	response.Success(c, result)
+	response.Success(c, items)
 }
 
-// [18] GetEdges — GET /api/map/get_edges?floor_id=
+// [18] GET /api/map/get_edges?map_id=
 func (h *MapHandler) GetEdges(c *gin.Context) {
-	floorID := parseUint32Query(c, "floor_id")
-	result, err := h.svc.GetEdges(floorID)
-	if err != nil {
-		h.handleMapError(c, err)
-		return
-	}
-	response.Success(c, result)
+	mapID := parseUint32(c.Query("map_id"))
+	result, _ := h.svc.GetEdges(mapID)
+	response.SuccessWithCode(c, 2003, result)
 }
 
-// [19] GetMeta — GET /api/map/get_meta?floor_id=
+// [19] GET /api/map/get_meta?map_id=
 func (h *MapHandler) GetMeta(c *gin.Context) {
-	floorID := parseUint32Query(c, "floor_id")
-	if floorID == 0 {
-		response.ErrMissingParam(c)
-		return
-	}
-	result, err := h.svc.GetMeta(floorID)
+	mapID := parseUint32(c.Query("map_id"))
+	meta, err := h.svc.GetMeta(mapID)
 	if err != nil {
 		h.handleMapError(c, err)
 		return
 	}
-	response.Success(c, result)
+	response.Success(c, meta)
 }
 
-// [20] GetDepartments — GET /api/map/get_depts?node_type=&ward_id=
+// [20] GET /api/map/get_depts?node_type=&ward_id=
 func (h *MapHandler) GetDepartments(c *gin.Context) {
 	nodeType := c.Query("node_type")
-	wardID := parseUint32Query(c, "ward_id")
+	wardID := parseUint32(c.Query("ward_id"))
 	result, err := h.svc.GetDepartments(nodeType, wardID)
 	if err != nil {
-		h.handleMapError(c, err)
+		response.ErrUnexpected(c)
 		return
 	}
 	response.Success(c, result)
 }
 
-// [21] SearchLocation — GET /api/map/search_location?keyword=&floor_id=
+// [21] GET /api/map/search_location?keyword=&map_id=
 func (h *MapHandler) SearchLocation(c *gin.Context) {
 	keyword := c.Query("keyword")
-	floorID := parseUint32Query(c, "floor_id")
-	result, err := h.svc.SearchLocation(keyword, floorID)
+	mapID := parseUint32(c.Query("map_id"))
+	items, err := h.svc.SearchLocation(keyword, mapID)
 	if err != nil {
-		h.handleMapError(c, err)
+		response.ErrUnexpected(c)
 		return
 	}
-	response.Success(c, result)
+	response.Success(c, items)
 }
 
-// [22] GetLandmarks — GET /api/map/get_landmarks?floor_id=
+// [22] GET /api/map/get_landmarks?map_id=
 func (h *MapHandler) GetLandmarks(c *gin.Context) {
-	floorID := parseUint32Query(c, "floor_id")
-	result, err := h.svc.GetLandmarks(floorID)
+	mapID := parseUint32(c.Query("map_id"))
+	items, err := h.svc.GetLandmarks(mapID)
 	if err != nil {
-		h.handleMapError(c, err)
+		response.ErrUnexpected(c)
 		return
 	}
-	response.Success(c, result)
+	response.Success(c, items)
 }
 
-// [24] SyncFull — GET /api/map/sync_full
+// [24] GET /api/map/sync_full?map_id=
 func (h *MapHandler) SyncFull(c *gin.Context) {
-	result, err := h.svc.SyncFull()
+	mapID := parseUint32(c.Query("map_id"))
+	result, err := h.svc.SyncFull(mapID)
 	if err != nil {
-		h.handleMapError(c, err)
+		response.ErrUnexpected(c)
 		return
 	}
 	response.Success(c, result)
 }
 
 // ========================================
-// ADMIN WRITE APIs (can token + role admin)
+// ADMIN APIs [25-30]
 // ========================================
 
-// [25] AddNode — POST /api/admin/add_node
+// [25] POST /api/admin/add_node
 func (h *MapHandler) AddNode(c *gin.Context) {
 	var req addNodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -208,29 +157,28 @@ func (h *MapHandler) AddNode(c *gin.Context) {
 		return
 	}
 
-	input := service.AddNodeInput{
-		FloorID:              req.FloorID,
+	item, err := h.svc.AddNode(service.AddNodeInput{
+		MapID:                req.MapID,
 		WardID:               req.WardID,
-		ParentNodeID:         req.ParentNodeID,
-		NodeCode:             req.NodeCode,
-		NodeName:             req.NodeName,
-		NodeType:             req.NodeType,
-		PolygonCoords:        req.PolygonCoords,
-		CenterX:              req.CenterX,
-		CenterY:              req.CenterY,
+		POICode:              req.POICode,
+		POIName:              req.POIName,
+		POIType:              req.POIType,
+		GridRow:              req.GridRow,
+		GridCol:              req.GridCol,
 		IsLandmark:           req.IsLandmark,
 		WheelchairAccessible: req.WheelchairAccessible,
-	}
-
-	result, err := h.svc.AddNode(input)
+		Capacity:             req.Capacity,
+		Details:              req.Details,
+		OpenHours:            req.OpenHours,
+	})
 	if err != nil {
 		h.handleMapError(c, err)
 		return
 	}
-	response.Success(c, result)
+	response.Success(c, item)
 }
 
-// [26] EditNode — POST /api/admin/edit_node
+// [26] POST /api/admin/edit_node
 func (h *MapHandler) EditNode(c *gin.Context) {
 	var req editNodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -238,92 +186,61 @@ func (h *MapHandler) EditNode(c *gin.Context) {
 		return
 	}
 
-	if req.NodeID == 0 {
-		response.ErrMissingParam(c)
-		return
-	}
-
-	input := service.EditNodeInput{
-		NodeID:               req.NodeID,
-		ParentNodeID:         req.ParentNodeID,
-		NodeCode:             req.NodeCode,
-		NodeName:             req.NodeName,
-		NodeType:             req.NodeType,
-		PolygonCoords:        req.PolygonCoords,
-		CenterX:              req.CenterX,
-		CenterY:              req.CenterY,
+	item, err := h.svc.EditNode(service.EditNodeInput{
+		POIID:                req.POIID,
+		POICode:              req.POICode,
+		POIName:              req.POIName,
+		POIType:              req.POIType,
 		IsLandmark:           req.IsLandmark,
 		WheelchairAccessible: req.WheelchairAccessible,
 		IsAccessible:         req.IsAccessible,
-	}
-
-	result, err := h.svc.EditNode(input)
+		Capacity:             req.Capacity,
+		Details:              req.Details,
+		OpenHours:            req.OpenHours,
+		CustomWeight:         req.CustomWeight,
+	})
 	if err != nil {
 		h.handleMapError(c, err)
 		return
 	}
-	response.Success(c, result)
+	response.Success(c, item)
 }
 
-// [27] DelNode — DELETE /api/admin/del_node?node_id=
+// [27] DELETE /api/admin/del_node?poi_id=
 func (h *MapHandler) DelNode(c *gin.Context) {
-	nodeID := parseUint32Query(c, "node_id")
-	if nodeID == 0 {
-		response.ErrMissingParam(c)
-		return
+	poiID := parseUint32(c.Query("poi_id"))
+	if poiID == 0 {
+		// Fallback: try JSON body
+		var req struct {
+			POIID uint32 `json:"poi_id"`
+		}
+		_ = c.ShouldBindJSON(&req)
+		poiID = req.POIID
 	}
 
-	if err := h.svc.DelNode(nodeID); err != nil {
-		h.handleMapError(c, err)
-		return
-	}
-	response.Success(c, nil)
-}
-
-// [28] AddEdge — POST /api/admin/add_edge
-func (h *MapHandler) AddEdge(c *gin.Context) {
-	var req addEdgeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.ErrBodyInvalid(c)
-		return
-	}
-
-	input := service.AddEdgeInput{
-		FloorID:              req.FloorID,
-		FromNodeID:           req.FromNodeID,
-		ToNodeID:             req.ToNodeID,
-		PolygonCoords:        req.PolygonCoords,
-		DistanceM:            req.DistanceM,
-		Weight:               req.Weight,
-		IsBidirectional:      req.IsBidirectional,
-		IsCrossFloor:         req.IsCrossFloor,
-		WheelchairAccessible: req.WheelchairAccessible,
-	}
-
-	result, err := h.svc.AddEdge(input)
+	err := h.svc.DelNode(poiID)
 	if err != nil {
 		h.handleMapError(c, err)
 		return
 	}
-	response.Success(c, result)
-}
-
-// [29] DelEdge — DELETE /api/admin/del_edge?edge_id=
-func (h *MapHandler) DelEdge(c *gin.Context) {
-	edgeID := parseUint32Query(c, "edge_id")
-	if edgeID == 0 {
-		response.ErrMissingParam(c)
-		return
-	}
-
-	if err := h.svc.DelEdge(edgeID); err != nil {
-		h.handleMapError(c, err)
-		return
-	}
 	response.Success(c, nil)
 }
 
-// [30] SetWeight — PATCH /api/admin/set_weight
+// [28] POST /api/admin/add_edge  - grid-based: không hỗ trợ
+func (h *MapHandler) AddEdge(c *gin.Context) {
+	response.SuccessWithCode(c, 2003, map[string]string{
+		"message": "edges are auto-computed from grid adjacency, manual edge creation is not supported",
+	})
+}
+
+// [29] DELETE /api/admin/del_edge  - grid-based: không hỗ trợ
+func (h *MapHandler) DelEdge(c *gin.Context) {
+	response.SuccessWithCode(c, 2003, map[string]string{
+		"message": "edges are auto-computed from grid adjacency, manual edge deletion is not supported",
+	})
+}
+
+// [30] PATCH /api/admin/set_weight
 func (h *MapHandler) SetWeight(c *gin.Context) {
 	var req setWeightRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -331,14 +248,36 @@ func (h *MapHandler) SetWeight(c *gin.Context) {
 		return
 	}
 
-	if req.EdgeID == 0 || req.Weight <= 0 {
-		response.ErrMissingParam(c)
-		return
-	}
-
-	if err := h.svc.SetWeight(req.EdgeID, req.Weight); err != nil {
+	err := h.svc.SetWeight(req.POIID, req.Weight)
+	if err != nil {
 		h.handleMapError(c, err)
 		return
 	}
 	response.Success(c, nil)
+}
+
+// ========================================
+// HELPERS
+// ========================================
+
+func parseUint32(s string) uint32 {
+	v, _ := strconv.ParseUint(s, 10, 32)
+	return uint32(v)
+}
+
+func (h *MapHandler) handleMapError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, service.ErrMapNotFound):
+		response.ErrNotFound(c)
+	case errors.Is(err, service.ErrNodeNotFound):
+		response.ErrNotFound(c)
+	case errors.Is(err, service.ErrNodeCodeExist):
+		response.ErrorResponse(c, 409, 4009, "POI code already exists")
+	case errors.Is(err, service.ErrMissingField):
+		response.ErrBodyInvalid(c)
+	case errors.Is(err, service.ErrCellNotFree):
+		response.ErrorResponse(c, 400, 4010, "Grid cell is not walkable")
+	default:
+		response.ErrUnexpected(c)
+	}
 }

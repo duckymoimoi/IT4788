@@ -22,7 +22,6 @@ URL: api/auth/login
 Method: POST
 Auth: X
 Mo ta: Dang nhap bang so dien thoai va mat khau, tra ve JWT access token
-MVP: SU DUNG - Day la API co ban nhat, can thiet de phan quyen cac API khac
 
 --------------------------------------------------------------------------------
 
@@ -32,7 +31,6 @@ URL: api/auth/logout
 Method: POST
 Auth: O
 Mo ta: Huy token hien tai va xoa device token FCM khoi he thong
-MVP: BO QUA - Can Redis de luu blacklist token, phuc tap khong can thiet cho demo
 
 --------------------------------------------------------------------------------
 
@@ -42,7 +40,6 @@ URL: api/auth/signup
 Method: POST
 Auth: X
 Mo ta: Dang ky tai khoan moi bang so dien thoai
-MVP: SU DUNG - Can de tao tai khoan test, dung OTP gia lap (ma tinh) thay vi SMS that
 
 --------------------------------------------------------------------------------
 
@@ -52,7 +49,6 @@ URL: api/auth/verify_otp
 Method: POST
 Auth: X
 Mo ta: Xac thuc ma OTP duoc gui qua SMS sau khi dang ky
-MVP: SU DUNG - Dung ma OTP tinh co dinh (vi du: 123456) thay vi tich hop SMS that
 
 --------------------------------------------------------------------------------
 
@@ -62,7 +58,6 @@ URL: api/auth/resend_otp
 Method: POST
 Auth: X
 Mo ta: Gui lai ma OTP xac thuc khi ma cu het han hoac khong nhan duoc
-MVP: BO QUA - Chua co SMS that nen chuc nang nay khong co y nghia trong demo
 
 --------------------------------------------------------------------------------
 
@@ -92,7 +87,6 @@ URL: api/auth/change_password
 Method: POST
 Auth: O
 Mo ta: Doi mat khau trong ung dung khi nguoi dung da dang nhap
-MVP: SU DUNG - Don gian, chi can xac thuc mat khau cu va cap nhat mat khau moi
 
 --------------------------------------------------------------------------------
 
@@ -102,7 +96,6 @@ URL: api/user/get_profile
 Method: GET
 Auth: O
 Mo ta: Lay thong tin ca nhan cua nguoi dung va ho so benh an co ban
-MVP: SU DUNG - Can thiet de hien thi thong tin nguoi dung trong ung dung
 
 --------------------------------------------------------------------------------
 
@@ -112,7 +105,6 @@ URL: api/user/set_profile
 Method: POST
 Auth: O
 Mo ta: Cap nhat anh dai dien, ten hien thi, ngay sinh cua nguoi dung
-MVP: SU DUNG - Don gian, chi luu du lieu vao SQLite
 
 --------------------------------------------------------------------------------
 
@@ -122,7 +114,6 @@ URL: api/user/set_devtoken
 Method: POST
 Auth: O
 Mo ta: Dang ky FCM device token de nhan thong bao day (Push Notification)
-MVP: BO QUA - Can tich hop Firebase FCM, khong thuc hien thong bao trong MVP
 
 --------------------------------------------------------------------------------
 
@@ -807,7 +798,7 @@ URL: api/chat/mark_read
 Method: POST
 Auth: O
 Mo ta: Cap nhat trang thai tin nhan la da doc trong cuoc hoi thoai
-MVP: BO QUA - Bo qua cung voi he thong Chat
+
 
 --------------------------------------------------------------------------------
 
@@ -830,7 +821,7 @@ URL: api/asset/get_wheelchairs
 Method: GET
 Auth: O
 Mo ta: Tim xe lan trong gan nhat tren ban do dua tren vi tri hien tai cua nguoi dung
-MVP: BO QUA - Toan bo nhom Xe lan bo qua, can theo doi vi tri thiet bi real-time
+
 
 --------------------------------------------------------------------------------
 
@@ -840,7 +831,7 @@ URL: api/asset/book
 Method: POST
 Auth: O
 Mo ta: Giu xe lan hoac cang cho nguoi benh, tao giao dich muon thiet bi
-MVP: BO QUA - Bo qua cung voi nhom Xe lan
+
 
 --------------------------------------------------------------------------------
 
@@ -850,7 +841,6 @@ URL: api/asset/release
 Method: POST
 Auth: O
 Mo ta: Tra xe ve tram tap ket sau khi su dung xong
-MVP: BO QUA - Bo qua cung voi nhom Xe lan
 
 --------------------------------------------------------------------------------
 
@@ -860,7 +850,6 @@ URL: api/asset/request_staff
 Method: POST
 Auth: O
 Mo ta: Goi nhan vien ho tro day xe lan hoac cang den vi tri nguoi benh
-MVP: BO QUA - Can he thong thong bao real-time den nhan vien, vuot pham vi MVP
 
 --------------------------------------------------------------------------------
 
@@ -870,7 +859,6 @@ URL: api/asset/get_stations
 Method: GET
 Auth: X
 Mo ta: Lay danh sach cac tram tap ket thiet bi (xe lan, cang) tren ban do
-MVP: BO QUA - Bo qua cung voi nhom Xe lan
 
 --------------------------------------------------------------------------------
 
@@ -880,7 +868,7 @@ URL: api/asset/get_status
 Method: GET
 Auth: O
 Mo ta: Xem tinh trang hoat dong (hong, pin yeu, bao tri) cua mot thiet bi cu the
-MVP: BO QUA - Bo qua cung voi nhom Xe lan
+
 
 --------------------------------------------------------------------------------
 
@@ -890,7 +878,6 @@ URL: api/asset/report_broken
 Method: POST
 Auth: O
 Mo ta: Bao cao xe lan hoac cang bi hong hoac khong su dung duoc
-MVP: BO QUA - Bo qua cung voi nhom Xe lan
 
 --------------------------------------------------------------------------------
 
@@ -900,7 +887,6 @@ URL: api/asset/track
 Method: GET
 Auth: O
 Mo ta: Xem vi tri hien tai tren ban do cua mot thiet bi dang duoc muon va su dung
-MVP: BO QUA - Bo qua cung voi nhom Xe lan
 
 
 ================================================================================
@@ -913,7 +899,6 @@ URL: api/engine/solve_mcmf
 Method: POST
 Auth: O
 Mo ta: Goi lenh chay thuat toan Multi-commodity minimum cost flow cho mot luong nguoi dung
-MVP: BO QUA - Thuat toan MCMF phuc tap, thay the bang Dijkstra don gian trong MVP
 
 --------------------------------------------------------------------------------
 
@@ -923,7 +908,6 @@ URL: api/engine/update_cost
 Method: POST
 Auth: O
 Mo ta: Cap nhat ma tran chi phi cac hanh lang dua tren so nguoi N hien tai
-MVP: BO QUA - Phu thuoc vao du lieu mat do nguoi that tu Ping Location
 
 --------------------------------------------------------------------------------
 
@@ -933,7 +917,6 @@ URL: api/engine/get_convergence
 Method: GET
 Auth: O
 Mo ta: Kiem tra muc do toi uu hien tai cua thuat toan (do hoi tu)
-MVP: BO QUA - Chi co y nghia khi chay MCMF that, bo qua cung API so 88
 
 --------------------------------------------------------------------------------
 
@@ -943,7 +926,6 @@ URL: api/engine/set_params
 Method: POST
 Auth: O
 Mo ta: Admin chinh Alpha/Beta cua ham mo phong luong nguoi dong (Dynamic Nonlinear Flow)
-MVP: BO QUA - Phu thuoc vao MCMF, khong ap dung khi dung Dijkstra
 
 --------------------------------------------------------------------------------
 
@@ -953,7 +935,6 @@ URL: api/engine/simulate
 Method: POST
 Auth: O
 Mo ta: Chay kich ban mo phong luong nguoi ao de kiem thu kha nang chiu tai cua he thong
-MVP: BO QUA - Tinh nang nang cao, khong phai uu tien trong giai doan demo
 
 --------------------------------------------------------------------------------
 
@@ -963,7 +944,7 @@ URL: api/engine/get_logs
 Method: GET
 Auth: O
 Mo ta: Xem nhat ky tinh toan cua engine thuat toan Python (loi, thoi gian xu ly...)
-MVP: BO QUA - Khong co Python engine rieng biet trong MVP
+MVP: BO QUA - Khong coPython engine rieng biet trong MVP
 
 --------------------------------------------------------------------------------
 
@@ -983,8 +964,6 @@ URL: api/engine/clear_cache
 Method: POST
 Auth: O
 Mo ta: Don sach du lieu tinh toan tam thoi trong RAM cua engine thuat toan
-MVP: BO QUA - Khong co Python engine rieng biet trong MVP
-
 
 ================================================================================
 NHOM IX - QUAN TRI & TIEN ICH (Admin & Utilities)
@@ -996,7 +975,6 @@ URL: api/util/pharmacy
 Method: GET
 Auth: X
 Mo ta: Tra ve vi tri nha thuoc va chi duong toi nha thuoc gan nhat
-MVP: GIA LAP - Tra ve Node co type = pharmacy tu SQLite, don gian va huu ich
 
 --------------------------------------------------------------------------------
 
@@ -1006,7 +984,6 @@ URL: api/util/canteen
 Method: GET
 Auth: X
 Mo ta: Tra ve vi tri nha an, thuc don va gio mo cua can tin trong benh vien
-MVP: GIA LAP - Tra ve Node co type = canteen tu SQLite voi du lieu tinh
 
 --------------------------------------------------------------------------------
 
@@ -1016,7 +993,6 @@ URL: api/util/parking
 Method: GET
 Auth: X
 Mo ta: Tra ve tinh trang bai do xe (so cho trong, phi, vi tri) cho nguoi benh va nguoi nha
-MVP: BO QUA - Can he thong cam bien bai do xe thuc te, khong kha thi trong demo
 
 --------------------------------------------------------------------------------
 
@@ -1026,7 +1002,6 @@ URL: api/util/wifi
 Method: GET
 Auth: X
 Mo ta: Tra ve thong tin mang Wifi noi bo benh vien (SSID, Password, khu vuc phu song)
-MVP: GIA LAP - Tra ve du lieu tinh seed san, don gian va huu ich cho nguoi benh
 
 --------------------------------------------------------------------------------
 
@@ -1036,7 +1011,6 @@ URL: api/util/upload
 Method: POST
 Auth: O
 Mo ta: Upload video hoac hinh anh de bao cao su co hoac tang chat luong ban do
-MVP: BO QUA - Can xu ly luu tru file (S3 hoac local), phuc tap cho giai doan demo
 
 --------------------------------------------------------------------------------
 
@@ -1046,7 +1020,6 @@ URL: api/util/feedback
 Method: POST
 Auth: O
 Mo ta: Nguoi dung gui gop y ve tinh nang chi duong va trai nghiem su dung
-MVP: BO QUA - Khong phai tinh nang cot loi, co the bo sung o giai doan sau
 
 --------------------------------------------------------------------------------
 
@@ -1056,7 +1029,6 @@ URL: api/util/faq
 Method: GET
 Auth: X
 Mo ta: Tra ve danh sach cau hoi thuong gap va huong dan su dung ung dung
-MVP: GIA LAP - Tra ve du lieu tinh seed san, giup nguoi benh hieu cach su dung app
 
 --------------------------------------------------------------------------------
 
@@ -1066,7 +1038,6 @@ URL: api/util/weather
 Method: GET
 Auth: X
 Mo ta: Tra ve thong tin thoi tiet hien tai tai vi tri benh vien anh huong di lai ngoai troi
-MVP: BO QUA - Co the goi truc tiep API thoi tiet tu phia frontend, khong can proxy qua backend
 
 --------------------------------------------------------------------------------
 
@@ -1076,7 +1047,6 @@ URL: api/admin/get_list
 Method: GET
 Auth: O
 Mo ta: Lay danh sach nhan vien quan tri, dieu phoi vien va phan quyen cua ho
-MVP: BO QUA - He thong phan quyen don gian trong MVP, chi can 1 admin co dinh trong SQLite
 
 --------------------------------------------------------------------------------
 
@@ -1086,150 +1056,4 @@ URL: api/admin/set_role
 Method: POST
 Auth: O
 Mo ta: Admin gan quyen (Admin, Coordinator, Staff) cho mot tai khoan nhan vien
-MVP: BO QUA - Di kem voi Admin List, bo qua cung
 
-
-================================================================================
-TONG KET PHAM VI MVP
-================================================================================
-
-NHOM API              TONG GOC    SU DUNG    GIA LAP    BO QUA
----------------------------------------------------------------------
-I.  Auth & User           15          6          0          9
-II. Ban do & Ha tang      15          7          0          8
-III.Dieu phoi Lo trinh    15          6          0          9
-IV. Quan ly Luong         12          0          0         12
-V.  Tich hop Y te HIS     10          0          3          7
-VI. Ho tro & Thong bao    12          0          0         12
-VII.Quan ly Xe lan         8          0          0          8
-VIII.Algorithm Engine      8          0          0          8
-IX. Quan tri & Tien ich   10          0          5          5
----------------------------------------------------------------------
-TONG CONG             105         19          8         78
-
-TONG API THUC HIEN TRONG MVP: 27 API (19 SU DUNG + 8 GIA LAP)
-
-================================================================================
-DANH SACH 27 API MVP CAN THUC HIEN
-================================================================================
-
-NHOM I - AUTH (6 API):
-  POST  X  api/auth/login
-  POST  X  api/auth/signup
-  POST  X  api/auth/verify_otp
-  POST  O  api/auth/change_password
-  GET   O  api/user/get_profile
-  POST  O  api/user/set_profile
-
-NHOM II - BAN DO (7 API):
-  GET   X  api/map/get_floors
-  GET   X  api/map/get_nodes
-  GET   X  api/map/get_edges
-  GET   X  api/map/get_meta
-  GET   X  api/map/get_depts
-  GET   X  api/map/search_location
-  GET   X  api/map/sync_full
-
-NHOM III - LO TRINH (6 API):
-  POST  O  api/route/ordered
-  POST  O  api/route/recalculate
-  GET   O  api/route/get_steps
-  POST  O  api/route/preview
-  POST  O  api/route/get_eta
-  GET   X  api/route/get_modes
-
-NHOM V - Y TE GIA LAP (3 API):
-  GET   O  api/medical/get_tasks
-  GET   O  api/medical/get_queue
-  GET   X  api/medical/room_open
-
-NHOM IX - TIEN ICH GIA LAP (5 API):
-  GET   X  api/util/pharmacy
-  GET   X  api/util/canteen
-  GET   X  api/util/wifi
-  GET   X  api/util/faq
-  GET   X  api/util/weather  (co the goi thang tu frontend)
-
-================================================================================
-MA RESPONSE CHUAN (Response Status Codes)
-================================================================================
-
-NHOM SUCCESS:
-  1000  OK  -  Xu ly yeu cau thanh cong
-
-NHOM VALIDATION (Loi du lieu dau vao):
-  2001  Missing required parameter   -  Thieu tham so bat buoc
-  2002  Invalid parameter type       -  Sai kieu du lieu
-  2003  Invalid parameter value      -  Gia tri khong hop le
-  2004  Method not allowed           -  Sai HTTP method
-  2005  Request body invalid         -  Body sai dinh dang JSON
-
-NHOM AUTH (Loi xac thuc):
-  3001  Token is invalid             -  Token sai
-  3002  Token expired                -  Token het han
-  3003  User not authenticated       -  Chua dang nhap
-  3004  OTP incorrect                -  Sai ma OTP
-  3005  OTP expired                  -  OTP het han
-  3006  User already exists          -  So dien thoai da dang ky
-  3007  User not found               -  Tai khoan khong ton tai
-  3008  Password incorrect           -  Sai mat khau
-
-NHOM AUTHORIZATION (Loi phan quyen):
-  3101  Permission denied            -  Khong co quyen thuc hien
-  3102  Admin role required          -  Chi Admin moi duoc phep
-
-NHOM MAP (Loi ban do):
-  4001  Floor not found              -  Tang khong ton tai
-  4002  Node not found               -  Phong khong ton tai
-  4003  Edge not found               -  Hanh lang khong ton tai
-  4004  Invalid coordinate           -  Toa do sai dinh dang
-
-NHOM ROUTE (Loi lo trinh):
-  5001  Invalid start location       -  Diem bat dau sai
-  5002  Invalid destination          -  Diem dich sai
-  5003  Path not found               -  Khong tim thay duong di (do thi khong lien thong)
-
-NHOM FLOW (Loi mat do):
-  6001  Invalid location data        -  Toa do ping sai
-  6002  Density data unavailable     -  Khong co du lieu mat do
-
-NHOM MEDICAL (Loi y te):
-  7001  HIS service unavailable      -  He thong HIS dang hong
-  7002  Clinical task not found      -  Khong co chi dinh y te
-
-NHOM ASSET (Loi xe lan):
-  8001  Asset not found              -  Xe lan khong ton tai
-  8002  Asset not available          -  Khong co xe trong
-
-NHOM ENGINE (Loi thuat toan):
-  9001  Engine unavailable           -  Server thuat toan dang hong
-  9002  Engine timeout               -  Qua thoi gian xu ly
-
-NHOM SYSTEM (Loi he thong):
-  9901  Database connection failed   -  Loi ket noi co so du lieu
-  9902  Database query failed        -  Loi truy van SQL
-  9999  Unexpected exception         -  Loi he thong khong xac dinh
-
-================================================================================
-CAU TRUC JSON RESPONSE CHUNG
-================================================================================
-
-Moi API tra ve JSON theo dinh dang chuan sau:
-
-Thanh cong:
-{
-  "code": 1000,
-  "message": "OK",
-  "data": { ... }
-}
-
-That bai:
-{
-  "code": 3001,
-  "message": "Token is invalid",
-  "data": null
-}
-
-================================================================================
-KET THUC TAI LIEU
-================================================================================

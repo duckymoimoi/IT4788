@@ -1,4 +1,4 @@
-package handler
+﻿package handler
 
 import (
 	"errors"
@@ -20,7 +20,7 @@ func NewUserHandler(svc *service.UserService) *UserHandler {
 }
 
 // ========================================
-// REQUEST STRUCTS — đúng theo spec API
+// REQUEST STRUCTS  - đúng theo spec API
 // ========================================
 
 // set_profile: full_name, dob, gender, avatar
@@ -53,7 +53,7 @@ type deleteAccountRequest struct {
 // HANDLER METHODS
 // ========================================
 
-// 1. GetProfile — GET /api/user/get_profile
+// 1. GetProfile  - GET /api/user/get_profile
 func (h *UserHandler) GetProfile(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
@@ -70,7 +70,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	response.Success(c, result)
 }
 
-// 2. SetProfile — POST /api/user/set_profile
+// 2. SetProfile  - POST /api/user/set_profile
 func (h *UserHandler) SetProfile(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
@@ -100,7 +100,7 @@ func (h *UserHandler) SetProfile(c *gin.Context) {
 	response.Success(c, result)
 }
 
-// 3. SetDevToken — POST /api/user/set_devtoken
+// 3. SetDevToken  - POST /api/user/set_devtoken
 func (h *UserHandler) SetDevToken(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
@@ -127,7 +127,7 @@ func (h *UserHandler) SetDevToken(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// 4. GetSettings — GET /api/user/get_settings
+// 4. GetSettings  - GET /api/user/get_settings
 func (h *UserHandler) GetSettings(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
@@ -144,7 +144,7 @@ func (h *UserHandler) GetSettings(c *gin.Context) {
 	response.Success(c, result)
 }
 
-// 5. SetSettings — POST /api/user/set_settings
+// 5. SetSettings  - POST /api/user/set_settings
 func (h *UserHandler) SetSettings(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
@@ -172,7 +172,7 @@ func (h *UserHandler) SetSettings(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// 6. DeleteAccount — DELETE /api/user/delete_account
+// 6. DeleteAccount  - DELETE /api/user/delete_account
 func (h *UserHandler) DeleteAccount(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {

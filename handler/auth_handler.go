@@ -1,4 +1,4 @@
-package handler
+﻿package handler
 
 import (
 	"errors"
@@ -201,7 +201,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 }
 
 // ==========================================================
-// ERROR HANDLER — map lỗi service sang đúng response code
+// ERROR HANDLER  - map lỗi service sang đúng response code
 // ==========================================================
 
 func (h *AuthHandler) handleAuthError(c *gin.Context, err error) {

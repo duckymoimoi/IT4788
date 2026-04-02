@@ -1,4 +1,4 @@
-package service
+﻿package service
 
 import (
 	"errors"
@@ -96,7 +96,7 @@ func determineRole(user *schema.User) string {
 }
 
 // ========================================
-// PUBLIC METHODS — 7 HAM AUTH
+// PUBLIC METHODS  - 7 HAM AUTH
 // ========================================
 
 // Login xac thuc nguoi dung bang so dien thoai va mat khau.

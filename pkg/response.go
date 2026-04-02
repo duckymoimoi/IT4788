@@ -269,3 +269,27 @@ func ErrInvalidValue(c *gin.Context) {
 func ErrMethodNotAllowed(c *gin.Context) {
 	Error(c, CodeMethodNotAllow, "Method not allowed")
 }
+
+// SuccessWithCode trả về HTTP 200 với code tùy chỉnh (không phải 1000).
+// Dùng cho các trường hợp đặc biệt như edges auto-computed (code 2003).
+func SuccessWithCode(c *gin.Context, code int, data interface{}) {
+	c.JSON(http.StatusOK, Response{
+		Code:    code,
+		Message: "OK",
+		Data:    data,
+	})
+}
+
+// ErrorResponse trả về HTTP status code tùy chọn với code và message.
+func ErrorResponse(c *gin.Context, httpStatus int, code int, message string) {
+	c.JSON(httpStatus, Response{
+		Code:    code,
+		Message: message,
+		Data:    nil,
+	})
+}
+
+// ErrNotFound trả về lỗi "not found".
+func ErrNotFound(c *gin.Context) {
+	Error(c, CodeNodeNotFound, "Not found")
+}

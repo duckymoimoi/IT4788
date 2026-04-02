@@ -1,337 +1,173 @@
 ================================================================================
-QUY TRÌNH TRIỂN KHAI — 11 SLICE (Cập nhật 25/03)
+QUY TRÌNH TRIỂN KHAI — 10 SLICE CÒN LẠI
 Hospital Navigation & Coordination System
+Kiến trúc: Grid 2D + Dijkstra (real-time) + MAPF (offline pre-computed)
 ================================================================================
 
-QUY TRÌNH CHUNG MỖI SLICE
+ĐÃ HOÀN THÀNH:
+  ✅ Slice 0  (Grid Map & POI)   — 15 API, 2 bảng — 24/24 test PASS
+  ✅ Slice 1  (Auth & User)      — 15 API đã có trong code
+  ✅ Slice 2  (Engine core)      — dijkstra.go + parser.go + seed_route.go
+                                   21/21 unit test + 12/12 integration test PASS
+  ✅ Slice 3  (Route Core)       — 4 API: preview, order, get_steps, get_eta
+  ✅ Slice 4  (Route Mở Rộng)    — 10 API: get_active, cancel, recalculate,...
+                                   18/18 HTTP test PASS
+  ✅ TOÀN BỘ SCHEMA             — 25 bảng đã tạo, AutoMigrate đã cập nhật
+  ✅ MAPF SOLVER                 — Đã rebuild, chạy được trên MSYS2/UCRT64
+  ✅ ROUTE STUBS                — 7 file routes_xxx.go, zero conflict
+
+  QUAN TRỌNG — Kiến trúc MAPF:
+    • MAPF solver chạy OFFLINE (không tích hợp vào Go server)
+    • Solver quá chậm cho >1000 agents → không real-time
+    • Flow: Admin chạy solver riêng → ra output.json → upload lên hệ thống
+    • parser.go chỉ ĐỌC output.json có sẵn, KHÔNG gọi solver
+    • Dijkstra = mode chính, real-time cho bệnh nhân tìm đường
 ================================================================================
 
-  Bước 1: Schema    — Tạo struct Go trong schema/xxx.go
-  Bước 2: Migrate   — Thêm vào database.go AutoMigrate()
-  Bước 3: Seed      — Tạo dữ liệu mẫu (nếu cần)
-  Bước 4: Repo      — Tạo repository/xxx_repo.go (truy vấn DB)
-  Bước 5: Service   — Tạo service/xxx_service.go (logic nghiệp vụ)
-  Bước 6: Handler   — Tạo handler/xxx_handler.go (nhận request, trả response)
-  Bước 7: Routes    — Đăng ký endpoint trong handler/routes_xxx.go
-  Bước 8: Test      — Viết test và chạy kiểm tra
-  Bước 9: Checkpoint — Build + test pass → tiến sang slice tiếp
-
-Nếu slice không cần schema mới → bỏ qua bước 1-3.
-Nếu repo/service đã có → chỉ bổ sung method mới.
-
-THAY ĐỔI SO VỚI BẢN CŨ (12 slice):
-  - Bỏ Slice 10 (Voice) → gộp voice_text vào get_steps ở Slice 3
-  - Slice 5 (Flow) thêm 3 API simulate (start/stop/status)
-  - Slice 9 (Chat) dùng WebSocket thay polling
-  - Slice 8 (Notif) tích hợp FCM API gửi thông báo đẩy
-  - Slice 6 (Medical) sync_his tạo treatment ngẫu nhiên
-  - Đánh số lại: 11→10, 12→11
-  - Cross-floor edges: xử lý trong map editor (không cần schema mới)
-
-
-================================================================================
-SLICE 1 — Auth bổ sung (5 API)
+QUY TRÌNH CHUNG MỖI SLICE (Schema + Migrate ĐÃ XONG cho tất cả)
 ================================================================================
 
-Mô tả: Bổ sung các API xác thực còn thiếu. Không cần bảng mới.
+  Bước 1: Seed      — Tạo dữ liệu mẫu (nếu cần)
+  Bước 2: Repo      — Tạo repository/xxx_repo.go (truy vấn DB)
+  Bước 3: Service   — Tạo service/xxx_service.go (logic nghiệp vụ)
+  Bước 4: Handler   — Tạo handler/xxx_handler.go (nhận request, trả response)
+  Bước 5: Routes    — Đăng ký endpoint trong handler/routes_xxx.go
+  Bước 6: Test      — Viết test và chạy kiểm tra
+  Bước 7: Checkpoint — Build + test pass → tiến sang slice tiếp
 
-ĐÃ CÓ:
-  Schema:
-    - users (T01)                     → schema/user.go
-    - otp_codes (T02)                 → schema/user.go
-    - fcm_tokens (T04)                → schema/user.go
-    - app_versions (T07)              → schema/app_version.go
-  Repository:
-    - repository/user_repo.go         → CRUD users, otp_codes
-  Service:
-    - service/auth_service.go         → Login, Signup, VerifyOTP
-  Handler:
-    - handler/auth_handler.go         → 3 endpoint hiện tại
+  ⚠️ KHÔNG sửa database.go, schema/*.go — đã hoàn thành!
+  Nếu repo/service đã có → chỉ bổ sung method mới.
 
-CẦN BỔ SUNG:
-  Repository (bổ sung method):
-    - user_repo.go: FindOTPByPhone(), DeactivateFCMToken()
-    - user_repo.go: FindLatestAppVersion()
-  Service (bổ sung method):
-    - auth_service.go:
-        + ResendOTP()      — tạo OTP mới, vô hiệu OTP cũ
-        + ForgotPassword() — gửi OTP reset qua phone
-        + ResetPassword()  — xác nhận OTP + đổi password
-    - user_service.go:
-        + SetDeviceToken() — lưu/cập nhật FCM token
-        + CheckVersion()   — so sánh version_code, trả force_update
-  Handler (bổ sung method):
-    - auth_handler.go:
-        + ResendOTP()       → POST /api/auth/resend_otp
-        + ForgotPassword()  → POST /api/auth/forgot_password
-        + ResetPassword()   → POST /api/auth/reset_password
-    - user_handler.go:
-        + SetDeviceToken()  → POST /api/user/set_devtoken
-        + CheckVersion()    → GET  /api/sys/check_version
-  Routes:
-    - handler/routes.go: thêm 5 endpoint mới
-  Test:
-    - Test 5 API mới
+
 
 
 ================================================================================
-SLICE 2 — Dijkstra + Travel Modes (1 API + engine)
+✅ SLICE 2 — Dijkstra + MAPF Parser + Travel Modes (ĐÃ XONG)
 ================================================================================
 
-Mô tả: Xây dựng thuật toán tìm đường + bảng phương thức di chuyển.
-        Dijkstra cần xử lý cross-floor edges từ map editor JSON.
+Mô tả: Core engine tìm đường.
+        Dijkstra trên grid 2D (4-direction, weight=1.0) — REAL-TIME.
+        MAPF parser đọc output.json có sẵn — OFFLINE/PRE-COMPUTED.
 
-ĐÃ CÓ:
-  Schema:
-    - map_nodes (T10)                 → schema/map.go
-    - map_edges (T11)                 → schema/map.go
-    - floors (T09)                    → schema/map.go
-  Repository:
-    - repository/map_repo.go          → FindAllNodes(), FindAllEdges()
-
-CẦN TẠO MỚI:
-  Schema:
-    - travel_modes (T17)              → schema/route.go [MỚI]
-        Trường: mode_id (PK string), mode_name, speed_factor
-  Migrate:
-    - database/database.go: thêm &schema.TravelMode{} vào AutoMigrate
-  Seed:
-    - database/seed_route.go: 4 records
-        walking (1.0), wheelchair (0.7), stretcher (0.5), hospital_cart (1.5)
-  Engine:
-    - pkg/dijkstra.go [MỚI]
-        + type Graph struct { ... }
-        + func BuildGraph(nodes, edges, mode) Graph
-        + func (g *Graph) ShortestPath(from, to) (path []uint32, dist float32)
-        + Hỗ trợ: wheelchair filter, avoid_edges
-        + Cross-floor edges: đọc từ map_edges có is_cross_floor=true
-    - pkg/navigation.go [MỚI]
-        + func CalcDirection(A, B, C) string  — "Rẽ trái"/"Rẽ phải"/"Đi thẳng"
-        + func CalcFloorChange(floorA, floorB) string — "Lên tầng N"/"Xuống tầng N"
-        + func BuildVoiceText(instruction, distance, nodeName) string
-            → Tạo câu hoàn chỉnh: "Đi thẳng 15 mét, rẽ trái vào phòng Xét nghiệm"
-  Repository:
-    - repository/route_repo.go [MỚI]
-        + FindAllTravelModes()
-  Service:
-    - service/route_service.go [MỚI]
-        + GetModes() → trả danh sách travel_modes
-  Handler:
-    - handler/route_handler.go [MỚI]
-        + GetModes()  → GET /api/route/get_modes (Public, không cần JWT)
-  Routes:
-    - handler/routes_route.go: thêm 1 endpoint public
-  Test:
-    - Test unit Dijkstra với đồ thị mẫu (bao gồm cross-floor)
-    - Test API get_modes
+✅ ĐÃ XONG:
+  - pkg/mapf/dijkstra.go   → Dijkstra + DijkstraWithSpeed (21 test PASS)
+  - pkg/mapf/parser.go     → ParseOutputJSON + GetPositionsAtTimestep
+  - database/seed_route.go → Seed 4 travel_modes
+  - schema/route.go        → Schema (đã tạo từ trước)
+  - data/output.json       → File MAPF output mẫu (warehouse_small, 10 agents)
+  - data/warehouse_small.map → Map tương ứng
+  - #45 GET get_modes      → ĐÃ CÓ trong route_handler.go
 
 
 ================================================================================
-SLICE 3 — Route Core (4 API)
+✅ SLICE 3 — Route Core (4 API) — ĐÃ XONG
 ================================================================================
 
-Mô tả: 4 API cốt lõi dẫn đường. Phần phức tạp nhất.
-        get_steps trả thêm voice_text cho TTS phía frontend.
-
-ĐÃ CÓ:
-  - Dijkstra engine                   → pkg/dijkstra.go   (slice 2)
-  - Navigation + BuildVoiceText       → pkg/navigation.go  (slice 2)
-  - travel_modes                      → schema/route.go    (slice 2)
-  - map_nodes, map_edges, floors      → schema/map.go
-  - map_repo                          → repository/map_repo.go
-
-CẦN TẠO MỚI:
-  Schema (thêm vào schema/route.go):
-    - routes (T18)
-        Trường: route_id (PK auto), user_id (FK), mode_id,
-                start_node_id, destinations_json (TEXT, mảng node codes),
-                total_distance_m, estimated_time_s,
-                status (active/completed/cancelled),
-                created_at, updated_at
-    - route_paths (T19)
-        Trường: path_id (PK auto), route_id (FK), step_order,
-                node_id (FK map_nodes), floor_id (FK),
-                x (pixel), y (pixel), distance_m,
-                instruction (text: Rẽ trái/Đi thẳng...),
-                voice_text (text: câu hoàn chỉnh cho TTS)
-  Migrate:
-    - database/database.go: thêm &schema.Route{}, &schema.RoutePath{}
-  Repository (bổ sung route_repo.go):
-    - CreateRoute(), FindRouteByID()
-    - CreateRoutePaths() (bulk insert)
-    - FindRoutePaths(routeID)
-  Service (bổ sung route_service.go):
-    - PreviewPath(start, destinations, mode)
-        → Chạy Dijkstra từng cặp, trả path_coords + distance + ETA
-        → KHÔNG lưu DB
-    - RouteOrdered(userID, start, destinations, mode)
-        → Giống Preview nhưng INSERT routes + route_paths
-    - GetSteps(routeID)
-        → Đọc route_paths, trả instruction + voice_text
-    - GetETA(routeID, currentNodeID)
-        → Tính distance còn lại ÷ (1.2 × speed_factor)
-  Handler (bổ sung route_handler.go):
-    - Preview()       → POST /api/route/preview
-    - RouteOrdered()  → POST /api/route/ordered
-    - GetSteps()      → GET  /api/route/get_steps?route_id=
-    - GetETA()        → POST /api/route/get_eta
-  Routes:
-    - handler/routes_route.go: thêm 4 endpoint (cần JWT)
-  Test:
-    - Test preview với map data thật
-    - Test ordered → kiểm tra DB có route + paths
-    - Test get_steps → kiểm tra instruction + voice_text
-    - Test get_eta → kiểm tra thời gian hợp lý
+✅ ĐÃ XONG — 4 API dẫn đường Dijkstra real-time:
+  #37 POST preview     → Dijkstra RAM → trả path (KHÔNG INSERT DB)
+  #31 POST order       → Dijkstra + INSERT routes + route_paths
+  #36 GET  get_steps   → READ route_paths ORDER BY step_order
+  #38 POST get_eta     → Tính remaining_steps / speed_factor
 
 
 ================================================================================
-SLICE 4 — Route Mở Rộng (9 API)
+✅ SLICE 4 — Route Mở Rộng (10 API) — ĐÃ XONG
 ================================================================================
 
-Mô tả: Các API quản lý lộ trình: history, share, feedback, pass_node.
+✅ ĐÃ XONG — 10 API quản lý lộ trình:
+  #45 GET    get_modes     → READ travel_modes
+  #34 GET    get_active    → Route đang active của user
+  #35 POST   cancel        → UPDATE status=cancelled
+  #33 POST   recalculate   → Dijkstra lại từ vị trí mới
+  #43 POST   pass_node     → Ghi nhận đã đi qua node
+  #44 GET    get_next      → Bước tiếp theo (limit)
+  #39 GET    get_history   → Lịch sử (pagination)
+  #40 DELETE clear_history → Xóa mềm lịch sử
+  #41 POST   share         → Tạo link chia sẻ UUID
+  #42 POST   rate          → Đánh giá (rating 1-5)
 
-ĐÃ CÓ:
-  - routes, route_paths              → schema/route.go   (slice 3)
-  - route_repo, route_service        →   (slice 3)
-  - Dijkstra                          → pkg/dijkstra.go   (slice 2)
-
-CẦN TẠO MỚI:
-  Schema (thêm vào schema/route.go):
-    - route_history_nodes (T20)
-        Trường: history_id (PK), route_id (FK), node_id,
-                status (arrived/current), arrival_time
-    - route_shares (T21)
-        Trường: share_id (PK), route_id (FK), share_url,
-                receiver_phone, expired_at
-    - route_feedbacks (T22)
-        Trường: feedback_id (PK), route_id (FK UNIQUE),
-                rating (1-5), comment, is_accurate, created_at
-  Migrate:
-    - database/database.go: thêm 3 bảng mới
-  Repository (bổ sung route_repo.go):
-    - FindActiveRoute(userID)
-    - UpdateRouteStatus(routeID, status)
-    - CreateHistoryNode(), FindHistoryNodes(routeID)
-    - DeleteRoutePaths(routeID) — cho recalculate
-    - CreateRouteShare(), CreateRouteFeedback()
-    - FindRouteHistory(userID, page, limit)
-    - SoftDeleteHistory(userID)
-  Service (bổ sung route_service.go):
-    - GetActiveRoute(userID)
-    - CancelRoute(userID, routeID)
-    - Recalculate(userID, routeID, currentNodeID, avoidEdges)
-    - PassNode(userID, routeID, nodeID)
-    - GetNextGoal(userID, routeID)
-    - GetHistory(userID, page, limit)
-    - ClearHistory(userID)
-    - ShareRoute(userID, routeID, phone, expireHours)
-    - RateRoute(userID, routeID, rating, isAccurate, comment)
-  Handler (bổ sung route_handler.go):
-    - GetActiveRoute()  → GET    /api/route/get_active
-    - CancelRoute()     → POST   /api/route/cancel
-    - Recalculate()     → POST   /api/route/recalculate
-    - PassNode()        → POST   /api/route/pass_node
-    - GetNextGoal()     → GET    /api/route/get_next
-    - GetHistory()      → GET    /api/route/get_history
-    - ClearHistory()    → DELETE /api/route/clear_history
-    - ShareRoute()      → POST   /api/route/share
-    - RateRoute()       → POST   /api/route/rate_path
-  Routes:
-    - handler/routes_route.go: thêm 9 endpoint
-  Test:
-    - Test luồng đầy đủ: ordered → pass_node → get_next → cancel
-    - Test recalculate với avoid_edges
-    - Test share, rate, history
+Files đã tạo:
+  ✅ repository/route_repo.go   — 14 methods CRUD
+  ✅ service/route_service.go   — 14 business methods + Dijkstra
+  ✅ handler/route_handler.go   — 14 HTTP handlers
+  ✅ handler/routes_route.go    — 1 public + 13 private endpoints
+  ✅ cmd/test_route/main.go     — 18/18 HTTP test PASS
 
 
 ================================================================================
-SLICE 5 — Flow & Density + Simulate (14 API)
+SLICE 5 — Flow & Density + MAPF Simulate (15 API)
 ================================================================================
 
-Mô tả: Quản lý luồng người, mật độ hành lang, báo cáo sự cố.
-        Bao gồm API mô phỏng người dùng ảo (simulate).
+Mô tả: Quản lý luồng người + mô phỏng MAPF.
+        Simulate dùng AgentManager đọc output.json.
 
-ĐÃ CÓ:
-  - map_edges, map_nodes              → schema/map.go
-  - users, staffs                     → schema/user.go, staff.go
+BẢNG TẠO MỚI:
+  schema/flow.go (4 bảng):
+  ┌──────────────────┬──────────────────────────────────────────────────┐
+  │ user_pings (T10) │ ping_id PK, user_id FK→users,                   │
+  │                  │ route_id FK→routes NULL, grid_location,          │
+  │                  │ grid_row, grid_col, created_at                   │
+  ├──────────────────┼──────────────────────────────────────────────────┤
+  │ obstacle_reports │ report_id PK, user_id FK→users,                  │
+  │   (T11)          │ route_id FK→routes NULL, grid_location,          │
+  │                  │ report_type, description, resolved_by FK→staffs, │
+  │                  │ status, created_at, resolved_at                  │
+  ├──────────────────┼──────────────────────────────────────────────────┤
+  │ heatmap_snapshots│ heatmap_id PK, grid_location,                    │
+  │   (T12)          │ density_level, recorded_at                       │
+  ├──────────────────┼──────────────────────────────────────────────────┤
+  │ priority_routes  │ priority_id PK, emergency_id,                    │
+  │   (T13)          │ set_by FK→staffs, from_location, to_location,   │
+  │                  │ reason, status, activated_at, expired_at         │
+  └──────────────────┴──────────────────────────────────────────────────┘
 
-CẦN TẠO MỚI:
-  Schema:
-    - schema/flow.go [MỚI] gồm 5 bảng:
-    - edge_traffic_status (T12)
-        Trường: traffic_id (PK), edge_id (FK UNIQUE), people_count,
-                density_level (low/medium/high/blocked), updated_at
-    - user_pings (T13)
-        Trường: ping_id (PK), user_id (FK), route_id (FK),
-                node_id (FK), floor_id (FK), created_at
-    - obstacle_reports (T14)
-        Trường: report_id (PK), user_id (FK), route_id (FK),
-                edge_id, node_id, report_type, description,
-                resolved_by (FK staff), status, created_at, resolved_at
-    - heatmap_snapshots (T15)
-        Trường: heatmap_id (PK), node_id (FK),
-                density_level, recorded_at
-    - priority_routes (T16)
-        Trường: priority_id (PK), emergency_id, set_by (FK staff),
-                from_node_id, to_node_id, reason,
-                status (active/expired), activated_at, expired_at
-  Migrate:
-    - database/database.go: thêm 5 bảng
-  Seed:
-    - Init edge_traffic_status: 1 row per edge, density=low, people_count=0
-  Repository:
-    - repository/flow_repo.go [MỚI]
-  Service:
-    - service/flow_service.go [MỚI]
-        14 methods: 11 flow API + 3 simulate API
+  schema/simulation.go (2 bảng):
+  ┌──────────────────┬──────────────────────────────────────────────────┐
+  │ simulation_runs  │ run_id PK, map_id FK→grid_maps, output_file,     │
+  │   (T20)          │ team_size, makespan, tick_rate_ms,               │
+  │                  │ tasks_finished, status, started_at, ended_at    │
+  ├──────────────────┼──────────────────────────────────────────────────┤
+  │ patient_agents   │ id PK, run_id FK→simulation_runs,                │
+  │   (T21)          │ user_id FK→users, agent_id, assigned_at,        │
+  │                  │ released_at                                      │
+  └──────────────────┴──────────────────────────────────────────────────┘
 
-        Flow API (11):
-        + PingLocation(userID, nodeID, floorID)
-        + GetDensity(floorID)
-        + GetHeatmap(floorID)
-        + GetBottlenecks()
-        + ReportObstacle(userID, edgeID, type, desc)
-        + SetCapacity(edgeID, maxPeople)  — admin
-        + FlowForecast(floorID, timeRange)
-        + SetPriority(fromNode, toNode, reason)  — admin
-        + GetAlerts()
-        + GetEdgeStatus(edgeID)
-        + ResetFlow()  — admin
+BẢNG DÙNG TỪ SLICE TRƯỚC:
+  - users (T01), staffs (T05), routes (T15) — FK references
+  - grid_maps (T08) — simulation_runs.map_id FK
 
-        Simulate API (3):
-        + StartSimulate(userCount, intervalSec, durationMin)
-            → Tạo N goroutine, mỗi goroutine = 1 user ảo
-            → Mỗi user ảo di chuyển theo edge ngẫu nhiên trên map
-            → Gọi PingLocation mỗi interval giây
-            → Trả simulation_id
-        + StopSimulate(simulationID)
-            → Dừng tất cả goroutine của simulation đó
-        + GetSimulateStatus()
-            → Trả số user ảo đang chạy, thời gian đã chạy
+DATABASE USAGE PER API:
+  #46 POST ping_location  → INSERT user_pings (user_id, grid_location)
+  #47 GET  get_density    → SELECT grid_location, COUNT(*) FROM user_pings
+                            GROUP BY grid_location (hoặc AgentManager RAM)
+  #48 GET  get_heatmap    → [MAPF] AgentManager.GetAllPositions() (RAM)
+                          → [Default] READ user_pings WHERE created_at > now-30min
+                            GROUP BY grid_location
+                          → READ heatmap_snapshots (historical)
+  #49 GET  get_bottlenecks→ Giống #48, ORDER BY count DESC LIMIT 10
+  #50 POST report_obstacle→ INSERT obstacle_reports (status=pending)
+  #51 PATCH set_capacity  → UPDATE grid_pois SET capacity WHERE poi_id
+  #52 GET  get_forecast   → READ user_pings GROUP BY HOUR(created_at) (trend)
+  #53 POST set_priority   → INSERT priority_routes (status=active)
+  #54 GET  get_alerts     → READ priority_routes WHERE status=active
+                          → So sánh với route đang đi của user
+  #55 GET  edge_status    → READ user_pings WHERE grid_location=? (count)
+  #56 GET  stats_flow     → READ user_pings GROUP BY HOUR(created_at) (aggregate)
+  #57 POST reset_flow     → DELETE user_pings WHERE created_at < now
+                          → DELETE heatmap_snapshots (xóa cache)
 
-  Handler:
-    - handler/flow_handler.go [MỚI]
-        + PingLocation()     → POST /api/flow/ping_location
-        + GetDensity()       → GET  /api/flow/get_density
-        + GetHeatmap()       → GET  /api/flow/get_heatmap
-        + GetBottlenecks()   → GET  /api/flow/get_bottlenecks
-        + ReportObstacle()   → POST /api/flow/report_obstacle
-        + SetCapacity()      → PATCH /api/admin/set_capacity (admin)
-        + FlowForecast()     → GET  /api/flow/get_forecast
-        + SetPriority()      → POST /api/flow/set_priority (admin)
-        + GetAlerts()        → GET  /api/flow/get_alerts
-        + EdgeStatus()       → GET  /api/flow/edge_status
-        + ResetFlow()        → POST /api/admin/reset_flow (admin)
-        + StartSimulate()    → POST /api/flow/simulate/start (admin)
-        + StopSimulate()     → POST /api/flow/simulate/stop (admin)
-        + SimulateStatus()   → GET  /api/flow/simulate/status (admin)
-  Routes:
-    - handler/routes_flow.go: 8 public + 6 admin
-  Test:
-    - Test ping → kiểm tra density thay đổi
-    - Test report obstacle → kiểm tra status
-    - Test admin set_capacity, set_priority
-    - Test simulate start → status → stop
+  #58 POST simulate/start → INSERT simulation_runs (status=running)
+                           → Load output.json → AgentManager (RAM)
+  #59 POST simulate/stop  → UPDATE simulation_runs SET status=stopped
+                           → AgentManager reset (RAM)
+  #60 GET  simulate/status→ READ simulation_runs WHERE status=running
+                           → AgentManager.GetAllPositions() (RAM)
+
+ENGINE (RAM only): pkg/mapf/manager.go → AgentManager
+Migrate: thêm 6 bảng vào AutoMigrate
+Files:   schema/flow.go, schema/simulation.go, pkg/mapf/manager.go,
+         repository/flow_repo.go, service/flow_service.go,
+         handler/flow_handler.go, handler/routes_flow.go
 
 
 ================================================================================
@@ -339,64 +175,56 @@ SLICE 6 — Medical (10 API)
 ================================================================================
 
 Mô tả: Y tế giả lập — chỉ định khám, hàng đợi, đơn thuốc.
-        sync_his tạo 3-5 treatment NGẪU NHIÊN cho user.
+        sync_now tạo 3-5 treatment NGẪU NHIÊN cho user.
 
-ĐÃ CÓ:
-  - users, wards                      →
-  - map_nodes                         →
+BẢNG TẠO MỚI (schema/medical.go):
+  ┌──────────────────┬──────────────────────────────────────────────────┐
+  │ treatments (T22) │ treatment_id PK, user_id FK→users,               │
+  │                  │ poi_id FK→grid_pois, ward_id FK→wards,           │
+  │                  │ task_type, task_name, priority, sequence_number, │
+  │                  │ status, note, has_result,                        │
+  │                  │ created_at, updated_at, checkin_at, completed_at │
+  ├──────────────────┼──────────────────────────────────────────────────┤
+  │ prescriptions    │ prescription_id PK, user_id FK→users,            │
+  │   (T23)          │ issued_by FK→staffs,                             │
+  │                  │ pharmacy_poi_id FK→grid_pois NULL,               │
+  │                  │ items_json JSON, status, issued_at, dispensed_at │
+  ├──────────────────┼──────────────────────────────────────────────────┤
+  │ queues (T24)     │ queue_id PK, poi_id FK→grid_pois UNIQUE,         │
+  │                  │ current_number, waiting_count,                   │
+  │                  │ avg_wait_minutes, updated_at                     │
+  └──────────────────┴──────────────────────────────────────────────────┘
 
-CẦN TẠO MỚI:
-  Schema:
-    - schema/medical.go [MỚI] gồm 3 bảng:
-    - treatments (T23)
-        Trường: treatment_id (PK), user_id (FK), node_id (FK),
-                ward_id (FK), task_type, task_name, priority,
-                sequence_number, status, note, has_result,
-                created_at, updated_at, checkin_at, completed_at
-    - prescriptions (T24)
-        Trường: prescription_id (PK), user_id (FK),
-                issued_by (FK staff), pharmacy_node_id (FK),
-                items_json, status, issued_at, dispensed_at, updated_at
-    - queues (T25)
-        Trường: queue_id (PK), node_id (FK UNIQUE),
-                current_number, waiting_count, avg_wait_minutes, updated_at
-  Migrate + Seed:
-    - Seed treatments: 5 chỉ định mẫu cho user test
-    - Seed prescriptions: 1-2 đơn thuốc
-    - Seed queues: số thứ tự cho 5-10 phòng
-  Repository:
-    - repository/medical_repo.go [MỚI]
-  Service:
-    - service/medical_service.go [MỚI]
-        + GetTasks(userID)         — lấy danh sách chỉ định
-        + GetQueueStatus(nodeID)   — số thứ tự hàng đợi
-        + CheckinRoom(userID, treatmentID)
-        + CheckoutRoom(userID, treatmentID)
-        + GetResultStatus(userID, treatmentID)
-        + GetPrescription(userID)
-        + SyncHIS(userID)          — RANDOM 3-5 treatments từ danh sách mẫu:
-            Xét nghiệm máu, Siêu âm, Khám Nội, X-quang, Lãnh thuốc
-            Gán sequence_number theo priority, INSERT với status=pending
-        + GetMedicalHistory(userID)
-  Handler:
-    - handler/medical_handler.go [MỚI]
-        + GetTasks()        → GET  /api/medical/get_tasks
-        + GetQueue()        → GET  /api/medical/get_queue?node_id=
-        + CheckinRoom()     → POST /api/medical/checkin_room
-        + CheckoutRoom()    → POST /api/medical/checkout_room
-        + GetResultStatus() → GET  /api/medical/result_status?treatment_id=
-        + GetPrescription() → GET  /api/medical/get_prescription
-        + SyncHIS()         → POST /api/medical/sync_now (admin)
-        + RoomOpen()        → GET  /api/medical/room_open
-        + CancelTask()      → POST /api/medical/cancel_task
-        + MedicalHistory()  → GET  /api/medical/get_history
-  Routes:
-    - handler/routes_medical.go: đăng ký 10 endpoint
-  Test:
-    - Test get_tasks trả treatment seed
-    - Test sync_now → tạo random treatments
-    - Test checkin_room/checkout_room luồng đầy đủ
-    - Test queue status, room_open, cancel_task
+BẢNG DÙNG TỪ SLICE TRƯỚC:
+  - users (T01)     — treatments.user_id FK
+  - staffs (T05)    — prescriptions.issued_by FK
+  - wards (T06)     — treatments.ward_id FK
+  - grid_pois (T09) — treatments.poi_id FK, prescriptions.pharmacy_poi_id FK
+
+DATABASE USAGE PER API:
+  #61 GET  get_tasks       → READ treatments WHERE user_id + status IN (pending, in_progress)
+                           → JOIN grid_pois ON poi_id (lấy poi_name)
+                           → JOIN wards ON ward_id (lấy ward_name)
+  #62 GET  get_queue       → READ queues WHERE poi_id
+  #63 POST checkin_room    → UPDATE treatments SET status=in_progress, checkin_at=now
+                           → UPDATE queues SET waiting_count-1
+  #64 POST checkout_room   → UPDATE treatments SET status=completed, completed_at=now
+                           → UPDATE queues SET current_number+1
+  #65 GET  result_status   → READ treatments WHERE treatment_id + user_id
+  #66 GET  get_prescription→ READ prescriptions WHERE user_id
+                           → JOIN grid_pois ON pharmacy_poi_id
+  #67 POST sync_now        → READ grid_pois WHERE poi_type IN (room, pharmacy) (random)
+                           → INSERT treatments (3-5 records random)
+                           → INSERT prescriptions (1 nếu có task Lãnh thuốc)
+  #68 GET  room_open       → READ grid_pois WHERE poi_id (trả open_hours)
+  #69 POST cancel_task     → UPDATE treatments SET status=skipped
+  #70 GET  get_history     → READ treatments WHERE user_id + status=completed
+
+Migrate: thêm 3 bảng vào AutoMigrate
+Seed:    database/seed_medical.go → 5 treatments + 1 prescription + queues
+Files:   schema/medical.go, repository/medical_repo.go,
+         service/medical_service.go, handler/medical_handler.go,
+         handler/routes_medical.go
 
 
 ================================================================================
@@ -405,50 +233,55 @@ SLICE 7 — Device / Xe lăn (8 API)
 
 Mô tả: Quản lý xe lăn, cáng — mượn/trả/báo hỏng.
 
-ĐÃ CÓ:
-  - users, staffs, map_nodes          →
+BẢNG TẠO MỚI (schema/device.go):
+  ┌──────────────────────┬──────────────────────────────────────────────┐
+  │ devices (T25)        │ device_id PK, device_code UNIQUE,            │
+  │                      │ device_type, station_id FK→device_stations,  │
+  │                      │ current_poi_id FK→grid_pois NULL,            │
+  │                      │ status, battery_level, is_active             │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ device_stations (T26)│ station_id PK, poi_id FK→grid_pois,          │
+  │                      │ station_name, capacity, is_active            │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ device_bookings (T27)│ booking_id PK, device_id FK→devices,         │
+  │                      │ user_id FK→users, staff_id FK→staffs NULL,   │
+  │                      │ status, borrowed_at, returned_at,           │
+  │                      │ return_station_id FK→device_stations         │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ device_broken_reports│ report_id PK, device_id FK→devices,          │
+  │   (T28)              │ reported_by FK→users, description, image_url,│
+  │                      │ status, resolved_by FK→staffs,              │
+  │                      │ created_at, resolved_at                     │
+  └──────────────────────┴──────────────────────────────────────────────┘
 
-CẦN TẠO MỚI:
-  Schema:
-    - schema/device.go [MỚI] gồm 4 bảng:
-    - devices (T26)
-        Trường: device_id (PK), device_code (UNIQUE), device_type,
-                station_id (FK), current_node_id, status
-                (available/in_use/maintenance), battery_level, is_active
-    - device_stations (T27)
-        Trường: station_id (PK), node_id (FK map_nodes),
-                station_name, capacity, is_active
-    - device_bookings (T28)
-        Trường: booking_id (PK), device_id (FK), user_id (FK),
-                staff_id (FK NULL), status
-                (pending/approved/in_use/returned/cancelled),
-                borrowed_at, returned_at, return_station_id
-    - device_broken_reports (T29)
-        Trường: report_id (PK), device_id (FK), reported_by (FK user),
-                description, image_url, status, resolved_by (FK staff),
-                created_at, resolved_at
-  Migrate + Seed:
-    - Seed device_stations: 3 trạm xe
-    - Seed devices: 10 xe lăn + 5 cáng
-  Repository:
-    - repository/device_repo.go [MỚI]
-  Service:
-    - service/device_service.go [MỚI]
-  Handler:
-    - handler/device_handler.go [MỚI]
-        + FindDevice()       → GET  /api/asset/get_wheelchairs?type=wheelchair
-        + BookAsset()        → POST /api/asset/book
-        + ReleaseAsset()     → POST /api/asset/release
-        + GetStations()      → GET  /api/asset/get_stations
-        + GetHealth()        → GET  /api/asset/get_status?device_id=
-        + TrackAsset()       → GET  /api/asset/track?device_id=
-        + ReportBroken()     → POST /api/asset/report_broken
-        + RequestAssist()    → POST /api/asset/request_staff
-  Routes:
-    - handler/routes_device.go
-  Test:
-    - Test find → book → release luồng đầy đủ
-    - Test report broken + resolve
+BẢNG DÙNG TỪ SLICE TRƯỚC:
+  - grid_pois (T09) — devices.current_poi_id FK, device_stations.poi_id FK
+  - users (T01)     — device_bookings.user_id FK
+  - staffs (T05)    — device_bookings.staff_id FK
+
+DATABASE USAGE PER API:
+  #83 GET  get_wheelchairs → READ devices WHERE device_type + status=available
+                           → JOIN device_stations + grid_pois (vị trí)
+  #84 POST book            → UPDATE devices SET status=in_use, station_id=NULL
+                           → INSERT device_bookings (status=in_use)
+  #85 POST release         → UPDATE devices SET status=available, station_id=X
+                           → UPDATE device_bookings SET status=returned
+  #86 POST request_staff   → UPDATE device_bookings SET staff_id
+                           → INSERT notifications (cho staff) [cần Slice 8]
+  #87 GET  get_stations    → READ device_stations WHERE is_active=1
+                           → JOIN grid_pois ON poi_id
+                           → COUNT devices WHERE station_id GROUP BY station_id
+  #88 GET  get_status      → READ devices WHERE device_id
+  #89 POST report_broken   → INSERT device_broken_reports
+                           → UPDATE devices SET status=maintenance
+  #90 GET  track           → READ devices WHERE device_id
+                           → JOIN grid_pois ON current_poi_id
+
+Migrate: thêm 4 bảng
+Seed:    database/seed_device.go → 3 stations + 15 devices
+Files:   schema/device.go, repository/device_repo.go,
+         service/device_service.go, handler/device_handler.go,
+         handler/routes_device.go
 
 
 ================================================================================
@@ -457,43 +290,35 @@ SLICE 8 — Notifications + FCM (3 API)
 
 Mô tả: Thông báo đẩy — lưu DB + gửi push qua Firebase FCM API.
 
-ĐÃ CÓ:
-  - users                             →
-  - fcm_tokens (T04)                  → schema/user.go
+BẢNG TẠO MỚI (schema/support.go):
+  ┌──────────────────┬──────────────────────────────────────────────────┐
+  │ notifications    │ notif_id PK, user_id FK→users, title, content,   │
+  │   (T29)          │ notif_type ENUM(medical,billing,queue,emergency, │
+  │                  │   system), is_read, expires_at, created_at,     │
+  │                  │ read_at                                          │
+  └──────────────────┴──────────────────────────────────────────────────┘
 
-CẦN TẠO MỚI:
-  Schema:
-    - schema/support.go [MỚI] (tạo file, sau đó slice 9 bổ sung thêm)
-    - notifications (T30)
-        Trường: notif_id (PK), user_id (FK), title, content,
-                notif_type (medical/billing/queue/emergency/system),
-                is_read, expires_at, created_at, read_at
-  Migrate + Seed:
-    - Seed: 2-3 thông báo mẫu cho user test
-  Repository:
-    - repository/support_repo.go [MỚI]
-  Service:
-    - service/notif_service.go [MỚI]
-        + GetNotifications(userID, page, limit)
-        + ReadNotification(userID, notifID)
-        + DeleteNotification(userID, notifID)
-        + SendNotification(userID, title, content, type) — internal
-            → INSERT vào notifications
-            → Tìm FCM token từ fcm_tokens
-            → Gọi Firebase HTTP API: POST https://fcm.googleapis.com/fcm/send
-            → Cần env: FCM_SERVER_KEY
-  Handler:
-    - handler/notif_handler.go [MỚI]
-        + GetList()  → GET    /api/notif/get_list
-        + SetRead()  → POST   /api/notif/set_read
-        + Delete()   → DELETE /api/notif/delete?notif_id=
-  Routes:
-    - handler/routes_support.go
-  Env:
-    - .env: FCM_SERVER_KEY=<server_key_from_firebase>
-  Test:
-    - Test get → read → delete
-    - Test SendNotification → kiểm tra DB + FCM call (mock)
+BẢNG DÙNG TỪ SLICE TRƯỚC:
+  - users (T01)      — notifications.user_id FK
+  - fcm_tokens (T04) — đọc token để gửi FCM push
+
+DATABASE USAGE PER API:
+  #71 GET  get_list  → READ notifications WHERE user_id ORDER BY created_at DESC
+                       (pagination: page, limit)
+  #72 POST set_read  → UPDATE notifications SET is_read=1, read_at=now
+                       WHERE notif_id + user_id
+  #73 DELETE delete  → DELETE notifications WHERE notif_id + user_id
+
+  Internal SendNotification():
+      → INSERT notifications (tạo record)
+      → READ fcm_tokens WHERE user_id + is_active=1 (lấy FCM token)
+      → POST https://fcm.googleapis.com/fcm/send (external API)
+
+Migrate: thêm 1 bảng
+Env:     .env → FCM_SERVER_KEY=
+Files:   schema/support.go, repository/support_repo.go,
+         service/notif_service.go, handler/notif_handler.go,
+         handler/routes_support.go
 
 
 ================================================================================
@@ -502,210 +327,172 @@ SLICE 9 — SOS + Chat WebSocket (8 API + 1 WS)
 
 Mô tả: Cấp cứu SOS + chat bệnh nhân-nhân viên qua WebSocket.
 
-ĐÃ CÓ:
-  - users, staffs, map_nodes          →
-  - schema/support.go                 →   (slice 8, đã tạo file)
+BẢNG TẠO MỚI (bổ sung vào schema/support.go):
+  ┌──────────────────┬──────────────────────────────────────────────────┐
+  │ sos_requests     │ sos_id PK, user_id FK→users, grid_location,      │
+  │   (T30)          │ pos_x, pos_y, note, status,                     │
+  │                  │ assigned_staff_id FK→staffs,                     │
+  │                  │ created_at, resolved_at                          │
+  ├──────────────────┼──────────────────────────────────────────────────┤
+  │ conversations    │ conversation_id PK, user_id FK→users,            │
+  │   (T31)          │ staff_id FK→staffs, topic, status,              │
+  │                  │ last_message, unread_count,                      │
+  │                  │ created_at, updated_at, closed_at               │
+  ├──────────────────┼──────────────────────────────────────────────────┤
+  │ messages (T32)   │ message_id PK, conversation_id FK→conversations, │
+  │                  │ sender_id, sender_type, type,                    │
+  │                  │ text_content, media_url, is_deleted, is_read,   │
+  │                  │ created_at, deleted_at                           │
+  └──────────────────┴──────────────────────────────────────────────────┘
 
-CẦN TẠO MỚI:
-  Dependency:
-    - go get github.com/gorilla/websocket
-  Schema (bổ sung vào schema/support.go):
-    - sos_requests (T31)
-        Trường: sos_id (PK), user_id (FK), location_node_id (FK),
-                pos_x, pos_y, note, status (received/processing/resolved),
-                assigned_staff_id (FK), created_at, resolved_at
-    - conversations (T32)
-        Trường: conversation_id (PK), user_id (FK), staff_id (FK),
-                topic, status (open/closed), last_message,
-                unread_count, created_at, updated_at, closed_at
-    - messages (T33)
-        Trường: message_id (PK), conversation_id (FK), sender_id,
-                sender_type (user/staff), type (text/image),
-                text_content, media_url, is_deleted, is_read,
-                created_at, deleted_at
-  Migrate:
-    - thêm 3 bảng
-  Repository (bổ sung support_repo.go):
-    - SOS: CreateSOS(), FindSOSByUser()
-    - Chat: CreateConversation(), FindConversations()
-    - Message: CreateMessage(), FindMessages(), MarkRead()
-  Service:
-    - service/sos_service.go [MỚI]
-        + SOSRequest(userID, nodeID, posX, posY, note)
-    - service/chat_service.go [MỚI]
-        + CreateChat(userID, topic)
-        + SendMessage(conversationID, senderID, senderType, text)
-        + GetMessages(conversationID, page, limit)
-        + ListConversations(userID)
-  Handler:
-    - handler/support_handler.go [MỚI]
-        + SOSRequest()        → POST /api/help/sos
-    - handler/chat_handler.go [MỚI]
-        + CreateChat()        → POST /api/chat/create
-        + SendMessage()       → POST /api/chat/send
-        + GetMessages()       → GET  /api/chat/get_messages?conversation_id=
-        + ListConversations() → GET  /api/chat/get_list
-        + MarkRead()          → POST /api/chat/mark_read
-        + BotQuery()          → POST /api/chat/bot_query
-        + GetVoiceKey()       → GET  /api/sys/get_voice_key
-        + GetVoiceFiles()     → GET  /api/sys/get_voice_files
-    - handler/ws_handler.go [MỚI]
-        + HandleWS()          → WS  /ws/chat?token=<JWT>
-        + Quản lý map[userID]*websocket.Conn
-        + Nhận action: send (gửi tin), read (đánh dấu đã đọc)
-        + Gửi event: message (tin mới), read_receipt, notification
-  Routes:
-    - handler/routes_support.go: thêm HTTP endpoints + WS endpoint
-  Test:
-    - Test SOS → tạo + kiểm tra status
-    - Test chat → create → send (qua WS) → get_messages (qua HTTP)
+BẢNG DÙNG TỪ SLICE TRƯỚC:
+  - users (T01)           — FK references
+  - staffs (T05)          — sos_requests.assigned_staff_id, conversations.staff_id
+  - notifications (T29)   — SOS tạo notification cho staff (Slice 8)
+  - fcm_tokens (T04)      — push notification
+
+DATABASE USAGE PER API:
+  #74 POST sos           → INSERT sos_requests (status=received)
+                         → INSERT notifications cho staff on-duty
+                         → READ fcm_tokens → FCM push
+  #75 POST chat/create   → READ staffs WHERE is_active=1 (tìm coordinator rảnh)
+                         → INSERT conversations (status=open)
+  #76 POST chat/send     → INSERT messages
+                         → UPDATE conversations SET last_message, unread_count+1
+                         → WebSocket push (RAM) + FCM push nếu offline
+  #77 GET  chat/messages → READ messages WHERE conversation_id (pagination)
+  #78 GET  chat/get_list → READ conversations WHERE user_id ORDER BY updated_at
+  #79 GET  voice_key     → Không query DB (trả config tĩnh)
+  #80 GET  voice_files   → Không query DB (trả config tĩnh)
+  #81 POST chat/mark_read→ UPDATE messages SET is_read=1
+                         → UPDATE conversations SET unread_count=0
+  #82 POST bot_query     → Không query DB (hoặc FULLTEXT search grid_pois)
+
+  WS /ws/chat
+      → Xác thực JWT (RAM)
+      → action "send": INSERT messages + UPDATE conversations
+      → action "read": UPDATE messages SET is_read=1
+
+Dependency: go get github.com/gorilla/websocket
+Migrate: thêm 3 bảng
+Files:   schema/support.go (bổ sung), repository/support_repo.go (bổ sung),
+         service/sos_service.go, service/chat_service.go,
+         handler/support_handler.go, handler/chat_handler.go,
+         handler/ws_handler.go
 
 
 ================================================================================
-SLICE 10 — Utilities (8 API)
+SLICE 10 — Utilities (10 API)
 ================================================================================
 
 Mô tả: Tiện ích — nhà thuốc, canteen, parking, wifi, FAQ, feedback.
+        Dữ liệu tiện ích lưu trong grid_pois (query theo poi_type).
 
-ĐÃ CÓ:
-  - users, map_nodes                  →
+BẢNG TẠO MỚI (schema/util.go):
+  ┌──────────────────┬──────────────────────────────────────────────────┐
+  │ feedbacks (T33)  │ feedback_id PK, user_id FK→users, rating,        │
+  │                  │ comment, attached_images JSON, created_at        │
+  ├──────────────────┼──────────────────────────────────────────────────┤
+  │ faqs (T34)       │ faq_id PK, category, question, answer,           │
+  │                  │ sort_order, is_active                            │
+  └──────────────────┴──────────────────────────────────────────────────┘
 
-CẦN TẠO MỚI:
-  Schema:
-    - schema/util.go [MỚI] gồm 3 bảng:
-    - facilities (T34)
-        Trường: facility_id (PK), facility_type
-                (pharmacy/canteen/parking/wifi/atm/other),
-                node_id (FK), name, vehicle_type, total_slots,
-                available_slots, ssid, wifi_password, coverage_zone,
-                details (JSON), open_hours, is_active
-    - feedbacks (T35)
-        Trường: feedback_id (PK), user_id (FK), rating (1-5),
-                comment, attached_images (JSON), created_at
-    - faqs (T36)
-        Trường: faq_id (PK), category, question, answer,
-                sort_order, is_active
-  Migrate + Seed:
-    - Seed facilities: nhà thuốc, canteen, 2 bãi xe (ô tô + xe máy), wifi
-    - Seed faqs: 5-10 câu hỏi mẫu
-  Repository:
-    - repository/util_repo.go [MỚI]
-  Service:
-    - service/util_service.go [MỚI]
-        + GetPharmacy()    — lọc facilities type=pharmacy
-        + GetCanteen()     — lọc type=canteen
-        + GetParking()     — lọc type=parking, trả total/available
-        + GetWifi()        — lọc type=wifi, trả SSID/password
-        + GetFAQ()         — trả danh sách FAQ
-        + SubmitFeedback() — INSERT feedback
-  Handler:
-    - handler/util_handler.go [MỚI]
-        + GetPharmacy()    → GET  /api/util/pharmacy
-        + GetCanteen()     → GET  /api/util/canteen
-        + GetParking()     → GET  /api/util/parking
-        + GetWifi()        → GET  /api/util/wifi
-        + GetFAQ()         → GET  /api/util/faq
-        + SubmitFeedback() → POST /api/util/feedback
-        + UploadMedia()    → POST /api/util/upload
-        + GetWeather()     → GET  /api/util/weather
-  Routes:
-    - handler/routes_device.go (gộp chung routes_device vì cùng Người D)
-  Test:
-    - Test 6 API trả dữ liệu seed
+BẢNG DÙNG TỪ SLICE TRƯỚC:
+  - grid_pois (T09) — query theo poi_type cho pharmacy/canteen/parking/wifi
+  - users (T01)     — feedbacks.user_id FK
+
+DATABASE USAGE PER API:
+  #99  GET  pharmacy  → READ grid_pois WHERE poi_type=pharmacy + is_active=1
+  #100 GET  canteen   → READ grid_pois WHERE poi_type=canteen
+                        (trả poi_name, open_hours, details JSON)
+  #101 GET  parking   → READ grid_pois WHERE poi_type=parking
+                        (parse details JSON → total_slots, available_slots)
+  #102 GET  wifi      → READ grid_pois WHERE poi_type=wifi
+                        (parse details JSON → ssid, password, coverage)
+  #103 POST upload    → Không query DB (lưu file → trả URL)
+  #104 POST feedback  → INSERT feedbacks (rating, comment, attached_images)
+  #105 GET  faq       → READ faqs WHERE is_active=1 ORDER BY sort_order
+  #106 GET  weather   → Không query DB (gọi OpenWeather API)
+  #107 GET  admin/list→ READ staffs JOIN users WHERE is_active=1
+  #108 POST admin/role→ UPDATE staffs SET role WHERE staff_id
+
+Migrate: thêm 2 bảng
+Seed:    database/seed_util.go → 5-10 FAQs
+Files:   schema/util.go, repository/util_repo.go, service/util_service.go,
+         handler/util_handler.go
 
 
 ================================================================================
-SLICE 11 — Engine + Admin + User bổ sung (12 API)
+SLICE 11 — Engine Admin + MAPF Replay (6 API)
 ================================================================================
 
-Mô tả: API engine giả lập + admin quản lý + user settings.
+Mô tả: Admin quản lý + MAPF replay (đọc output.json offline).
+        ⚠️ KHÔNG gọi solver thật — chỉ đọc/phát lại file output.json.
 
-ĐÃ CÓ:
-  - Tất cả schema từ slice 1-10       →
-  - user_settings (T03)               → schema/user.go
-  - Dijkstra engine                    → pkg/dijkstra.go
+BẢNG TẠO MỚI: Không có
 
-CẦN TẠO MỚI (không cần schema mới):
-  Service:
-    - service/engine_service.go [MỚI]
-        + SolveMCMF()          — giả lập, dùng Dijkstra thay MCMF
-        + BatchRecalculate()   — gọi lại recalculate cho nhiều routes
-        + StatsFlow()          — aggregate edge_traffic_status
-        + SystemHealth()       — trả info server (uptime, DB status)
-    - service/user_service.go (bổ sung):
-        + GetSettings(userID)
-        + SetSettings(userID, ...)
-        + DeleteAccount(userID)
-    - service/auth_service.go (bổ sung):
-        + Logout(userID, fcmToken)
-  Handler:
-    - handler/engine_handler.go [MỚI]
-        + SolveMCMF()          → POST /api/engine/solve_mcmf (admin)
-        + UpdateCost()         → POST /api/engine/update_cost (admin)
-        + GetConvergence()     → GET  /api/engine/get_convergence (admin)
-        + SetParams()          → POST /api/engine/set_params (admin)
-        + Simulate()           → POST /api/engine/simulate (admin)
-        + GetLogs()            → GET  /api/engine/get_logs (admin)
-        + SystemHealth()       → GET  /api/engine/health (public)
-        + ClearCache()         → POST /api/engine/clear_cache (admin)
-        + AdminList()          → GET  /api/admin/get_list (admin)
-        + SetRole()            → POST /api/admin/set_role (admin)
-    - handler/user_handler.go (bổ sung):
-        + GetSettings()        → GET  /api/user/get_settings
-        + SetSettings()        → POST /api/user/set_settings
-        + DeleteAccount()      → DELETE /api/user/delete_account
-    - handler/auth_handler.go (bổ sung):
-        + Logout()             → POST /api/auth/logout
-  Test:
-    - Test tổng toàn bộ ~90 API
+BẢNG DÙNG:
+  - grid_maps (T08)        — build Dijkstra graph
+  - grid_pois (T09)        — UPDATE custom_weight
+  - simulation_runs (T20)  — kiểm tra simulation status
+  - user_pings (T10)       — đọc density data
+
+DATABASE USAGE PER API:
+  #91 POST solve_mcmf      → READ grid_maps + grid_pois → Dijkstra RAM
+  #92 POST update_cost     → READ user_pings → UPDATE grid_pois.custom_weight
+  #93 GET  get_convergence → Không query DB (trả từ RAM)
+  #94 POST set_params      → Không query DB (lưu config RAM/file)
+  #97 GET  health          → SELECT 1 (check DB + simulation status)
+  #98 POST clear_cache     → Không query DB (xóa Dijkstra cache RAM)
+
+  MAPF Replay (dùng parser.go, không cần DB):
+  - Upload output.json → parser.go đọc → GetPositionsAtTimestep(t)
+  - Chỉ dùng cho visualization/demo, không real-time
+
+Files:   service/engine_service.go, handler/engine_handler.go
 
 
 ================================================================================
-TÓM TẮT FILE CẦN TẠO MỚI
+TÓM TẮT FILE CẦN TẠO (CHƯA LÀM)
 ================================================================================
 
-Schema:      schema/route.go, schema/flow.go, schema/medical.go,
-             schema/device.go, schema/support.go, schema/util.go
+Repository: repository/flow_repo.go, repository/medical_repo.go,
+            repository/device_repo.go, repository/support_repo.go,
+            repository/util_repo.go
 
-Repository:  repository/route_repo.go, repository/flow_repo.go,
-             repository/medical_repo.go, repository/device_repo.go,
-             repository/support_repo.go, repository/util_repo.go
+Service:   service/flow_service.go, service/medical_service.go,
+           service/device_service.go, service/notif_service.go,
+           service/sos_service.go, service/chat_service.go,
+           service/util_service.go, service/engine_service.go
 
-Service:     service/route_service.go, service/flow_service.go,
-             service/medical_service.go, service/device_service.go,
-             service/notif_service.go, service/sos_service.go,
-             service/chat_service.go, service/util_service.go,
-             service/engine_service.go
+Handler:   handler/flow_handler.go, handler/medical_handler.go,
+           handler/device_handler.go, handler/notif_handler.go,
+           handler/support_handler.go, handler/chat_handler.go,
+           handler/ws_handler.go, handler/util_handler.go,
+           handler/engine_handler.go
 
-Handler:     handler/route_handler.go, handler/flow_handler.go,
-             handler/medical_handler.go, handler/device_handler.go,
-             handler/notif_handler.go, handler/support_handler.go,
-             handler/chat_handler.go, handler/ws_handler.go,
-             handler/util_handler.go, handler/engine_handler.go
+Engine:    pkg/mapf/manager.go
 
-Routes:      handler/routes_route.go, handler/routes_flow.go,
-             handler/routes_medical.go, handler/routes_device.go,
-             handler/routes_support.go
+Seed:      database/seed_medical.go, database/seed_device.go,
+           database/seed_flow.go, database/seed_util.go
 
-Engine:      pkg/dijkstra.go, pkg/navigation.go
-
-Seed:        database/seed_route.go, database/seed_medical.go,
-             database/seed_device.go, database/seed_util.go,
-             database/seed_flow.go
-
-
-================================================================================
-TÓM TẮT FILE ĐÃ CÓ (CHỈ BỔ SUNG)
-================================================================================
-
-  service/auth_service.go      → +ResendOTP, +ForgotPwd, +ResetPwd, +Logout
-  service/user_service.go      → +SetDevToken, +GetSettings, +SetSettings, +DeleteAccount
-  handler/auth_handler.go      → +ResendOTP, +ForgotPwd, +ResetPwd, +Logout
-  handler/user_handler.go      → +SetDevToken, +GetSettings, +SetSettings, +DeleteAccount
-  handler/routes.go            → Gọi RegisterXxxRoutes() (leader merge)
-  database/database.go         → Thêm 25 bảng vào AutoMigrate (dần theo slice)
-  repository/user_repo.go      → +FindOTPByPhone, +DeactivateFCM, +FindAppVersion
-  pkg/response.go              → Đã bổ sung đầy đủ mã lỗi
+ĐÃ CÓ (không cần làm):
+  ✅ schema/*.go (8 file, 25 bảng)
+  ✅ pkg/mapf/grid.go, pkg/mapf/dijkstra.go, pkg/mapf/parser.go
+  ✅ database/seed_map.go, database/seed_route.go, database/seed.go
+  ✅ database/database.go (AutoMigrate 25 bảng)
+  ✅ data/output.json, data/warehouse_small.map
+  ✅ repository/map_repo.go, service/map_service.go, handler/map_handler.go
+  ✅ repository/route_repo.go, service/route_service.go, handler/route_handler.go
+  ✅ handler/auth_handler.go, handler/user_handler.go, handler/sys_handler.go
+  ✅ service/auth_service.go, service/user_service.go
+  ✅ repository/user_repo.go, handler/routes.go (gọi sẵn 7 RegisterXxxRoutes)
+  ✅ handler/routes_route.go (14 route endpoints đã kết nối)
+  ✅ handler/routes_flow.go, routes_medical.go, routes_device.go (stubs)
+  ✅ handler/routes_support.go, routes_util.go, routes_engine.go (stubs)
+  ✅ pkg/response.go (53 error codes + helpers)
+  ✅ cmd/test_slice2/main.go (21 test), cmd/test_integration/main.go (12 test)
+  ✅ cmd/test_route/main.go (18 test)
 
 
 ================================================================================

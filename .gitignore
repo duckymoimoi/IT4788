@@ -14,6 +14,7 @@
 # Output of go coverage
 *.out
 *.pdf
+
 # IDE
 .idea/
 .vscode/
@@ -23,3 +24,12 @@
 # OS
 .DS_Store
 Thumbs.db
+
+# MAPF build artifacts (C++ compiled)
+mapf/build/
+mapf/build_new/
+mapf/PlanViz/
+mapf/image/
+mapf/plot.ipynb
+mapf/printer.txt
+mapf/example_problems/

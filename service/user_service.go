@@ -1,4 +1,4 @@
-package service
+﻿package service
 
 import (
 	"errors"
@@ -31,7 +31,7 @@ func NewUserService(repo *repository.UserRepo) *UserService {
 }
 
 // ========================================
-// RETURN TYPES — đúng theo spec API
+// RETURN TYPES  - đúng theo spec API
 // ========================================
 
 // ProfileResult là output cho get_profile và set_profile.
@@ -93,9 +93,9 @@ type UpdateSettingInput struct {
 // ========================================
 
 // buildProfileResult chuyển đổi schema.User sang ProfileResult đúng spec.
-// - user_id: chuyển uint64 → string
-// - gender: chuyển "F"→0, "M"→1
-// - dob: chuyển time.Time → "YYYY-MM-DD"
+// - user_id: chuyển uint64 -> string
+// - gender: chuyển "F"->0, "M"->1
+// - dob: chuyển time.Time -> "YYYY-MM-DD"
 // - avatar: giữ nguyên *string
 func (s *UserService) buildProfileResult(user *schema.User) *ProfileResult {
 	result := &ProfileResult{
@@ -105,13 +105,13 @@ func (s *UserService) buildProfileResult(user *schema.User) *ProfileResult {
 		Avatar:      user.AvatarURL,
 	}
 
-	// Chuyển DateOfBirth time.Time → string "YYYY-MM-DD"
+	// Chuyển DateOfBirth time.Time -> string "YYYY-MM-DD"
 	if user.DateOfBirth != nil {
 		dob := user.DateOfBirth.Format("2006-01-02")
 		result.DOB = &dob
 	}
 
-	// Chuyển Gender string → int (0: nữ, 1: nam)
+	// Chuyển Gender string -> int (0: nữ, 1: nam)
 	if user.Gender != nil {
 		var g int
 		switch *user.Gender {
@@ -129,7 +129,7 @@ func (s *UserService) buildProfileResult(user *schema.User) *ProfileResult {
 }
 
 // ========================================
-// PUBLIC METHODS — 7 HÀM THEO SPEC
+// PUBLIC METHODS  - 7 HÀM THEO SPEC
 // ========================================
 
 // 1. GetProfile lấy thông tin cá nhân user.
@@ -147,7 +147,7 @@ func (s *UserService) GetProfile(userID uint64) (*ProfileResult, error) {
 }
 
 // 2. SetProfile cập nhật thông tin cá nhân user.
-// Input: token, full_name, dob, gender, avatar (file → URL do handler xử lý upload)
+// Input: token, full_name, dob, gender, avatar (file -> URL do handler xử lý upload)
 // Output: ProfileResult (thông tin user sau khi cập nhật)
 func (s *UserService) SetProfile(userID uint64, data UpdateProfileInput) (*ProfileResult, error) {
 	updates := make(map[string]interface{})

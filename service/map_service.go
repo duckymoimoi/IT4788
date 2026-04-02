@@ -1,26 +1,23 @@
-package service
+﻿package service
 
 import (
 	"errors"
-	"math"
 	"strings"
 
 	"hospital/repository"
 	"hospital/schema"
 )
 
-// Cac loi nghiep vu cho MapService
+// Errors
 var (
-	ErrFloorNotFound = errors.New("floor not found")
-	ErrNodeNotFound  = errors.New("node not found")
-	ErrEdgeNotFound  = errors.New("edge not found")
-	ErrNodeCodeExist = errors.New("node code already exists")
+	ErrMapNotFound   = errors.New("map not found")
+	ErrNodeNotFound  = errors.New("poi not found")
+	ErrNodeCodeExist = errors.New("poi code already exists")
 	ErrMissingField  = errors.New("missing required field")
+	ErrCellNotFree   = errors.New("grid cell is not walkable")
 )
 
-// MapService xu ly logic nghiep vu cho 14 API ban do (16-30, bo 23).
-// Nhan du lieu tu handler, goi repository de truy van DB,
-// xu ly logic, tra ket qua hoac loi.
+// MapService xử lý logic nghiệp vụ cho Map module (15 API: #16-#30).
 type MapService struct {
 	repo *repository.MapRepo
 }
@@ -33,117 +30,85 @@ func NewMapService(repo *repository.MapRepo) *MapService {
 // RETURN TYPES
 // ========================================
 
-// FloorItem la output cho moi tang trong get_floors.
-type FloorItem struct {
-	FloorID       uint32  `json:"floor_id"`
-	BuildingID    uint32  `json:"building_id"`
-	BuildingName  string  `json:"building_name"`
-	BuildingCode  string  `json:"building_code"`
-	FloorNumber   int8    `json:"floor_number"`
-	FloorName     string  `json:"floor_name"`
-	DisplayOrder  int     `json:"display_order"`
-	MapImageURL   *string `json:"map_image_url"`
+// MapItem là output cho mỗi bản đồ trong get_floors.
+type MapItem struct {
+	MapID       uint32  `json:"map_id"`
+	MapName     string  `json:"map_name"`
+	Rows        int     `json:"rows"`
+	Cols        int     `json:"cols"`
+	MapImageURL *string `json:"map_image_url"`
 }
 
-// FloorMetaResult la output cho get_meta.
-type FloorMetaResult struct {
-	FloorID       uint32  `json:"floor_id"`
-	FloorName     string  `json:"floor_name"`
-	MapImageURL   *string `json:"map_image_url"`
-	ImageWidthPx  int     `json:"image_width_px"`
-	ImageHeightPx int     `json:"image_height_px"`
-	RealWidthM    float32 `json:"real_width_m"`
-	RealHeightM   float32 `json:"real_height_m"`
+// MapMetaResult là output cho get_meta.
+type MapMetaResult struct {
+	MapID       uint32  `json:"map_id"`
+	MapName     string  `json:"map_name"`
+	Rows        int     `json:"rows"`
+	Cols        int     `json:"cols"`
+	MapImageURL *string `json:"map_image_url"`
 }
 
-// NodeItem la output cho moi node.
-type NodeItem struct {
-	NodeID               uint32  `json:"node_id"`
-	FloorID              uint32  `json:"floor_id"`
-	ParentNodeID         *uint32 `json:"parent_node_id"`
-	NodeCode             string  `json:"node_code"`
-	NodeName             string  `json:"node_name"`
-	NodeType             string  `json:"node_type"`
-	PolygonCoords        string  `json:"polygon_coords"`
-	CenterX              float32 `json:"center_x"`
-	CenterY              float32 `json:"center_y"`
+// POIItem là output cho mỗi POI.
+type POIItem struct {
+	POIID                uint32  `json:"poi_id"`
+	MapID                uint32  `json:"map_id"`
+	WardID               *uint32 `json:"ward_id"`
+	POICode              string  `json:"poi_code"`
+	POIName              string  `json:"poi_name"`
+	POIType              string  `json:"poi_type"`
+	GridRow              int     `json:"grid_row"`
+	GridCol              int     `json:"grid_col"`
+	GridLocation         int     `json:"grid_location"`
 	IsLandmark           bool    `json:"is_landmark"`
 	IsAccessible         bool    `json:"is_accessible"`
 	WheelchairAccessible bool    `json:"wheelchair_accessible"`
+	CustomWeight         float32 `json:"custom_weight"`
+	Capacity             *int    `json:"capacity"`
+	Details              *string `json:"details"`
+	OpenHours            *string `json:"open_hours"`
 }
 
-// EdgeItem la output cho moi edge.
-type EdgeItem struct {
-	EdgeID               uint32   `json:"edge_id"`
-	FloorID              uint32   `json:"floor_id"`
-	FromNodeID           uint32   `json:"from_node_id"`
-	ToNodeID             uint32   `json:"to_node_id"`
-	PolygonCoords        *string  `json:"polygon_coords"`
-	DistanceM            float32  `json:"distance_m"`
-	Weight               float32  `json:"weight"`
-	IsBidirectional      bool     `json:"is_bidirectional"`
-	IsCrossFloor         bool     `json:"is_cross_floor"`
-	WheelchairAccessible bool     `json:"wheelchair_accessible"`
-}
-
-// SyncFullResult la output cho sync_full.
+// SyncFullResult là output cho sync_full.
 type SyncFullResult struct {
-	Buildings []schema.Building `json:"buildings"`
-	Floors    []FloorItem       `json:"floors"`
-	Nodes     []NodeItem        `json:"nodes"`
-	Edges     []EdgeItem        `json:"edges"`
+	Maps []MapItem `json:"maps"`
+	POIs []POIItem `json:"pois"`
 }
 
 // ========================================
-// INPUT TYPES — Admin APIs
+// INPUT TYPES  - Admin APIs
 // ========================================
 
-// AddNodeInput la input cho admin add_node.
 type AddNodeInput struct {
-	FloorID              uint32  `json:"floor_id"`
+	MapID                uint32  `json:"map_id"`
 	WardID               *uint32 `json:"ward_id"`
-	ParentNodeID         *uint32 `json:"parent_node_id"`
-	NodeCode             string  `json:"node_code"`
-	NodeName             string  `json:"node_name"`
-	NodeType             string  `json:"node_type"`
-	PolygonCoords        string  `json:"polygon_coords"`
-	CenterX              float32 `json:"center_x"`
-	CenterY              float32 `json:"center_y"`
+	POICode              string  `json:"poi_code"`
+	POIName              string  `json:"poi_name"`
+	POIType              string  `json:"poi_type"`
+	GridRow              int     `json:"grid_row"`
+	GridCol              int     `json:"grid_col"`
 	IsLandmark           bool    `json:"is_landmark"`
 	WheelchairAccessible bool    `json:"wheelchair_accessible"`
+	Capacity             *int    `json:"capacity"`
+	Details              *string `json:"details"`
+	OpenHours            *string `json:"open_hours"`
 }
 
-// EditNodeInput la input cho admin edit_node.
 type EditNodeInput struct {
-	NodeID               uint32   `json:"node_id"`
-	ParentNodeID         *uint32  `json:"parent_node_id"`
-	NodeCode             *string  `json:"node_code"`
-	NodeName             *string  `json:"node_name"`
-	NodeType             *string  `json:"node_type"`
-	PolygonCoords        *string  `json:"polygon_coords"`
-	CenterX              *float32 `json:"center_x"`
-	CenterY              *float32 `json:"center_y"`
+	POIID                uint32   `json:"poi_id"`
+	POICode              *string  `json:"poi_code"`
+	POIName              *string  `json:"poi_name"`
+	POIType              *string  `json:"poi_type"`
 	IsLandmark           *bool    `json:"is_landmark"`
 	WheelchairAccessible *bool    `json:"wheelchair_accessible"`
 	IsAccessible         *bool    `json:"is_accessible"`
+	Capacity             *int     `json:"capacity"`
+	Details              *string  `json:"details"`
+	OpenHours            *string  `json:"open_hours"`
+	CustomWeight         *float32 `json:"custom_weight"`
 }
 
-// AddEdgeInput la input cho admin add_edge.
-type AddEdgeInput struct {
-	FloorID              uint32   `json:"floor_id"`
-	FromNodeID           uint32   `json:"from_node_id"`
-	ToNodeID             uint32   `json:"to_node_id"`
-	PolygonCoords        *string  `json:"polygon_coords"`
-	DistanceM            *float32 `json:"distance_m"`
-	Weight               float32  `json:"weight"`
-	IsBidirectional      bool     `json:"is_bidirectional"`
-	IsCrossFloor         bool     `json:"is_cross_floor"`
-	WheelchairAccessible bool     `json:"wheelchair_accessible"`
-}
-
-// SetWeightInput la input cho admin set_weight.
 type SetWeightInput struct {
-	EdgeID uint32  `json:"edge_id"`
+	POIID  uint32  `json:"poi_id"`
 	Weight float32 `json:"weight"`
 }
 
@@ -151,222 +116,176 @@ type SetWeightInput struct {
 // PRIVATE HELPERS
 // ========================================
 
-func nodeToItem(n schema.MapNode) NodeItem {
-	return NodeItem{
-		NodeID:               n.NodeID,
-		FloorID:              n.FloorID,
-		ParentNodeID:         n.ParentNodeID,
-		NodeCode:             n.NodeCode,
-		NodeName:             n.NodeName,
-		NodeType:             string(n.NodeType),
-		PolygonCoords:        n.PolygonCoords,
-		CenterX:              n.CenterX,
-		CenterY:              n.CenterY,
-		IsLandmark:           n.IsLandmark,
-		IsAccessible:         n.IsAccessible,
-		WheelchairAccessible: n.WheelchairAccessible,
+func poiToItem(p schema.GridPOI) POIItem {
+	return POIItem{
+		POIID:                p.POIID,
+		MapID:                p.MapID,
+		WardID:               p.WardID,
+		POICode:              p.POICode,
+		POIName:              p.POIName,
+		POIType:              string(p.POIType),
+		GridRow:              p.GridRow,
+		GridCol:              p.GridCol,
+		GridLocation:         p.GridLocation,
+		IsLandmark:           p.IsLandmark,
+		IsAccessible:         p.IsAccessible,
+		WheelchairAccessible: p.WheelchairAccessible,
+		CustomWeight:         p.CustomWeight,
+		Capacity:             p.Capacity,
+		Details:              p.Details,
+		OpenHours:            p.OpenHours,
 	}
 }
 
-func edgeToItem(e schema.MapEdge) EdgeItem {
-	return EdgeItem{
-		EdgeID:               e.EdgeID,
-		FloorID:              e.FloorID,
-		FromNodeID:           e.FromNodeID,
-		ToNodeID:             e.ToNodeID,
-		PolygonCoords:        e.PolygonCoords,
-		DistanceM:            e.DistanceM,
-		Weight:               e.Weight,
-		IsBidirectional:      e.IsBidirectional,
-		IsCrossFloor:         e.IsCrossFloor,
-		WheelchairAccessible: e.WheelchairAccessible,
-	}
-}
-
-func nodesToItems(nodes []schema.MapNode) []NodeItem {
-	items := make([]NodeItem, len(nodes))
-	for i, n := range nodes {
-		items[i] = nodeToItem(n)
+func poisToItems(pois []schema.GridPOI) []POIItem {
+	items := make([]POIItem, len(pois))
+	for i, p := range pois {
+		items[i] = poiToItem(p)
 	}
 	return items
 }
 
-func edgesToItems(edges []schema.MapEdge) []EdgeItem {
-	items := make([]EdgeItem, len(edges))
-	for i, e := range edges {
-		items[i] = edgeToItem(e)
+func mapToItem(m schema.GridMap) MapItem {
+	return MapItem{
+		MapID:       m.MapID,
+		MapName:     m.MapName,
+		Rows:        m.Rows,
+		Cols:        m.Cols,
+		MapImageURL: m.MapImageURL,
 	}
-	return items
 }
 
 // ========================================
-// PUBLIC METHODS — 8 READ APIs
+// READ APIs
 // ========================================
 
-// [16] GetFloors tra ve danh sach tang kem building info.
-func (s *MapService) GetFloors() ([]FloorItem, error) {
-	floors, err := s.repo.FindAllFloors()
+// [16] GetFloors trả về danh sách bản đồ (thay thế floor).
+func (s *MapService) GetFloors() ([]MapItem, error) {
+	maps, err := s.repo.FindAllMaps()
 	if err != nil {
 		return nil, err
 	}
-
-	// Lay buildings de map building_name/code
-	buildings, err := s.repo.FindAllBuildings()
-	if err != nil {
-		return nil, err
-	}
-	bMap := map[uint32]schema.Building{}
-	for _, b := range buildings {
-		bMap[b.BuildingID] = b
-	}
-
-	items := make([]FloorItem, len(floors))
-	for i, f := range floors {
-		b := bMap[f.BuildingID]
-		items[i] = FloorItem{
-			FloorID:      f.FloorID,
-			BuildingID:   f.BuildingID,
-			BuildingName: b.BuildingName,
-			BuildingCode: b.BuildingCode,
-			FloorNumber:  f.FloorNumber,
-			FloorName:    f.FloorName,
-			DisplayOrder: f.DisplayOrder,
-			MapImageURL:  f.MapImageURL,
-		}
+	items := make([]MapItem, len(maps))
+	for i, m := range maps {
+		items[i] = mapToItem(m)
 	}
 	return items, nil
 }
 
-// [17] GetNodes tra ve nodes cua 1 tang.
-func (s *MapService) GetNodes(floorID uint32) ([]NodeItem, error) {
-	nodes, err := s.repo.FindAllNodes(floorID)
+// [17] GetNodes trả về POIs của 1 map.
+func (s *MapService) GetNodes(mapID uint32) ([]POIItem, error) {
+	pois, err := s.repo.FindAllPOIs(mapID)
 	if err != nil {
 		return nil, err
 	}
-	return nodesToItems(nodes), nil
+	return poisToItems(pois), nil
 }
 
-// [18] GetEdges tra ve edges cua 1 tang.
-func (s *MapService) GetEdges(floorID uint32) ([]EdgeItem, error) {
-	edges, err := s.repo.FindAllEdges(floorID)
-	if err != nil {
-		return nil, err
-	}
-	return edgesToItems(edges), nil
-}
-
-// [19] GetMeta tra ve metadata tang (kich thuoc, ty le pixel->met).
-func (s *MapService) GetMeta(floorID uint32) (*FloorMetaResult, error) {
-	if floorID == 0 {
-		return nil, ErrMissingField
-	}
-	floor, err := s.repo.FindFloorByID(floorID)
-	if err != nil {
-		return nil, err
-	}
-	if floor == nil {
-		return nil, ErrFloorNotFound
-	}
-	return &FloorMetaResult{
-		FloorID:       floor.FloorID,
-		FloorName:     floor.FloorName,
-		MapImageURL:   floor.MapImageURL,
-		ImageWidthPx:  floor.ImageWidthPx,
-		ImageHeightPx: floor.ImageHeightPx,
-		RealWidthM:    floor.RealWidthM,
-		RealHeightM:   floor.RealHeightM,
+// [18] GetEdges - grid-based: edges tính tự động từ adjacency.
+// Trả về code 2003 "edges auto-computed from grid".
+func (s *MapService) GetEdges(mapID uint32) (map[string]interface{}, error) {
+	return map[string]interface{}{
+		"message": "edges are auto-computed from grid adjacency",
+		"map_id":  mapID,
 	}, nil
 }
 
-// [20] GetDepartments loc nodes theo loai/khoa.
-func (s *MapService) GetDepartments(nodeType string, wardID uint32) ([]NodeItem, error) {
-	nodes, err := s.repo.FindNodesByType(schema.NodeType(nodeType), wardID)
+// [19] GetMeta trả về metadata bản đồ.
+func (s *MapService) GetMeta(mapID uint32) (*MapMetaResult, error) {
+	if mapID == 0 {
+		return nil, ErrMissingField
+	}
+	m, err := s.repo.FindMapByID(mapID)
 	if err != nil {
 		return nil, err
 	}
-	return nodesToItems(nodes), nil
+	if m == nil {
+		return nil, ErrMapNotFound
+	}
+	return &MapMetaResult{
+		MapID:       m.MapID,
+		MapName:     m.MapName,
+		Rows:        m.Rows,
+		Cols:        m.Cols,
+		MapImageURL: m.MapImageURL,
+	}, nil
 }
 
-// [21] SearchLocation tim kiem node theo keyword.
-func (s *MapService) SearchLocation(keyword string, floorID uint32) ([]NodeItem, error) {
+// [20] GetDepartments trả về wards kèm đếm số POI.
+func (s *MapService) GetDepartments(nodeType string, wardID uint32) (interface{}, error) {
+	if nodeType != "" || wardID > 0 {
+		pois, err := s.repo.FindPOIsByType(schema.POIType(nodeType), 0)
+		if err != nil {
+			return nil, err
+		}
+		return poisToItems(pois), nil
+	}
+	return s.repo.CountPOIsByWard()
+}
+
+// [21] SearchLocation tìm kiếm POI theo keyword.
+func (s *MapService) SearchLocation(keyword string, mapID uint32) ([]POIItem, error) {
 	keyword = strings.TrimSpace(keyword)
 	if keyword == "" {
-		return []NodeItem{}, nil
+		return []POIItem{}, nil
 	}
-	nodes, err := s.repo.SearchNodes(keyword, floorID)
+	pois, err := s.repo.SearchPOIs(keyword, mapID)
 	if err != nil {
 		return nil, err
 	}
-	return nodesToItems(nodes), nil
+	return poisToItems(pois), nil
 }
 
-// [22] GetLandmarks tra ve cac diem moc.
-func (s *MapService) GetLandmarks(floorID uint32) ([]NodeItem, error) {
-	nodes, err := s.repo.FindLandmarks(floorID)
+// [22] GetLandmarks trả về các điểm mốc.
+func (s *MapService) GetLandmarks(mapID uint32) ([]POIItem, error) {
+	pois, err := s.repo.FindLandmarks(mapID)
 	if err != nil {
 		return nil, err
 	}
-	return nodesToItems(nodes), nil
+	return poisToItems(pois), nil
 }
 
-// [24] SyncFull tra ve toan bo du lieu ban do.
-func (s *MapService) SyncFull() (*SyncFullResult, error) {
-	syncData, err := s.repo.FindSyncData()
+// [24] SyncFull trả về toàn bộ dữ liệu bản đồ.
+func (s *MapService) SyncFull(mapID uint32) (*SyncFullResult, error) {
+	syncData, err := s.repo.FindSyncData(mapID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Build floors with building info
-	bMap := map[uint32]schema.Building{}
-	for _, b := range syncData.Buildings {
-		bMap[b.BuildingID] = b
-	}
-	floorItems := make([]FloorItem, len(syncData.Floors))
-	for i, f := range syncData.Floors {
-		b := bMap[f.BuildingID]
-		floorItems[i] = FloorItem{
-			FloorID:      f.FloorID,
-			BuildingID:   f.BuildingID,
-			BuildingName: b.BuildingName,
-			BuildingCode: b.BuildingCode,
-			FloorNumber:  f.FloorNumber,
-			FloorName:    f.FloorName,
-			DisplayOrder: f.DisplayOrder,
-			MapImageURL:  f.MapImageURL,
-		}
+	mapItems := make([]MapItem, len(syncData.Maps))
+	for i, m := range syncData.Maps {
+		mapItems[i] = mapToItem(m)
 	}
 
 	return &SyncFullResult{
-		Buildings: syncData.Buildings,
-		Floors:    floorItems,
-		Nodes:     nodesToItems(syncData.Nodes),
-		Edges:     edgesToItems(syncData.Edges),
+		Maps: mapItems,
+		POIs: poisToItems(syncData.POIs),
 	}, nil
 }
 
 // ========================================
-// PUBLIC METHODS — 6 ADMIN APIs
+// ADMIN APIs
 // ========================================
 
-// [25] AddNode them 1 node moi.
-func (s *MapService) AddNode(input AddNodeInput) (*NodeItem, error) {
-	code := strings.TrimSpace(input.NodeCode)
-	name := strings.TrimSpace(input.NodeName)
-	if code == "" || name == "" || input.FloorID == 0 {
+// [25] AddNode thêm 1 POI mới.
+func (s *MapService) AddNode(input AddNodeInput) (*POIItem, error) {
+	code := strings.TrimSpace(input.POICode)
+	name := strings.TrimSpace(input.POIName)
+	if code == "" || name == "" || input.MapID == 0 {
 		return nil, ErrMissingField
 	}
 
-	// Kiem tra floor ton tai
-	floor, err := s.repo.FindFloorByID(input.FloorID)
+	// Kiểm tra map tồn tại
+	m, err := s.repo.FindMapByID(input.MapID)
 	if err != nil {
 		return nil, err
 	}
-	if floor == nil {
-		return nil, ErrFloorNotFound
+	if m == nil {
+		return nil, ErrMapNotFound
 	}
 
-	// Kiem tra trung node_code
-	existing, err := s.repo.FindNodeByCode(code)
+	// Kiểm tra trùng code
+	existing, err := s.repo.FindPOIByCode(code)
 	if err != nil {
 		return nil, err
 	}
@@ -374,77 +293,69 @@ func (s *MapService) AddNode(input AddNodeInput) (*NodeItem, error) {
 		return nil, ErrNodeCodeExist
 	}
 
-	node := &schema.MapNode{
-		FloorID:              input.FloorID,
+	gridLocation := input.GridRow*m.Cols + input.GridCol
+
+	poi := &schema.GridPOI{
+		MapID:                input.MapID,
 		WardID:               input.WardID,
-		ParentNodeID:         input.ParentNodeID,
-		NodeCode:             code,
-		NodeName:             name,
-		NodeType:             schema.NodeType(input.NodeType),
-		PolygonCoords:        input.PolygonCoords,
-		CenterX:              input.CenterX,
-		CenterY:              input.CenterY,
+		POICode:              code,
+		POIName:              name,
+		POIType:              schema.POIType(input.POIType),
+		GridRow:              input.GridRow,
+		GridCol:              input.GridCol,
+		GridLocation:         gridLocation,
 		IsLandmark:           input.IsLandmark,
 		IsAccessible:         true,
 		WheelchairAccessible: input.WheelchairAccessible,
+		CustomWeight:         1.0,
+		Capacity:             input.Capacity,
+		Details:              input.Details,
+		OpenHours:            input.OpenHours,
 		IsActive:             true,
 	}
 
-	if err := s.repo.CreateNode(node); err != nil {
+	if err := s.repo.CreatePOI(poi); err != nil {
 		return nil, err
 	}
 
-	item := nodeToItem(*node)
+	item := poiToItem(*poi)
 	return &item, nil
 }
 
-// [26] EditNode cap nhat thong tin node.
-func (s *MapService) EditNode(input EditNodeInput) (*NodeItem, error) {
-	if input.NodeID == 0 {
+// [26] EditNode cập nhật POI.
+func (s *MapService) EditNode(input EditNodeInput) (*POIItem, error) {
+	if input.POIID == 0 {
 		return nil, ErrMissingField
 	}
 
-	node, err := s.repo.FindNodeByID(input.NodeID)
+	poi, err := s.repo.FindPOIByID(input.POIID)
 	if err != nil {
 		return nil, err
 	}
-	if node == nil {
+	if poi == nil {
 		return nil, ErrNodeNotFound
 	}
 
 	updates := map[string]interface{}{}
 
-	if input.NodeCode != nil {
-		c := strings.TrimSpace(*input.NodeCode)
-		if c != "" && c != node.NodeCode {
-			// Kiem tra trung
-			existing, err := s.repo.FindNodeByCode(c)
+	if input.POICode != nil {
+		c := strings.TrimSpace(*input.POICode)
+		if c != "" && c != poi.POICode {
+			existing, err := s.repo.FindPOIByCode(c)
 			if err != nil {
 				return nil, err
 			}
-			if existing != nil && existing.NodeID != node.NodeID {
+			if existing != nil && existing.POIID != poi.POIID {
 				return nil, ErrNodeCodeExist
 			}
-			updates["node_code"] = c
+			updates["poi_code"] = c
 		}
 	}
-	if input.NodeName != nil {
-		updates["node_name"] = strings.TrimSpace(*input.NodeName)
+	if input.POIName != nil {
+		updates["poi_name"] = strings.TrimSpace(*input.POIName)
 	}
-	if input.NodeType != nil {
-		updates["node_type"] = *input.NodeType
-	}
-	if input.PolygonCoords != nil {
-		updates["polygon_coords"] = *input.PolygonCoords
-	}
-	if input.CenterX != nil {
-		updates["center_x"] = *input.CenterX
-	}
-	if input.CenterY != nil {
-		updates["center_y"] = *input.CenterY
-	}
-	if input.ParentNodeID != nil {
-		updates["parent_node_id"] = *input.ParentNodeID
+	if input.POIType != nil {
+		updates["poi_type"] = *input.POIType
 	}
 	if input.IsLandmark != nil {
 		updates["is_landmark"] = *input.IsLandmark
@@ -455,142 +366,76 @@ func (s *MapService) EditNode(input EditNodeInput) (*NodeItem, error) {
 	if input.IsAccessible != nil {
 		updates["is_accessible"] = *input.IsAccessible
 	}
+	if input.CustomWeight != nil {
+		updates["custom_weight"] = *input.CustomWeight
+	}
+	if input.Capacity != nil {
+		updates["capacity"] = *input.Capacity
+	}
+	if input.Details != nil {
+		updates["details"] = *input.Details
+	}
+	if input.OpenHours != nil {
+		updates["open_hours"] = *input.OpenHours
+	}
 
 	if len(updates) > 0 {
-		if err := s.repo.UpdateNode(input.NodeID, updates); err != nil {
+		if err := s.repo.UpdatePOI(input.POIID, updates); err != nil {
 			return nil, err
 		}
 	}
 
-	// Lay lai node sau khi cap nhat
-	updated, err := s.repo.FindNodeByID(input.NodeID)
+	updated, err := s.repo.FindPOIByID(input.POIID)
 	if err != nil {
 		return nil, err
 	}
-	item := nodeToItem(*updated)
+	item := poiToItem(*updated)
 	return &item, nil
 }
 
-// [27] DelNode xoa (soft delete) node va cac edge lien quan.
-func (s *MapService) DelNode(nodeID uint32) error {
-	if nodeID == 0 {
+// [27] DelNode xóa (soft delete) POI.
+func (s *MapService) DelNode(poiID uint32) error {
+	if poiID == 0 {
 		return ErrMissingField
 	}
-
-	node, err := s.repo.FindNodeByID(nodeID)
+	poi, err := s.repo.FindPOIByID(poiID)
 	if err != nil {
 		return err
 	}
-	if node == nil {
+	if poi == nil {
+		return ErrNodeNotFound
+	}
+	return s.repo.DeactivatePOI(poiID)
+}
+
+// [28] AddEdge - grid-based: không hỗ trợ thêm edge thủ công.
+func (s *MapService) AddEdge() error {
+	return nil // trả code 2003
+}
+
+// [29] DelEdge - grid-based: không hỗ trợ xóa edge thủ công.
+func (s *MapService) DelEdge() error {
+	return nil // trả code 2003
+}
+
+// [30] SetWeight cập nhật custom_weight của POI.
+func (s *MapService) SetWeight(poiID uint32, weight float32) error {
+	if poiID == 0 {
+		return ErrMissingField
+	}
+	if weight <= 0 {
+		return ErrMissingField
+	}
+
+	poi, err := s.repo.FindPOIByID(poiID)
+	if err != nil {
+		return err
+	}
+	if poi == nil {
 		return ErrNodeNotFound
 	}
 
-	// Xoa cac edge lien quan truoc
-	if err := s.repo.DeactivateEdgesByNode(nodeID); err != nil {
-		return err
-	}
-
-	return s.repo.DeactivateNode(nodeID)
-}
-
-// [28] AddEdge them 1 edge moi.
-func (s *MapService) AddEdge(input AddEdgeInput) (*EdgeItem, error) {
-	if input.FromNodeID == 0 || input.ToNodeID == 0 || input.FloorID == 0 {
-		return nil, ErrMissingField
-	}
-
-	// Kiem tra 2 node ton tai
-	fromNode, err := s.repo.FindNodeByID(input.FromNodeID)
-	if err != nil {
-		return nil, err
-	}
-	if fromNode == nil {
-		return nil, ErrNodeNotFound
-	}
-
-	toNode, err := s.repo.FindNodeByID(input.ToNodeID)
-	if err != nil {
-		return nil, err
-	}
-	if toNode == nil {
-		return nil, ErrNodeNotFound
-	}
-
-	// Tu dong tinh distance_m neu khong cung cap
-	distM := float32(0)
-	if input.DistanceM != nil && *input.DistanceM > 0 {
-		distM = *input.DistanceM
-	} else {
-		// Tinh tu center_x/y cua 2 node
-		floor, _ := s.repo.FindFloorByID(input.FloorID)
-		if floor != nil && floor.ImageWidthPx > 0 && floor.ImageHeightPx > 0 {
-			sx := floor.RealWidthM / float32(floor.ImageWidthPx)
-			sy := floor.RealHeightM / float32(floor.ImageHeightPx)
-			dx := float64((toNode.CenterX - fromNode.CenterX) * sx)
-			dy := float64((toNode.CenterY - fromNode.CenterY) * sy)
-			distM = float32(math.Sqrt(dx*dx + dy*dy))
-		}
-	}
-
-	weight := input.Weight
-	if weight <= 0 {
-		weight = 1.0
-	}
-
-	edge := &schema.MapEdge{
-		FloorID:              input.FloorID,
-		FromNodeID:           input.FromNodeID,
-		ToNodeID:             input.ToNodeID,
-		PolygonCoords:        input.PolygonCoords,
-		DistanceM:            distM,
-		Weight:               weight,
-		IsBidirectional:      input.IsBidirectional,
-		IsCrossFloor:         input.IsCrossFloor,
-		WheelchairAccessible: input.WheelchairAccessible,
-		IsActive:             true,
-	}
-
-	if err := s.repo.CreateEdge(edge); err != nil {
-		return nil, err
-	}
-
-	item := edgeToItem(*edge)
-	return &item, nil
-}
-
-// [29] DelEdge xoa (soft delete) 1 edge.
-func (s *MapService) DelEdge(edgeID uint32) error {
-	if edgeID == 0 {
-		return ErrMissingField
-	}
-
-	edge, err := s.repo.FindEdgeByID(edgeID)
-	if err != nil {
-		return err
-	}
-	if edge == nil {
-		return ErrEdgeNotFound
-	}
-
-	return s.repo.DeactivateEdge(edgeID)
-}
-
-// [30] SetWeight cap nhat trong so cua 1 edge.
-func (s *MapService) SetWeight(edgeID uint32, weight float32) error {
-	if edgeID == 0 {
-		return ErrMissingField
-	}
-	if weight <= 0 {
-		return ErrMissingField
-	}
-
-	edge, err := s.repo.FindEdgeByID(edgeID)
-	if err != nil {
-		return err
-	}
-	if edge == nil {
-		return ErrEdgeNotFound
-	}
-
-	return s.repo.UpdateEdgeWeight(edgeID, weight)
+	return s.repo.UpdatePOI(poiID, map[string]interface{}{
+		"custom_weight": weight,
+	})
 }

@@ -1,4 +1,4 @@
-package database
+﻿package database
 
 import (
 	"fmt"
@@ -95,7 +95,7 @@ func Migrate() error {
 
 	// Chay auto-migrate theo thu tu phu thuoc
 	err := DB.AutoMigrate(
-		// --- User module ---
+		// --- Core (đã có) ---
 		&schema.Ward{},
 		&schema.User{},
 		&schema.Staff{},
@@ -103,11 +103,49 @@ func Migrate() error {
 		&schema.UserSetting{},
 		&schema.FCMToken{},
 		&schema.AppVersion{},
-		// --- Map module ---
-		&schema.Building{},
-		&schema.Floor{},
-		&schema.MapNode{},
-		&schema.MapEdge{},
+
+		// --- Map module (Slice 0 PASS) ---
+		&schema.GridMap{},
+		&schema.GridPOI{},
+
+		// --- Route module (Slice 2-4) ---
+		&schema.TravelMode{},
+		&schema.Route{},
+		&schema.RoutePath{},
+		&schema.RouteHistoryNode{},
+		&schema.RouteShare{},
+		&schema.RouteFeedback{},
+
+		// --- Flow module (Slice 5) ---
+		&schema.UserPing{},
+		&schema.ObstacleReport{},
+		&schema.HeatmapSnapshot{},
+		&schema.PriorityRoute{},
+
+		// --- Simulation (Slice 5) ---
+		&schema.SimulationRun{},
+		&schema.PatientAgent{},
+
+		// --- Medical (Slice 6) ---
+		&schema.Treatment{},
+		&schema.Prescription{},
+		&schema.Queue{},
+
+		// --- Device (Slice 7) ---
+		&schema.DeviceStation{},
+		&schema.Device{},
+		&schema.DeviceBooking{},
+		&schema.DeviceBrokenReport{},
+
+		// --- Support (Slice 8-9) ---
+		&schema.Notification{},
+		&schema.SOSRequest{},
+		&schema.Conversation{},
+		&schema.Message{},
+
+		// --- Util (Slice 10) ---
+		&schema.Feedback{},
+		&schema.FAQ{},
 	)
 	if err != nil {
 		return fmt.Errorf("auto-migrate that bai: %w", err)

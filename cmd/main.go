@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -13,40 +17,30 @@ import (
 )
 
 func main() {
-	// Lay duong dan file SQLite tu bien moi truong.
-	// Mac dinh la "hospital.db" neu khong set.
 	dsn := os.Getenv("DB_PATH")
 	if dsn == "" {
 		dsn = "hospital.db"
 	}
 
-	// Ket noi database
 	if err := database.Connect(dsn); err != nil {
 		log.Fatal("Khong the ket noi database:", err)
 	}
 	defer database.Close()
 
-	// Chay auto-migrate tao/cap nhat cac bang
 	if err := database.Migrate(); err != nil {
 		log.Fatal("Migrate that bai:", err)
 	}
 
-	// Seed du lieu demo neu database dang rong
 	if err := database.Seed(); err != nil {
 		log.Println("Seed bi bo qua (du lieu da ton tai):", err)
 	}
 
-	// Cau hinh Gin mode (mac dinh debug, production dung APP_ENV=production)
 	if os.Getenv("APP_ENV") == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Khoi tao router
 	router := gin.Default()
 
-	// CORS — cho phep frontend (React/Flutter web/...) goi API tu domain khac.
-	// AllowAllOrigins = true: moi domain deu goi duoc (phu hop dev/demo).
-	// Khi len production, doi thanh AllowOrigins voi danh sach domain cu the.
 	router.Use(cors.New(cors.Config{
 		AllowAllOrigins:  true,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -56,17 +50,38 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// Dang ky tat ca routes
 	handler.RegisterRoutes(router, database.DB)
 
-	// Lay port tu bien moi truong, mac dinh 8080
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	log.Println("Server dang chay tai port:", port)
-	if err := router.Run(":" + port); err != nil {
-		log.Fatal("Khong the khoi dong server:", err)
+	// Graceful shutdown
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: router,
 	}
+
+	go func() {
+		log.Println("Server dang chay tai port:", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal("Server loi:", err)
+		}
+	}()
+
+	// Chan SIGINT/SIGTERM
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatal("Server forced to shutdown:", err)
+	}
+
+	log.Println("Server exited cleanly")
 }

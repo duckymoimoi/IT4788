@@ -1,4 +1,4 @@
-package repository
+﻿package repository
 
 import (
 	"hospital/schema"
@@ -7,9 +7,8 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// MapRepo xu ly truy van database cho toan bo Map module.
-// Bao gom 4 bang: buildings, floors, map_nodes, map_edges.
-// Chi chua CRUD thuan tuy, logic nghiep vu nam o service layer.
+// MapRepo xử lý truy vấn database cho Map module.
+// Bao gồm 2 bảng: grid_maps, grid_pois.
 type MapRepo struct {
 	db *gorm.DB
 }
@@ -19,250 +18,196 @@ func NewMapRepo(db *gorm.DB) *MapRepo {
 }
 
 // ========================================
-// BUILDINGS
+// GRID MAPS
 // ========================================
 
-// FindAllBuildings tra ve tat ca toa nha dang hoat dong.
-func (r *MapRepo) FindAllBuildings() ([]schema.Building, error) {
-	var buildings []schema.Building
+// FindAllMaps trả về tất cả bản đồ đang active.
+func (r *MapRepo) FindAllMaps() ([]schema.GridMap, error) {
+	var maps []schema.GridMap
 	err := r.db.Where("is_active = ?", true).
-		Order("building_code ASC").
-		Find(&buildings).Error
-	return buildings, err
+		Order("map_id ASC").
+		Find(&maps).Error
+	return maps, err
 }
 
-// ========================================
-// FLOORS — API 16 (get_floors), API 19 (get_meta)
-// ========================================
-
-// FindAllFloors tra ve tat ca tang dang hoat dong cua moi toa nha.
-// Dung cho API get_floors: render bo loc tang tren App.
-func (r *MapRepo) FindAllFloors() ([]schema.Floor, error) {
-	var floors []schema.Floor
-	err := r.db.Where("is_active = ?", true).
-		Order("display_order ASC, floor_number ASC").
-		Find(&floors).Error
-	return floors, err
-}
-
-// FindFloorsByBuilding tra ve cac tang cua 1 toa nha cu the.
-func (r *MapRepo) FindFloorsByBuilding(buildingID uint32) ([]schema.Floor, error) {
-	var floors []schema.Floor
-	err := r.db.Where("building_id = ? AND is_active = ?", buildingID, true).
-		Order("display_order ASC, floor_number ASC").
-		Find(&floors).Error
-	return floors, err
-}
-
-// FindFloorByID tra ve 1 tang theo ID. Dung khi can lay he so quy doi pixel→met.
-func (r *MapRepo) FindFloorByID(floorID uint32) (*schema.Floor, error) {
-	var floor schema.Floor
-	err := r.db.First(&floor, "floor_id = ? AND is_active = ?", floorID, true).Error
+// FindMapByID trả về 1 bản đồ theo ID.
+func (r *MapRepo) FindMapByID(mapID uint32) (*schema.GridMap, error) {
+	var m schema.GridMap
+	err := r.db.First(&m, "map_id = ? AND is_active = ?", mapID, true).Error
 	if err == gorm.ErrRecordNotFound {
 		return nil, nil
 	}
-	return &floor, err
+	return &m, err
+}
+
+// CreateMap tạo bản đồ mới.
+func (r *MapRepo) CreateMap(m *schema.GridMap) error {
+	return r.db.Omit(clause.Associations).Create(m).Error
 }
 
 // ========================================
-// MAP NODES — API 17, 20, 21, 22, 25, 26, 27
+// GRID POIS  - CRUD
 // ========================================
 
-// FindAllNodes tra ve tat ca node dang hoat dong.
-// Neu floorID > 0 thi loc theo tang. Dung cho API get_nodes.
-func (r *MapRepo) FindAllNodes(floorID uint32) ([]schema.MapNode, error) {
-	var nodes []schema.MapNode
+// FindAllPOIs trả về tất cả POI đang active của 1 map.
+func (r *MapRepo) FindAllPOIs(mapID uint32) ([]schema.GridPOI, error) {
+	var pois []schema.GridPOI
 	q := r.db.Where("is_active = ?", true)
-	if floorID > 0 {
-		q = q.Where("floor_id = ?", floorID)
+	if mapID > 0 {
+		q = q.Where("map_id = ?", mapID)
 	}
-	err := q.Order("node_id ASC").Find(&nodes).Error
-	return nodes, err
+	err := q.Order("poi_id ASC").Find(&pois).Error
+	return pois, err
 }
 
-// FindNodesByType loc node theo node_type. Dung cho API get_depts.
-// Neu wardID > 0 thi loc kem theo khoa.
-func (r *MapRepo) FindNodesByType(nodeType schema.NodeType, wardID uint32) ([]schema.MapNode, error) {
-	var nodes []schema.MapNode
-	q := r.db.Where("is_active = ?", true)
-	if nodeType != "" {
-		q = q.Where("node_type = ?", nodeType)
+// FindPOIByID trả về 1 POI theo ID.
+func (r *MapRepo) FindPOIByID(poiID uint32) (*schema.GridPOI, error) {
+	var poi schema.GridPOI
+	err := r.db.First(&poi, "poi_id = ? AND is_active = ?", poiID, true).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
 	}
-	if wardID > 0 {
-		q = q.Where("ward_id = ?", wardID)
-	}
-	err := q.Order("node_name ASC").Find(&nodes).Error
-	return nodes, err
+	return &poi, err
 }
 
-// SearchNodes tim kiem node theo tu khoa (case-insensitive LIKE).
-// Dung cho API search_location.
-// SQLite: dung LIKE. PostgreSQL: co the nang cap len tsvector/GIN index
-// chi can sua duy nhat ham nay.
-func (r *MapRepo) SearchNodes(keyword string, floorID uint32) ([]schema.MapNode, error) {
-	var nodes []schema.MapNode
-	q := r.db.Where("is_active = ? AND node_name LIKE ?", true, "%"+keyword+"%")
-	if floorID > 0 {
-		q = q.Where("floor_id = ?", floorID)
+// FindPOIByCode tìm POI theo mã code (unique).
+func (r *MapRepo) FindPOIByCode(code string) (*schema.GridPOI, error) {
+	var poi schema.GridPOI
+	err := r.db.First(&poi, "poi_code = ?", code).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
 	}
-	err := q.Order("is_landmark DESC, node_name ASC").Limit(30).Find(&nodes).Error
-	return nodes, err
+	return &poi, err
 }
 
-// FindLandmarks tra ve cac diem moc (is_landmark = true).
-// Dung cho API get_landmarks.
-func (r *MapRepo) FindLandmarks(floorID uint32) ([]schema.MapNode, error) {
-	var nodes []schema.MapNode
+// SearchPOIs tìm kiếm POI theo keyword (case-insensitive LIKE).
+func (r *MapRepo) SearchPOIs(keyword string, mapID uint32) ([]schema.GridPOI, error) {
+	var pois []schema.GridPOI
+	q := r.db.Where("is_active = ? AND poi_name LIKE ?", true, "%"+keyword+"%")
+	if mapID > 0 {
+		q = q.Where("map_id = ?", mapID)
+	}
+	err := q.Order("is_landmark DESC, poi_name ASC").Limit(30).Find(&pois).Error
+	return pois, err
+}
+
+// FindLandmarks trả về các POI là mốc nổi bật.
+func (r *MapRepo) FindLandmarks(mapID uint32) ([]schema.GridPOI, error) {
+	var pois []schema.GridPOI
 	q := r.db.Where("is_active = ? AND is_landmark = ?", true, true)
-	if floorID > 0 {
-		q = q.Where("floor_id = ?", floorID)
+	if mapID > 0 {
+		q = q.Where("map_id = ?", mapID)
 	}
-	err := q.Order("node_name ASC").Find(&nodes).Error
-	return nodes, err
+	err := q.Order("poi_name ASC").Find(&pois).Error
+	return pois, err
 }
 
-// FindNodeByID tra ve 1 node theo ID.
-func (r *MapRepo) FindNodeByID(nodeID uint32) (*schema.MapNode, error) {
-	var node schema.MapNode
-	err := r.db.First(&node, "node_id = ? AND is_active = ?", nodeID, true).Error
-	if err == gorm.ErrRecordNotFound {
-		return nil, nil
+// FindPOIsByType lọc POI theo loại.
+func (r *MapRepo) FindPOIsByType(poiType schema.POIType, mapID uint32) ([]schema.GridPOI, error) {
+	var pois []schema.GridPOI
+	q := r.db.Where("is_active = ?", true)
+	if poiType != "" {
+		q = q.Where("poi_type = ?", poiType)
 	}
-	return &node, err
-}
-
-// FindNodeByCode tra ve 1 node theo node_code. Kiem tra trung truoc khi create.
-func (r *MapRepo) FindNodeByCode(code string) (*schema.MapNode, error) {
-	var node schema.MapNode
-	err := r.db.First(&node, "node_code = ?", code).Error
-	if err == gorm.ErrRecordNotFound {
-		return nil, nil
+	if mapID > 0 {
+		q = q.Where("map_id = ?", mapID)
 	}
-	return &node, err
+	err := q.Order("poi_name ASC").Find(&pois).Error
+	return pois, err
 }
 
-// CreateNode tao 1 node moi. Dung Omit(Associations) nhu User.Create.
-func (r *MapRepo) CreateNode(node *schema.MapNode) error {
-	return r.db.Omit(clause.Associations).Create(node).Error
+// CreatePOI tạo 1 POI mới.
+func (r *MapRepo) CreatePOI(poi *schema.GridPOI) error {
+	return r.db.Omit(clause.Associations).Create(poi).Error
 }
 
-// UpdateNode cap nhat thong tin node theo map fields.
-// Chi update cac truong duoc truyen vao, khong overwrite toan bo.
-func (r *MapRepo) UpdateNode(nodeID uint32, updates map[string]interface{}) error {
-	return r.db.Model(&schema.MapNode{}).
-		Where("node_id = ?", nodeID).
+// UpdatePOI cập nhật POI.
+func (r *MapRepo) UpdatePOI(poiID uint32, updates map[string]interface{}) error {
+	return r.db.Model(&schema.GridPOI{}).
+		Where("poi_id = ?", poiID).
 		Updates(updates).Error
 }
 
-// DeactivateNode soft delete node (is_active = false).
-// Kiem tra xem node co edge lien quan con active khong phai lam o service layer.
-func (r *MapRepo) DeactivateNode(nodeID uint32) error {
-	return r.db.Model(&schema.MapNode{}).
-		Where("node_id = ?", nodeID).
+// DeactivatePOI soft delete POI.
+func (r *MapRepo) DeactivatePOI(poiID uint32) error {
+	return r.db.Model(&schema.GridPOI{}).
+		Where("poi_id = ?", poiID).
 		Update("is_active", false).Error
 }
 
 // ========================================
-// MAP EDGES — API 18, 28, 29, 30
+// WARDS  - đếm POIs thuộc mỗi khoa
 // ========================================
 
-// FindAllEdges tra ve tat ca canh dang hoat dong.
-// Neu floorID > 0 thi loc theo tang. Dung cho API get_edges + sync_full.
-func (r *MapRepo) FindAllEdges(floorID uint32) ([]schema.MapEdge, error) {
-	var edges []schema.MapEdge
-	q := r.db.Where("is_active = ?", true)
-	if floorID > 0 {
-		q = q.Where("floor_id = ?", floorID)
-	}
-	err := q.Order("edge_id ASC").Find(&edges).Error
-	return edges, err
+// WardPOICount kết quả đếm POI thuộc mỗi ward.
+type WardPOICount struct {
+	WardID   uint32 `json:"ward_id"`
+	WardName string `json:"ward_name"`
+	POICount int    `json:"poi_count"`
 }
 
-// FindEdgeByID tra ve 1 edge theo ID.
-func (r *MapRepo) FindEdgeByID(edgeID uint32) (*schema.MapEdge, error) {
-	var edge schema.MapEdge
-	err := r.db.First(&edge, "edge_id = ? AND is_active = ?", edgeID, true).Error
-	if err == gorm.ErrRecordNotFound {
-		return nil, nil
-	}
-	return &edge, err
-}
-
-// FindEdgesByNode tra ve tat ca edge co lien quan den 1 node (from hoac to).
-// Dung truoc khi xoa node de kiem tra edge phu thuoc.
-func (r *MapRepo) FindEdgesByNode(nodeID uint32) ([]schema.MapEdge, error) {
-	var edges []schema.MapEdge
-	err := r.db.Where(
-		"is_active = ? AND (from_node_id = ? OR to_node_id = ?)",
-		true, nodeID, nodeID,
-	).Find(&edges).Error
-	return edges, err
-}
-
-// CreateEdge tao 1 canh hanh lang moi.
-func (r *MapRepo) CreateEdge(edge *schema.MapEdge) error {
-	return r.db.Omit(clause.Associations).Create(edge).Error
-}
-
-// UpdateEdgeWeight cap nhat trong so cua 1 edge. Dung cho API set_weight.
-func (r *MapRepo) UpdateEdgeWeight(edgeID uint32, weight float32) error {
-	return r.db.Model(&schema.MapEdge{}).
-		Where("edge_id = ?", edgeID).
-		Update("weight", weight).Error
-}
-
-// DeactivateEdge soft delete edge (is_active = false). Dung cho API del_edge.
-func (r *MapRepo) DeactivateEdge(edgeID uint32) error {
-	return r.db.Model(&schema.MapEdge{}).
-		Where("edge_id = ?", edgeID).
-		Update("is_active", false).Error
-}
-
-// DeactivateEdgesByNode soft delete tat ca edge lien quan khi xoa node.
-// Goi khi admin del_node de giu tinh nhat quan cua do thi.
-func (r *MapRepo) DeactivateEdgesByNode(nodeID uint32) error {
-	return r.db.Model(&schema.MapEdge{}).
-		Where("from_node_id = ? OR to_node_id = ?", nodeID, nodeID).
-		Update("is_active", false).Error
+// CountPOIsByWard đếm số POI thuộc mỗi khoa.
+func (r *MapRepo) CountPOIsByWard() ([]WardPOICount, error) {
+	var results []WardPOICount
+	err := r.db.Table("wards").
+		Select("wards.ward_id, wards.ward_name, COUNT(grid_pois.poi_id) as poi_count").
+		Joins("LEFT JOIN grid_pois ON grid_pois.ward_id = wards.ward_id AND grid_pois.is_active = ?", true).
+		Where("wards.is_active = ?", true).
+		Group("wards.ward_id").
+		Order("wards.ward_name ASC").
+		Scan(&results).Error
+	return results, err
 }
 
 // ========================================
-// SYNC — API 24 (sync_full)
+// SYNC  - API 24 (sync_full)
 // ========================================
 
-// SyncResult chua toan bo du lieu ban do cho 1 lan goi sync_full.
+// SyncResult chứa toàn bộ dữ liệu bản đồ.
 type SyncResult struct {
-	Buildings []schema.Building `json:"buildings"`
-	Floors    []schema.Floor    `json:"floors"`
-	Nodes     []schema.MapNode  `json:"nodes"`
-	Edges     []schema.MapEdge  `json:"edges"`
+	Maps []schema.GridMap `json:"maps"`
+	POIs []schema.GridPOI `json:"pois"`
 }
 
-// FindSyncData lay tat ca du lieu ban do trong 1 lan truy van.
-// Dung cho API sync_full: client luu cache de dung offline.
-func (r *MapRepo) FindSyncData() (*SyncResult, error) {
+// FindSyncData lấy tất cả dữ liệu bản đồ.
+func (r *MapRepo) FindSyncData(mapID uint32) (*SyncResult, error) {
 	var result SyncResult
 	var err error
 
-	result.Buildings, err = r.FindAllBuildings()
-	if err != nil {
-		return nil, err
+	if mapID > 0 {
+		var m schema.GridMap
+		err = r.db.First(&m, "map_id = ? AND is_active = ?", mapID, true).Error
+		if err != nil {
+			return nil, err
+		}
+		result.Maps = []schema.GridMap{m}
+	} else {
+		result.Maps, err = r.FindAllMaps()
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	result.Floors, err = r.FindAllFloors()
-	if err != nil {
-		return nil, err
-	}
-
-	result.Nodes, err = r.FindAllNodes(0) // 0 = khong loc theo tang
-	if err != nil {
-		return nil, err
-	}
-
-	result.Edges, err = r.FindAllEdges(0)
+	result.POIs, err = r.FindAllPOIs(mapID)
 	if err != nil {
 		return nil, err
 	}
 
 	return &result, nil
+}
+
+// Ping kiem tra ket noi database.
+func (r *MapRepo) Ping() bool {
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return false
+	}
+	return sqlDB.Ping() == nil
+}
+
+// UpdatePOIWeight cap nhat custom_weight cua POI.
+func (r *MapRepo) UpdatePOIWeight(poiID uint32, weight float32) error {
+	return r.db.Model(&schema.GridPOI{}).
+		Where("poi_id = ?", poiID).
+		Update("custom_weight", weight).Error
 }
