@@ -1,18 +1,18 @@
 ================================================================================
-PHẦN A — DANH SÁCH API
+PHẦN A  -- DANH SÁCH API
 ================================================================================
 
 TRẠNG THÁI TRIỂN KHAI:
-  ✅ Nhóm 1 — Xác thực & Tài khoản (15 API)  → ĐÃ CÓ TRONG CODE
-  ✅ Nhóm 2 — Bản đồ & POI (15 API)           → ĐÃ REFACTOR SANG GRID 2D
+  [XONG] Nhóm 1  -- Xác thực & Tài khoản (15 API)  -> ĐÃ CÓ TRONG CODE
+  [XONG] Nhóm 2  -- Bản đồ & POI (15 API)           -> ĐÃ REFACTOR SANG GRID 2D
      (test_map: 24/24 PASS, test_all: 64/64 PASS)
-  ☐  Nhóm 3 — Tìm đường (14 API)              → Chưa làm (Slice 2-4)
-  ☐  Nhóm 4 — Luồng & Mật độ (15 API)         → Chưa làm (Slice 5)
-  ☐  Nhóm 5 — Y tế (10 API)                   → Chưa làm (Slice 6)
-  ☐  Nhóm 6 — Thiết bị (12 API)               → Chưa làm (Slice 7)
-  ☐  Nhóm 7 — Tiện ích (6 API)                → Chưa làm (Slice 10)
-  ☐  Nhóm 8 — Hỗ trợ & Liên lạc (15+WS API)  → Chưa làm (Slice 8-9)
-  ☐  Nhóm 9 — Admin Engine (6 API)            → Chưa làm (Slice 11)
+  ☐  Nhóm 3  -- Tìm đường (14 API)              -> Chưa làm (Slice 2-4)
+  ☐  Nhóm 4  -- Luồng & Mật độ (15 API)         -> Chưa làm (Slice 5)
+  ☐  Nhóm 5  -- Y tế (10 API)                   -> Chưa làm (Slice 6)
+  ☐  Nhóm 6  -- Thiết bị (12 API)               -> Chưa làm (Slice 7)
+  ☐  Nhóm 7  -- Tiện ích (6 API)                -> Chưa làm (Slice 10)
+  ☐  Nhóm 8  -- Hỗ trợ & Liên lạc (15+WS API)  -> Chưa làm (Slice 8-9)
+  ☐  Nhóm 9  -- Admin Engine (6 API)            -> Chưa làm (Slice 11)
 ================================================================================
 
 Quy ước:
@@ -25,80 +25,80 @@ Format response chuẩn:
   { "code": 1000, "message": "OK", "data": { ... } }
 
 Kiến trúc bản đồ & tìm đường:
-  • Bản đồ: Grid 2D (file .map format MovingAI), chỉ 1 tầng
-  • Dijkstra Mode — tìm đường on-demand trên grid (từ POI → POI)
-  • MAPF Mode    — gán patient vào agent pre-computed từ output.json
+  - Bản đồ: Grid 2D (file .map format MovingAI), chỉ 1 tầng
+  - Dijkstra Mode  -- tìm đường on-demand trên grid (từ POI -> POI)
+  - MAPF Mode     -- gán patient vào agent pre-computed từ output.json
 
 
 ────────────────────────────────────────────────────────────────────────────────
-NHÓM 1 — XÁC THỰC & TÀI KHOẢN (15 API)
+NHÓM 1  -- XÁC THỰC & TÀI KHOẢN (15 API)
 ────────────────────────────────────────────────────────────────────────────────
 
   1. POST X api/auth/login
-     → READ users WHERE phone_number, so sánh password_hash
-     → Trả JWT token chứa user_id
+     -> READ users WHERE phone_number, so sánh password_hash
+     -> Trả JWT token chứa user_id
 
   2. POST O api/auth/logout
-     → UPDATE fcm_tokens SET is_active=0 WHERE user_id + fcm_token
-     → Hủy JWT (cần Redis blacklist hoặc short-lived token)
+     -> UPDATE fcm_tokens SET is_active=0 WHERE user_id + fcm_token
+     -> Hủy JWT (cần Redis blacklist hoặc short-lived token)
 
   3. POST X api/auth/signup
-     → INSERT users (status=pending)
-     → INSERT otp_codes (type=signup, expired_at=now+10min)
-     → Trả otp_debug trong response (MVP không gửi SMS)
+     -> INSERT users (status=pending)
+     -> INSERT otp_codes (type=signup, expired_at=now+10min)
+     -> Trả otp_debug trong response (MVP không gửi SMS)
 
   4. POST X api/auth/verify_otp
-     → READ otp_codes WHERE phone_number + otp_code + is_used=0
-     → UPDATE users SET status=active
-     → UPDATE otp_codes SET is_used=1
-     → INSERT user_settings (default values)
-     → Trả JWT token
+     -> READ otp_codes WHERE phone_number + otp_code + is_used=0
+     -> UPDATE users SET status=active
+     -> UPDATE otp_codes SET is_used=1
+     -> INSERT user_settings (default values)
+     -> Trả JWT token
 
   5. POST X api/auth/resend_otp
-     → UPDATE otp_codes SET is_used=1 WHERE phone_number (vô hiệu cũ)
-     → INSERT otp_codes mới
+     -> UPDATE otp_codes SET is_used=1 WHERE phone_number (vô hiệu cũ)
+     -> INSERT otp_codes mới
 
   6. POST X api/auth/forgot_password
-     → READ users WHERE phone_number (kiểm tra tồn tại)
-     → INSERT otp_codes (type=reset_password)
+     -> READ users WHERE phone_number (kiểm tra tồn tại)
+     -> INSERT otp_codes (type=reset_password)
 
   7. POST X api/auth/reset_password
-     → READ otp_codes WHERE phone_number + type=reset_password
-     → UPDATE users SET password_hash
-     → UPDATE otp_codes SET is_used=1
+     -> READ otp_codes WHERE phone_number + type=reset_password
+     -> UPDATE users SET password_hash
+     -> UPDATE otp_codes SET is_used=1
 
   8. POST O api/auth/change_password
-     → READ users WHERE user_id, so sánh password_hash cũ
-     → UPDATE users SET password_hash mới
+     -> READ users WHERE user_id, so sánh password_hash cũ
+     -> UPDATE users SET password_hash mới
 
   9. GET O api/user/get_profile
-     → READ users WHERE user_id
-     → LEFT JOIN staffs (nếu user_type=staff)
+     -> READ users WHERE user_id
+     -> LEFT JOIN staffs (nếu user_type=staff)
 
  10. POST O api/user/set_profile
-     → UPDATE users SET full_name, avatar_url, date_of_birth, gender
+     -> UPDATE users SET full_name, avatar_url, date_of_birth, gender
 
  11. POST O api/user/set_devtoken
-     → UPSERT fcm_tokens (INSERT hoặc UPDATE nếu token đã tồn tại)
+     -> UPSERT fcm_tokens (INSERT hoặc UPDATE nếu token đã tồn tại)
 
  12. GET O api/user/get_settings
-     → READ user_settings WHERE user_id
+     -> READ user_settings WHERE user_id
 
  13. POST O api/user/set_settings
-     → UPDATE user_settings SET voice_guidance, notification, travel_mode, language
+     -> UPDATE user_settings SET voice_guidance, notification, travel_mode, language
 
  14. GET X api/sys/check_version
-     → READ app_versions WHERE platform ORDER BY version_code DESC LIMIT 1
-     → So sánh version_code client gửi lên
+     -> READ app_versions WHERE platform ORDER BY version_code DESC LIMIT 1
+     -> So sánh version_code client gửi lên
 
  15. DELETE O api/user/delete_account
-     → UPDATE users SET status=blocked (soft delete)
-     → UPDATE fcm_tokens SET is_active=0
-     → Không xóa cứng — giữ data cho audit
+     -> UPDATE users SET status=blocked (soft delete)
+     -> UPDATE fcm_tokens SET is_active=0
+     -> Không xóa cứng  -- giữ data cho audit
 
 
 ────────────────────────────────────────────────────────────────────────────────
-NHÓM 2 — BẢN ĐỒ & HẠ TẦNG (15 API)
+NHÓM 2  -- BẢN ĐỒ & HẠ TẦNG (15 API)
 ────────────────────────────────────────────────────────────────────────────────
 
   Bản đồ sử dụng grid 2D (format .map MovingAI).
@@ -107,437 +107,437 @@ NHÓM 2 — BẢN ĐỒ & HẠ TẦNG (15 API)
   Hệ thống chỉ hỗ trợ 1 tầng (single floor).
 
  16. GET X api/map/get_floors
-     → READ grid_maps WHERE is_active=1
-     → Trả: map_id, map_name, rows, cols
+     -> READ grid_maps WHERE is_active=1
+     -> Trả: map_id, map_name, rows, cols
 
  17. GET X api/map/get_nodes
-     → READ grid_pois WHERE map_id + is_active=1
-     → LEFT JOIN wards (ward_name)
-     → Trả: poi_id, poi_name, poi_type, grid_row, grid_col, grid_location
+     -> READ grid_pois WHERE map_id + is_active=1
+     -> LEFT JOIN wards (ward_name)
+     -> Trả: poi_id, poi_name, poi_type, grid_row, grid_col, grid_location
 
  18. GET X api/map/get_edges
-     → Tính adjacency từ grid: mỗi ô "." kề 4 hướng (N,S,E,W)
-     → Trả danh sách cặp {from_loc, to_loc, weight=1.0}
+     -> Tính adjacency từ grid: mỗi ô "." kề 4 hướng (N,S,E,W)
+     -> Trả danh sách cặp {from_loc, to_loc, weight=1.0}
 
  19. GET X api/map/get_meta
-     → READ grid_maps WHERE map_id
-     → Trả: rows, cols, map_file_path, map_image_url
+     -> READ grid_maps WHERE map_id
+     -> Trả: rows, cols, map_file_path, map_image_url
 
  20. GET X api/map/get_depts
-     → READ wards WHERE is_active=1
-     → JOIN grid_pois WHERE ward_id (đếm số POI mỗi khoa)
+     -> READ wards WHERE is_active=1
+     -> JOIN grid_pois WHERE ward_id (đếm số POI mỗi khoa)
 
  21. GET X api/map/search_location
-     → FULLTEXT SEARCH grid_pois WHERE MATCH(poi_name) AGAINST(keyword)
+     -> FULLTEXT SEARCH grid_pois WHERE MATCH(poi_name) AGAINST(keyword)
 
  22. GET X api/map/get_landmarks
-     → READ grid_pois WHERE is_landmark=1 + is_active=1
+     -> READ grid_pois WHERE is_landmark=1 + is_active=1
 
  23. GET O api/map/get_beacons
-     → Trả data tĩnh (chưa dùng beacon thật)
+     -> Trả data tĩnh (chưa dùng beacon thật)
 
  24. GET X api/map/sync_full
-     → READ grid_maps + grid_pois (toàn bộ)
-     → Kèm grid data (mảng 2D: 0=free, 1=obstacle)
-     → Gộp thành 1 JSON lớn để frontend lưu offline
+     -> READ grid_maps + grid_pois (toàn bộ)
+     -> Kèm grid data (mảng 2D: 0=free, 1=obstacle)
+     -> Gộp thành 1 JSON lớn để frontend lưu offline
 
  25. POST A api/admin/add_node
-     → INSERT grid_pois (gán tên/loại cho 1 ô trên grid)
-     → Kiểm tra grid_location phải là ô free (không phải tường)
+     -> INSERT grid_pois (gán tên/loại cho 1 ô trên grid)
+     -> Kiểm tra grid_location phải là ô free (không phải tường)
 
  26. POST A api/admin/edit_node
-     → UPDATE grid_pois WHERE poi_id
+     -> UPDATE grid_pois WHERE poi_id
 
  27. DELETE A api/admin/del_node
-     → UPDATE grid_pois SET is_active=0 (soft delete)
+     -> UPDATE grid_pois SET is_active=0 (soft delete)
 
  28. POST A api/admin/add_edge
-     → Edges tự tính từ grid adjacency, không cần thêm thủ công
-     → Trả code 2003 "Edges auto-computed from grid"
+     -> Edges tự tính từ grid adjacency, không cần thêm thủ công
+     -> Trả code 2003 "Edges auto-computed from grid"
 
  29. DELETE A api/admin/del_edge
-     → Tương tự #28
-     → Trả code 2003
+     -> Tương tự #28
+     -> Trả code 2003
 
  30. PATCH A api/admin/set_weight
-     → UPDATE grid_pois SET custom_weight (penalty cho khu vực)
-     → Ảnh hưởng Dijkstra: cells xung quanh POI có weight cao hơn
+     -> UPDATE grid_pois SET custom_weight (penalty cho khu vực)
+     -> Ảnh hưởng Dijkstra: cells xung quanh POI có weight cao hơn
 
 
 ────────────────────────────────────────────────────────────────────────────────
-NHÓM 3 — ĐIỀU PHỐI LỘ TRÌNH (15 API)
+NHÓM 3  -- ĐIỀU PHỐI LỘ TRÌNH (15 API)
 ────────────────────────────────────────────────────────────────────────────────
 
   Hai chế độ tìm đường:
-  • Dijkstra — chạy on-demand trên grid, nhanh, cho single user
-  • MAPF     — gán patient vào agent pre-computed, cho simulation
+  - Dijkstra  -- chạy on-demand trên grid, nhanh, cho single user
+  - MAPF      -- gán patient vào agent pre-computed, cho simulation
 
   API route/ordered tự chọn mode:
-  • Nếu simulation đang chạy → MAPF mode (gán agent)
-  • Nếu không → Dijkstra mode (tính đường mới)
+  - Nếu simulation đang chạy -> MAPF mode (gán agent)
+  - Nếu không -> Dijkstra mode (tính đường mới)
 
  31. POST O api/route/ordered
      [DIJKSTRA MODE]
-     → READ grid_maps + grid_pois (build grid graph in memory)
-     → READ travel_modes WHERE mode_id (speed_factor)
-     → Chạy Dijkstra trên grid: start_loc → dest_loc
-     → Convert path (list of grid_locations) → list of [row, col]
-     → INSERT routes (status=active)
-     → INSERT route_paths (mỗi step = 1 grid cell + instruction)
-     → Trả: route_id, path_coords, total_distance, estimated_time
+     -> READ grid_maps + grid_pois (build grid graph in memory)
+     -> READ travel_modes WHERE mode_id (speed_factor)
+     -> Chạy Dijkstra trên grid: start_loc -> dest_loc
+     -> Convert path (list of grid_locations) -> list of [row, col]
+     -> INSERT routes (status=active)
+     -> INSERT route_paths (mỗi step = 1 grid cell + instruction)
+     -> Trả: route_id, path_coords, total_distance, estimated_time
 
      [MAPF MODE]
-     → AgentManager.AssignPatient(user_id)
-     → Lấy trajectory pre-computed từ output.json
-     → INSERT routes (status=active, route_mode=mapf)
-     → INSERT route_paths từ trajectory
-     → Trả: route_id, path_coords, agent_id
+     -> AgentManager.AssignPatient(user_id)
+     -> Lấy trajectory pre-computed từ output.json
+     -> INSERT routes (status=active, route_mode=mapf)
+     -> INSERT route_paths từ trajectory
+     -> Trả: route_id, path_coords, agent_id
 
  32. POST O api/route/unordered
-     → Giống #31 Dijkstra mode
-     → Nhiều điểm đích → chạy Dijkstra từng cặp, chọn thứ tự tối ưu
+     -> Giống #31 Dijkstra mode
+     -> Nhiều điểm đích -> chạy Dijkstra từng cặp, chọn thứ tự tối ưu
 
  33. POST O api/route/recalculate
-     → READ routes WHERE route_id + user_id
-     → DELETE route_paths WHERE route_id (xóa path cũ)
-     → Chạy Dijkstra mới (chỉ Dijkstra mode)
-     → INSERT route_paths mới
-     → UPDATE routes SET total_distance, estimated_time
+     -> READ routes WHERE route_id + user_id
+     -> DELETE route_paths WHERE route_id (xóa path cũ)
+     -> Chạy Dijkstra mới (chỉ Dijkstra mode)
+     -> INSERT route_paths mới
+     -> UPDATE routes SET total_distance, estimated_time
 
  34. GET O api/route/get_active
-     → READ routes WHERE user_id + status=active
-     → READ route_paths WHERE route_id
-     → Nếu route_mode=mapf: kèm current_timestep
+     -> READ routes WHERE user_id + status=active
+     -> READ route_paths WHERE route_id
+     -> Nếu route_mode=mapf: kèm current_timestep
 
  35. POST O api/route/cancel
-     → UPDATE routes SET status=cancelled WHERE route_id + user_id
-     → Nếu route_mode=mapf: AgentManager.ReleasePatient(user_id)
+     -> UPDATE routes SET status=cancelled WHERE route_id + user_id
+     -> Nếu route_mode=mapf: AgentManager.ReleasePatient(user_id)
 
  36. GET O api/route/get_steps
-     → READ route_paths WHERE route_id ORDER BY step_order
-     → Trả: step_order, grid_row, grid_col, instruction
+     -> READ route_paths WHERE route_id ORDER BY step_order
+     -> Trả: step_order, grid_row, grid_col, instruction
 
  37. POST O api/route/preview
-     → Giống #31 nhưng KHÔNG INSERT vào DB
-     → Chỉ chạy Dijkstra và trả path_coords
+     -> Giống #31 nhưng KHÔNG INSERT vào DB
+     -> Chỉ chạy Dijkstra và trả path_coords
 
  38. POST O api/route/get_eta
-     → READ routes WHERE route_id
-     → Dijkstra: remaining_steps × avg_step_time ÷ speed_factor
-     → MAPF: remaining_steps × tickRate
+     -> READ routes WHERE route_id
+     -> Dijkstra: remaining_steps × avg_step_time ÷ speed_factor
+     -> MAPF: remaining_steps × tickRate
 
  39. GET O api/route/get_history
-     → READ routes WHERE user_id ORDER BY created_at DESC
-     → JOIN grid_pois (start_poi_name, dest_poi_name)
-     → Pagination: page, limit
+     -> READ routes WHERE user_id ORDER BY created_at DESC
+     -> JOIN grid_pois (start_poi_name, dest_poi_name)
+     -> Pagination: page, limit
 
  40. DELETE O api/route/clear_history
-     → SOFT DELETE routes WHERE user_id + status IN (completed, cancelled)
+     -> SOFT DELETE routes WHERE user_id + status IN (completed, cancelled)
 
  41. POST O api/route/share
-     → READ routes WHERE route_id + user_id
-     → INSERT route_shares (share_url=UUID, expired_at=now+24h)
+     -> READ routes WHERE route_id + user_id
+     -> INSERT route_shares (share_url=UUID, expired_at=now+24h)
 
  42. POST O api/route/rate_path
-     → INSERT route_feedbacks (route_id UNIQUE — mỗi route chỉ rate 1 lần)
+     -> INSERT route_feedbacks (route_id UNIQUE  -- mỗi route chỉ rate 1 lần)
 
  43. POST O api/route/pass_node
-     → INSERT route_history_nodes (status=arrived, arrival_time=now)
-     → UPDATE route_history_nodes SET status='passed' cho node trước
+     -> INSERT route_history_nodes (status=arrived, arrival_time=now)
+     -> UPDATE route_history_nodes SET status='passed' cho node trước
 
  44. GET O api/route/get_next
-     → READ routes WHERE user_id + status=active
-     → READ route_paths WHERE route_id + step_order > current
-     → Trả: next poi_name, instruction
+     -> READ routes WHERE user_id + status=active
+     -> READ route_paths WHERE route_id + step_order > current
+     -> Trả: next poi_name, instruction
 
  45. GET X api/route/get_modes
-     → READ travel_modes (toàn bộ)
+     -> READ travel_modes (toàn bộ)
 
 
 ────────────────────────────────────────────────────────────────────────────────
-NHÓM 4 — QUẢN LÝ LUỒNG NGƯỜI (15 API)
+NHÓM 4  -- QUẢN LÝ LUỒNG NGƯỜI (15 API)
 ────────────────────────────────────────────────────────────────────────────────
 
  46. POST O api/flow/ping_location
-     → Dijkstra mode: INSERT user_pings (user_id, grid_location)
-     → MAPF mode: Server tự biết vị trí — chỉ ghi log
+     -> Dijkstra mode: INSERT user_pings (user_id, grid_location)
+     -> MAPF mode: Server tự biết vị trí  -- chỉ ghi log
 
  47. GET X api/flow/get_density
-     → Đếm agents/users per grid cell
-     → Trả density_level per khu vực
+     -> Đếm agents/users per grid cell
+     -> Trả density_level per khu vực
 
  48. GET X api/flow/get_heatmap
-     → MAPF: AgentManager.GetAllPositions() → đếm per cell
-     → Dijkstra: READ user_pings WHERE created_at > now-30min
-     → Trả: grid_location, density_level
+     -> MAPF: AgentManager.GetAllPositions() -> đếm per cell
+     -> Dijkstra: READ user_pings WHERE created_at > now-30min
+     -> Trả: grid_location, density_level
 
  49. GET X api/flow/get_bottlenecks
-     → Tìm cells có density cao nhất (top 10)
-     → Trả: grid_location, row, col, people_count
+     -> Tìm cells có density cao nhất (top 10)
+     -> Trả: grid_location, row, col, people_count
 
  50. POST O api/flow/report_obstacle
-     → INSERT obstacle_reports (status=pending)
+     -> INSERT obstacle_reports (status=pending)
 
  51. PATCH A api/admin/set_capacity
-     → UPDATE grid_pois SET capacity WHERE poi_id
+     -> UPDATE grid_pois SET capacity WHERE poi_id
 
  52. GET X api/flow/get_forecast
-     → READ user_pings gần đây → tính trend
-     → Trả data dự báo (MVP: data tĩnh)
+     -> READ user_pings gần đây -> tính trend
+     -> Trả data dự báo (MVP: data tĩnh)
 
  53. POST A api/flow/set_priority
-     → INSERT priority_routes (status=active)
-     → Dijkstra: giảm weight cho cells trên tuyến ưu tiên
+     -> INSERT priority_routes (status=active)
+     -> Dijkstra: giảm weight cho cells trên tuyến ưu tiên
 
  54. GET O api/flow/get_alerts
-     → Kiểm tra route đang đi có đi qua khu vực đông không
-     → Trả cảnh báo nếu có
+     -> Kiểm tra route đang đi có đi qua khu vực đông không
+     -> Trả cảnh báo nếu có
 
  55. GET X api/flow/edge_status
-     → Trả density info cho grid cell hoặc khu vực
+     -> Trả density info cho grid cell hoặc khu vực
 
  56. GET A api/admin/stats_flow
-     → READ user_pings GROUP BY HOUR(created_at)
-     → Aggregate thống kê
+     -> READ user_pings GROUP BY HOUR(created_at)
+     -> Aggregate thống kê
 
  57. POST A api/admin/reset_flow
-     → Xóa cache density
-     → DELETE user_pings WHERE created_at < now
+     -> Xóa cache density
+     -> DELETE user_pings WHERE created_at < now
 
  58. POST A api/flow/simulate/start
-     → Load output.json
-     → Khởi tạo AgentManager với tickRate
-     → INSERT simulation_runs (status=running)
-     → Trả simulation_id
+     -> Load output.json
+     -> Khởi tạo AgentManager với tickRate
+     -> INSERT simulation_runs (status=running)
+     -> Trả simulation_id
 
  59. POST A api/flow/simulate/stop
-     → Dừng simulation → release tất cả agents
-     → UPDATE simulation_runs SET status=stopped
+     -> Dừng simulation -> release tất cả agents
+     -> UPDATE simulation_runs SET status=stopped
 
  60. GET A api/flow/simulate/status
-     → Đọc AgentManager: active_agents, current_timestep, elapsed_time
+     -> Đọc AgentManager: active_agents, current_timestep, elapsed_time
 
 
 ────────────────────────────────────────────────────────────────────────────────
-NHÓM 5 — TÍCH HỢP Y TẾ HIS (10 API)
+NHÓM 5  -- TÍCH HỢP Y TẾ HIS (10 API)
 ────────────────────────────────────────────────────────────────────────────────
 
  61. GET O api/medical/get_tasks
-     → READ treatments WHERE user_id + status IN (pending, in_progress)
-     → JOIN grid_pois (poi_name = tên phòng)
-     → JOIN wards (ward_name = tên khoa)
-     → ORDER BY priority, sequence_number
+     -> READ treatments WHERE user_id + status IN (pending, in_progress)
+     -> JOIN grid_pois (poi_name = tên phòng)
+     -> JOIN wards (ward_name = tên khoa)
+     -> ORDER BY priority, sequence_number
 
  62. GET O api/medical/get_queue
-     → READ queues WHERE poi_id
-     → Trả: current_number, waiting_count, avg_wait_minutes
+     -> READ queues WHERE poi_id
+     -> Trả: current_number, waiting_count, avg_wait_minutes
 
  63. POST O api/medical/checkin_room
-     → UPDATE treatments SET status=in_progress, checkin_at=now
+     -> UPDATE treatments SET status=in_progress, checkin_at=now
        WHERE treatment_id + user_id
-     → UPDATE queues SET waiting_count-1 WHERE poi_id
+     -> UPDATE queues SET waiting_count-1 WHERE poi_id
 
  64. POST O api/medical/checkout_room
-     → UPDATE treatments SET status=completed, completed_at=now
+     -> UPDATE treatments SET status=completed, completed_at=now
        WHERE treatment_id + user_id + status=in_progress
-     → UPDATE queues SET current_number+1
+     -> UPDATE queues SET current_number+1
 
  65. GET O api/medical/result_status
-     → READ treatments WHERE treatment_id + user_id
-     → Trả: has_result, status
+     -> READ treatments WHERE treatment_id + user_id
+     -> Trả: has_result, status
 
  66. GET O api/medical/get_prescription
-     → READ prescriptions WHERE user_id ORDER BY issued_at DESC
-     → JOIN grid_pois (pharmacy poi → tên nhà thuốc)
-     → Parse items_json → danh sách thuốc
+     -> READ prescriptions WHERE user_id ORDER BY issued_at DESC
+     -> JOIN grid_pois (pharmacy poi -> tên nhà thuốc)
+     -> Parse items_json -> danh sách thuốc
 
  67. POST A api/medical/sync_now
-     → Random chọn 3-5 từ danh sách mẫu
-     → READ grid_pois WHERE poi_type IN (room, pharmacy)
-     → INSERT treatments + prescriptions
+     -> Random chọn 3-5 từ danh sách mẫu
+     -> READ grid_pois WHERE poi_type IN (room, pharmacy)
+     -> INSERT treatments + prescriptions
 
  68. GET X api/medical/room_open
-     → READ grid_pois WHERE poi_id (trả giờ mở: data tĩnh)
+     -> READ grid_pois WHERE poi_id (trả giờ mở: data tĩnh)
 
  69. POST O api/medical/cancel_task
-     → UPDATE treatments SET status=skipped WHERE treatment_id + user_id
+     -> UPDATE treatments SET status=skipped WHERE treatment_id + user_id
 
  70. GET O api/medical/get_history
-     → READ treatments WHERE user_id + status=completed
-     → ORDER BY completed_at DESC
+     -> READ treatments WHERE user_id + status=completed
+     -> ORDER BY completed_at DESC
 
 
 ────────────────────────────────────────────────────────────────────────────────
-NHÓM 6 — HỖ TRỢ & THÔNG BÁO (12 API + 1 WS)
+NHÓM 6  -- HỖ TRỢ & THÔNG BÁO (12 API + 1 WS)
 ────────────────────────────────────────────────────────────────────────────────
 
  71. GET O api/notif/get_list
-     → READ notifications WHERE user_id ORDER BY created_at DESC
-     → Pagination: page, limit
+     -> READ notifications WHERE user_id ORDER BY created_at DESC
+     -> Pagination: page, limit
 
  72. POST O api/notif/set_read
-     → UPDATE notifications SET is_read=1, read_at=now WHERE notif_id + user_id
+     -> UPDATE notifications SET is_read=1, read_at=now WHERE notif_id + user_id
 
  73. DELETE O api/notif/delete
-     → DELETE notifications WHERE notif_id + user_id
+     -> DELETE notifications WHERE notif_id + user_id
 
  74. POST O api/help/sos
-     → INSERT sos_requests (status=received)
-     → Internal: gọi SendNotification →
+     -> INSERT sos_requests (status=received)
+     -> Internal: gọi SendNotification ->
        INSERT notifications cho staff on-duty
-       → READ fcm_tokens WHERE user_id IN (staff list)
-       → POST FCM API gửi push
+       -> READ fcm_tokens WHERE user_id IN (staff list)
+       -> POST FCM API gửi push
 
  75. POST O api/chat/create
-     → INSERT conversations (status=open)
-     → Tìm staff rảnh: READ staffs WHERE is_active=1 + role=coordinator
+     -> INSERT conversations (status=open)
+     -> Tìm staff rảnh: READ staffs WHERE is_active=1 + role=coordinator
 
  76. POST O api/chat/send
-     → INSERT messages (sender_id, sender_type, text_content)
-     → UPDATE conversations SET last_message, updated_at, unread_count+1
-     → WebSocket: push message đến recipient nếu đang online
-     → FCM push nếu recipient offline
+     -> INSERT messages (sender_id, sender_type, text_content)
+     -> UPDATE conversations SET last_message, updated_at, unread_count+1
+     -> WebSocket: push message đến recipient nếu đang online
+     -> FCM push nếu recipient offline
 
  77. GET O api/chat/get_messages
-     → READ messages WHERE conversation_id ORDER BY created_at
-     → Pagination: page, limit
+     -> READ messages WHERE conversation_id ORDER BY created_at
+     -> Pagination: page, limit
 
  78. GET O api/chat/get_list
-     → READ conversations WHERE user_id ORDER BY updated_at DESC
+     -> READ conversations WHERE user_id ORDER BY updated_at DESC
 
  79. GET X api/sys/get_voice_key
-     → Trả API key Speech-to-text (config tĩnh từ env)
+     -> Trả API key Speech-to-text (config tĩnh từ env)
 
  80. GET X api/sys/get_voice_files
-     → Trả danh sách URL file âm thanh chỉ đường (config tĩnh)
+     -> Trả danh sách URL file âm thanh chỉ đường (config tĩnh)
 
  81. POST O api/chat/mark_read
-     → UPDATE messages SET is_read=1 WHERE conversation_id + sender_type≠current
-     → UPDATE conversations SET unread_count=0
+     -> UPDATE messages SET is_read=1 WHERE conversation_id + sender_type≠current
+     -> UPDATE conversations SET unread_count=0
 
  82. POST X api/chat/bot_query
-     → Tích hợp LLM API bên ngoài hoặc FULLTEXT search grid_pois
+     -> Tích hợp LLM API bên ngoài hoặc FULLTEXT search grid_pois
 
  WS. WebSocket /ws/chat?token=<JWT>
-     → Xác thực JWT → lấy user_id
-     → Lưu connection trong map[user_id]*websocket.Conn (RAM)
-     → Nhận action "send" → INSERT messages + UPDATE conversations
-     → Nhận action "read" → UPDATE messages SET is_read=1
-     → Push event: message, read_receipt, notification
+     -> Xác thực JWT -> lấy user_id
+     -> Lưu connection trong map[user_id]*websocket.Conn (RAM)
+     -> Nhận action "send" -> INSERT messages + UPDATE conversations
+     -> Nhận action "read" -> UPDATE messages SET is_read=1
+     -> Push event: message, read_receipt, notification
 
 
 ────────────────────────────────────────────────────────────────────────────────
-NHÓM 7 — QUẢN LÝ XE LĂN / CÁNG (8 API)
+NHÓM 7  -- QUẢN LÝ XE LĂN / CÁNG (8 API)
 ────────────────────────────────────────────────────────────────────────────────
 
  83. GET O api/asset/get_wheelchairs
-     → READ devices WHERE device_type + status=available
-     → JOIN device_stations + grid_pois (vị trí trạm)
-     → Tính khoảng cách đến user → sắp xếp gần nhất
+     -> READ devices WHERE device_type + status=available
+     -> JOIN device_stations + grid_pois (vị trí trạm)
+     -> Tính khoảng cách đến user -> sắp xếp gần nhất
 
  84. POST O api/asset/book
-     → UPDATE devices SET status=in_use, station_id=NULL, current_poi_id
-     → INSERT device_bookings (status=in_use, borrowed_at=now)
+     -> UPDATE devices SET status=in_use, station_id=NULL, current_poi_id
+     -> INSERT device_bookings (status=in_use, borrowed_at=now)
 
  85. POST O api/asset/release
-     → UPDATE devices SET status=available, station_id=return_station
-     → UPDATE device_bookings SET status=returned, returned_at=now
+     -> UPDATE devices SET status=available, station_id=return_station
+     -> UPDATE device_bookings SET status=returned, returned_at=now
 
  86. POST O api/asset/request_staff
-     → UPDATE device_bookings SET staff_id (gán nhân viên)
-     → INSERT notifications cho staff được gán
-     → FCM push đến staff
+     -> UPDATE device_bookings SET staff_id (gán nhân viên)
+     -> INSERT notifications cho staff được gán
+     -> FCM push đến staff
 
  87. GET X api/asset/get_stations
-     → READ device_stations WHERE is_active=1
-     → JOIN grid_pois (vị trí trên bản đồ)
-     → COUNT devices WHERE station_id (số xe tại trạm)
+     -> READ device_stations WHERE is_active=1
+     -> JOIN grid_pois (vị trí trên bản đồ)
+     -> COUNT devices WHERE station_id (số xe tại trạm)
 
  88. GET O api/asset/get_status
-     → READ devices WHERE device_id
-     → Trả: status, battery_level, device_type
+     -> READ devices WHERE device_id
+     -> Trả: status, battery_level, device_type
 
  89. POST O api/asset/report_broken
-     → INSERT device_broken_reports (status=pending)
-     → UPDATE devices SET status=maintenance
+     -> INSERT device_broken_reports (status=pending)
+     -> UPDATE devices SET status=maintenance
 
  90. GET O api/asset/track
-     → READ devices WHERE device_id
-     → JOIN grid_pois WHERE poi_id=current_poi_id (vị trí hiện tại)
+     -> READ devices WHERE device_id
+     -> JOIN grid_pois WHERE poi_id=current_poi_id (vị trí hiện tại)
 
 
 ────────────────────────────────────────────────────────────────────────────────
-NHÓM 8 — ALGORITHM ENGINE (8 API)
+NHÓM 8  -- ALGORITHM ENGINE (8 API)
 ────────────────────────────────────────────────────────────────────────────────
 
  91. POST A api/engine/solve_mcmf
-     → READ grid_maps + grid_pois (build grid graph)
-     → Chạy Dijkstra trên grid
-     → Trả routing suggestion (không lưu DB)
+     -> READ grid_maps + grid_pois (build grid graph)
+     -> Chạy Dijkstra trên grid
+     -> Trả routing suggestion (không lưu DB)
 
  92. POST A api/engine/update_cost
-     → Đọc density data
-     → Cập nhật weight grid cells theo mật độ
+     -> Đọc density data
+     -> Cập nhật weight grid cells theo mật độ
 
  93. GET A api/engine/get_convergence
-     → READ từ RAM (kết quả tính toán gần nhất)
+     -> READ từ RAM (kết quả tính toán gần nhất)
 
  94. POST A api/engine/set_params
-     → Lưu Alpha/Beta/tickRate vào config RAM hoặc file env
+     -> Lưu Alpha/Beta/tickRate vào config RAM hoặc file env
 
  95. POST A api/engine/simulate
-     → Giống #58 (simulate/start) nhưng qua engine endpoint
-     → Load output.json → khởi tạo AgentManager
+     -> Giống #58 (simulate/start) nhưng qua engine endpoint
+     -> Load output.json -> khởi tạo AgentManager
 
  96. GET A api/engine/get_logs
-     → READ từ file log hoặc RAM buffer
+     -> READ từ file log hoặc RAM buffer
 
  97. GET X api/engine/health
-     → Kiểm tra DB connection status
-     → Trả: uptime, db_status, memory_usage, simulation_active
+     -> Kiểm tra DB connection status
+     -> Trả: uptime, db_status, memory_usage, simulation_active
 
  98. POST A api/engine/clear_cache
-     → Xóa cache Dijkstra graph trong RAM
+     -> Xóa cache Dijkstra graph trong RAM
 
 
 ────────────────────────────────────────────────────────────────────────────────
-NHÓM 9 — QUẢN TRỊ & TIỆN ÍCH (10 API)
+NHÓM 9  -- QUẢN TRỊ & TIỆN ÍCH (10 API)
 ────────────────────────────────────────────────────────────────────────────────
 
  99. GET X api/util/pharmacy
-     → READ grid_pois WHERE poi_type=pharmacy + is_active=1
+     -> READ grid_pois WHERE poi_type=pharmacy + is_active=1
 
 100. GET X api/util/canteen
-     → READ grid_pois WHERE poi_type=canteen
-     → Trả: poi_name, open_hours, details (menu trong JSON)
+     -> READ grid_pois WHERE poi_type=canteen
+     -> Trả: poi_name, open_hours, details (menu trong JSON)
 
 101. GET X api/util/parking
-     → READ grid_pois WHERE poi_type=parking
-     → Trả: total_slots, available_slots (từ details JSON)
+     -> READ grid_pois WHERE poi_type=parking
+     -> Trả: total_slots, available_slots (từ details JSON)
 
 102. GET X api/util/wifi
-     → READ grid_pois WHERE poi_type=wifi
-     → Trả: ssid, wifi_password, coverage_zone (từ details JSON)
+     -> READ grid_pois WHERE poi_type=wifi
+     -> Trả: ssid, wifi_password, coverage_zone (từ details JSON)
 
 103. POST O api/util/upload
-     → Lưu file vào local storage hoặc S3
-     → Trả URL file
+     -> Lưu file vào local storage hoặc S3
+     -> Trả URL file
 
 104. POST O api/util/feedback
-     → INSERT feedbacks (rating, comment, attached_images)
+     -> INSERT feedbacks (rating, comment, attached_images)
 
 105. GET X api/util/faq
-     → READ faqs WHERE is_active=1 ORDER BY sort_order
+     -> READ faqs WHERE is_active=1 ORDER BY sort_order
 
 106. GET X api/util/weather
-     → Gọi API thời tiết bên ngoài (OpenWeather)
+     -> Gọi API thời tiết bên ngoài (OpenWeather)
 
 107. GET A api/admin/get_list
-     → READ staffs JOIN users WHERE is_active=1
-     → Trả: staff_code, full_name, role, ward_name
+     -> READ staffs JOIN users WHERE is_active=1
+     -> Trả: staff_code, full_name, role, ward_name
 
 108. POST A api/admin/set_role
-     → UPDATE staffs SET role WHERE staff_id
+     -> UPDATE staffs SET role WHERE staff_id
 
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -561,7 +561,7 @@ TỔNG KẾT API
 
 
 ================================================================================
-PHẦN B — CƠ SỞ DỮ LIỆU (34 BẢNG)
+PHẦN B  -- CƠ SỞ DỮ LIỆU (34 BẢNG)
 ================================================================================
 
 
@@ -665,7 +665,7 @@ III. HỆ THỐNG
 
 
 ────────────────────────────────────────────────────────────────────────────────
-IV. BẢN ĐỒ SỐ — GRID 2D
+IV. BẢN ĐỒ SỐ  -- GRID 2D
 ────────────────────────────────────────────────────────────────────────────────
 
   Bản đồ là grid 2D (file .map format MovingAI).
@@ -1079,7 +1079,7 @@ TỔNG KẾT DATABASE
 
 
 ================================================================================
-PHẦN C — MÃ RESPONSE CHUẨN
+PHẦN C  -- MÃ RESPONSE CHUẨN
 ================================================================================
 
   Code  | Tên                        | Mô tả

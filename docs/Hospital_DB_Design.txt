@@ -148,7 +148,7 @@ created_at   | DATETIME                            | NOT NULL                   
 [T06] Bảng: wards
 --------------------------------------------------------------------------------
 Danh mục khoa/viện của bệnh viện. Dùng để nhóm các phòng khám theo chuyên khoa và phân công nhân viên.
-Lưu ý circular dependency: staffs.ward_id → wards và wards.head_staff_id → staffs.
+Lưu ý circular dependency: staffs.ward_id -> wards và wards.head_staff_id -> staffs.
 Khi seed data phải INSERT ward với head_staff_id=NULL trước, tạo staff xong rồi UPDATE.
 
 Trường         | Kiểu dữ liệu    | Ràng buộc                       | Mô tả
@@ -203,9 +203,9 @@ updated_at     | DATETIME      | ON UPDATE CURRENT_TIMESTAMP           | Thời 
 
 [T09] Bảng: floors
 --------------------------------------------------------------------------------
-Tầng của từng tòa nhà. Mỗi tầng là 1 layer bản đồ riêng biệt. Cung cấp ảnh nền và hệ số quy đổi pixel → mét.
+Tầng của từng tòa nhà. Mỗi tầng là 1 layer bản đồ riêng biệt. Cung cấp ảnh nền và hệ số quy đổi pixel -> mét.
 
-Công thức quy đổi pixel → mét:
+Công thức quy đổi pixel -> mét:
   meter_x = pixel_x × (real_width_m / image_width_px)
   meter_y = pixel_y × (real_height_m / image_height_px)
 
