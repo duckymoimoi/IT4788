@@ -61,8 +61,9 @@ func (s *SOSService) GetSOSList(page, limit int) ([]schema.SOSRequest, int64, er
 // ========================================
 
 // RespondSOS staff nhan xu ly SOS.
+// Nhan userID tu handler, tu dong chuyen sang staffID.
 // Chi cho phep khi status = "received" (chua ai nhan).
-func (s *SOSService) RespondSOS(sosID uint64, staffID uint64) error {
+func (s *SOSService) RespondSOS(sosID uint64, userID uint64) error {
 	sos, err := s.repo.FindSOSByID(sosID)
 	if err != nil {
 		return fmt.Errorf("SOS request not found")
@@ -72,9 +73,14 @@ func (s *SOSService) RespondSOS(sosID uint64, staffID uint64) error {
 		return fmt.Errorf("SOS already assigned or resolved")
 	}
 
+	staff, err := s.repo.FindStaffByUserID(userID)
+	if err != nil {
+		return fmt.Errorf("staff record not found")
+	}
+
 	updates := map[string]interface{}{
 		"status":            schema.SOSStatusAssigned,
-		"assigned_staff_id": staffID,
+		"assigned_staff_id": staff.StaffID,
 	}
 	return s.repo.UpdateSOS(sosID, updates)
 }
@@ -84,8 +90,9 @@ func (s *SOSService) RespondSOS(sosID uint64, staffID uint64) error {
 // ========================================
 
 // ResolveSOS dong vu viec SOS.
+// Nhan userID tu handler, tu dong chuyen sang staffID.
 // Chi staff da nhan (assigned_staff_id) moi duoc dong.
-func (s *SOSService) ResolveSOS(sosID uint64, staffID uint64) error {
+func (s *SOSService) ResolveSOS(sosID uint64, userID uint64) error {
 	sos, err := s.repo.FindSOSByID(sosID)
 	if err != nil {
 		return fmt.Errorf("SOS request not found")
@@ -95,7 +102,12 @@ func (s *SOSService) ResolveSOS(sosID uint64, staffID uint64) error {
 		return fmt.Errorf("SOS is not in assigned status")
 	}
 
-	if sos.AssignedStaff == nil || *sos.AssignedStaff != staffID {
+	staff, err := s.repo.FindStaffByUserID(userID)
+	if err != nil {
+		return fmt.Errorf("staff record not found")
+	}
+
+	if sos.AssignedStaff == nil || *sos.AssignedStaff != staff.StaffID {
 		return fmt.Errorf("only the assigned staff can resolve this SOS")
 	}
 
