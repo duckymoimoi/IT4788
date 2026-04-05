@@ -10,6 +10,8 @@ require (
 
 require github.com/gin-contrib/cors v1.7.6
 
+require github.com/gorilla/websocket v1.5.3 // indirect
+
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
