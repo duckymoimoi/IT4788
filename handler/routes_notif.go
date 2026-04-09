@@ -24,7 +24,7 @@ func RegisterNotifRoutes(api *gin.RouterGroup, db *gorm.DB) {
     notif := api.Group("/notification")
     
     // Tat ca API thong bao yeu cau phai dang nhap (Auth) [cite: 73, 248]
-    notif.Use(middleware.AuthMiddleware())
+    notif.Use(middleware.Auth())
     {
         notif.GET("/get_list", notifH.GetList)      // [71] Lay danh sach thong bao [cite: 30, 246]
         notif.POST("/set_read", notifH.SetRead)     // [72] Danh dau da doc [cite: 30, 246]

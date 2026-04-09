@@ -17,7 +17,7 @@ func NewNotifHandler(svc service.NotifService) *NotifHandler {
 }
 
 type notifActionRequest struct {
-	NotifID uint `json:"notif_id" binding:"required"`
+	NotifID uint64 `json:"notif_id" binding:"required"`
 }
 
 // [71] GET /api/notif/get_list

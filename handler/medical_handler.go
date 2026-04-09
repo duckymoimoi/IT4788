@@ -24,11 +24,11 @@ func NewMedicalHandler(svc service.MedicalService) *MedicalHandler {
 // ========================================
 
 type checkinRequest struct {
-	TreatmentID uint `json:"treatment_id" binding:"required"`
+	TreatmentID uint64 `json:"treatment_id" binding:"required"`
 }
 
 type prescriptionRequest struct {
-	TreatmentID uint `json:"treatment_id" binding:"required"`
+	TreatmentID uint64 `json:"treatment_id" binding:"required"`
 }
 
 // ========================================
@@ -60,7 +60,7 @@ func (h *MedicalHandler) GetQueue(c *gin.Context) {
 		return
 	}
 
-	queue, err := h.svc.GetQueueStatus(uint(poiID))
+	queue, err := h.svc.GetQueueStatus(uint32(poiID))
 	if err != nil {
 		response.ErrNotFound(c)
 		return
@@ -79,7 +79,7 @@ func (h *MedicalHandler) CheckinRoom(c *gin.Context) {
 
 	err := h.svc.CheckinRoom(c, req.TreatmentID)
 	if err != nil {
-		response.Error(c, response.CodeDatabaseQueryFailed, err.Error())
+		response.Error(c, response.CodeDBQueryFailed, err.Error())
 		return
 	}
 
@@ -105,7 +105,7 @@ func (h *MedicalHandler) GetRoomOpen(c *gin.Context) {
 		return
 	}
 
-	hours, err := h.svc.GetRoomOpeningHours(uint(poiID))
+	hours, err := h.svc.GetRoomOpeningHours(uint32(poiID))
 	if err != nil {
 		response.ErrNotFound(c)
 		return

@@ -6,7 +6,6 @@ import (
 	"hospital/repository"
 	"hospital/schema"
 	"math/rand"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -14,17 +13,19 @@ import (
 
 type MedicalService interface {
 	GetMyTasks(c *gin.Context) ([]schema.Treatment, error)
-	CheckinRoom(c *gin.Context, treatmentID uint) error
+	GetQueueStatus(poiID uint32) (schema.Queue, error)
+	CheckinRoom(c *gin.Context, treatmentID uint64) error
 	SyncHIS(c *gin.Context) error
+	GetRoomOpeningHours(poiID uint32) (gin.H, error)
 }
 
 type medicalService struct {
-	repo   repository.MedicalRepository
-	mapRepo repository.MapRepository // Để lấy POI khi sync
-	db     *gorm.DB
+	repo    repository.MedicalRepository
+	mapRepo *repository.MapRepo
+	db      *gorm.DB
 }
 
-func NewMedicalService(repo repository.MedicalRepository, mapRepo repository.MapRepository, db *gorm.DB) MedicalService {
+func NewMedicalService(repo repository.MedicalRepository, mapRepo *repository.MapRepo, db *gorm.DB) MedicalService {
 	return &medicalService{repo: repo, mapRepo: mapRepo, db: db}
 }
 
@@ -35,8 +36,13 @@ func (s *medicalService) GetMyTasks(c *gin.Context) ([]schema.Treatment, error) 
 	return s.repo.GetTreatmentsByUserID(userID, []string{"pending", "in_progress"})
 }
 
+// #62: Lấy trạng thái hàng đợi tại phòng khám
+func (s *medicalService) GetQueueStatus(poiID uint32) (schema.Queue, error) {
+	return s.repo.GetQueueByPOI(poiID)
+}
+
 // #63: Xử lý Check-in vào phòng khám
-func (s *medicalService) CheckinRoom(c *gin.Context, treatmentID uint) error {
+func (s *medicalService) CheckinRoom(c *gin.Context, treatmentID uint64) error {
 	userID := middleware.GetUserID(c)
 
 	// Bắt buộc dùng Transaction vì thay đổi 2 bảng treatments và queues 
@@ -47,8 +53,7 @@ func (s *medicalService) CheckinRoom(c *gin.Context, treatmentID uint) error {
 			return err
 		}
 
-		// Giả sử chúng ta lấy được POI ID từ treatment này
-		// (Trong thực tế bạn sẽ query treatment để lấy poi_id trước)
+		// Lấy POI ID từ treatment
 		var t schema.Treatment
 		tx.First(&t, treatmentID)
 
@@ -61,13 +66,12 @@ func (s *medicalService) CheckinRoom(c *gin.Context, treatmentID uint) error {
 func (s *medicalService) SyncHIS(c *gin.Context) error {
 	userID := middleware.GetUserID(c)
 	
-	// Chọn ngẫu nhiên 3-5 phòng khám loại 'room' hoặc 'pharmacy' [cite: 178]
-	pois, _ := s.mapRepo.GetPOIsByType([]string{"room", "pharmacy"})
+	// Chọn ngẫu nhiên 3-5 phòng khám loại 'room' [cite: 178]
+	pois, _ := s.mapRepo.FindPOIsByType(schema.POITypeRoom, 0)
 	if len(pois) == 0 {
 		return errors.New("no clinic rooms found to sync")
 	}
 
-	rand.Seed(time.Now().UnixNano())
 	numTasks := rand.Intn(3) + 3 // Tạo 3-5 tasks [cite: 171, 178]
 
 	return s.db.Transaction(func(tx *gorm.DB) error {
@@ -75,8 +79,8 @@ func (s *medicalService) SyncHIS(c *gin.Context) error {
 			p := pois[rand.Intn(len(pois))]
 			newT := schema.Treatment{
 				UserID:         userID,
-				PoiID:          p.PoiID,
-				TaskName:       "Khám lâm sàng " + p.PoiName,
+				PoiID:          p.POIID,
+				TaskName:       "Kham lam sang " + p.POIName,
 				Status:         "pending",
 				Priority:       5,
 				SequenceNumber: i + 1,
@@ -87,4 +91,18 @@ func (s *medicalService) SyncHIS(c *gin.Context) error {
 		}
 		return nil
 	})
+}
+
+// #68: Lấy giờ mở cửa phòng khám (giả lập)
+func (s *medicalService) GetRoomOpeningHours(poiID uint32) (gin.H, error) {
+	poi, err := s.mapRepo.FindPOIByID(poiID)
+	if err != nil || poi == nil {
+		return nil, errors.New("room not found")
+	}
+	return gin.H{
+		"poi_id":   poi.POIID,
+		"poi_name": poi.POIName,
+		"open":     "07:00",
+		"close":    "17:00",
+	}, nil
 }

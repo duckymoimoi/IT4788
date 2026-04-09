@@ -203,13 +203,11 @@ func Seed() error {
 	// --- BUOC 8: Seed travel_modes ---
 	SeedRoute(DB)
 
-	return nil
-
 	// --- BUOC 9: Seed du lieu y te (Slice 6) ---
-    // Goi ham seed cua Person C de tao treatments va queues
-    SeedMedical(DB) 
+	// Goi ham seed cua Person C de tao treatments va queues
+	SeedMedical(DB)
 
-    return nil
+	return nil
 }
 
 // hashPassword ma hoa mat khau bang BCrypt cost=12.
