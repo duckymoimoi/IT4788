@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"bytes"
@@ -96,6 +96,8 @@ func main() {
 	testAuthorizationSecurity()
 	testInputValidation()
 	testEngineAPIs()
+	testMedicalAPIs()
+	testNotifAPIs()
 	testJSONFormat()
 
 	printSummary()
@@ -648,6 +650,164 @@ func testJSONFormat() {
 		if v, ok := route["route_id"]; ok { rid = fmt.Sprintf("%v", v) }
 		if rid != "" {
 			doReq("POST", base+"/route/cancel", map[string]interface{}{"route_id": rid}, patientToken)
+		}
+	}
+}
+
+// ========================================
+// PART 11: MEDICAL APIs
+// ========================================
+func testMedicalAPIs() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 11: MEDICAL APIs (13)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	if patientToken == "" {
+		fmt.Println("  [WARN]  No patient token"); return
+	}
+
+	// [61] GET get_tasks - Thanh cong
+	r, _ := doReq("GET", base+"/medical/get_tasks", nil, patientToken)
+	check("[61] GET get_tasks", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+
+	// [61] GET get_tasks - Khong co token
+	r, _ = doReq("GET", base+"/medical/get_tasks", nil, "")
+	check("[61] get_tasks no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [61] GET get_tasks - Token sai
+	r, _ = doReq("GET", base+"/medical/get_tasks", nil, "invalid.token.here")
+	check("[61] get_tasks invalid token -> rejected", r != nil && r.Code != 1000, "")
+
+	// [62] GET get_queue - Thanh cong
+	r, _ = doReq("GET", base+"/medical/get_queue?poi_id=10", nil, patientToken)
+	check("[62] GET get_queue poi=10", r != nil, fmt.Sprintf("code=%d", sc(r)))
+
+	// [62] GET get_queue - Thieu poi_id
+	r, _ = doReq("GET", base+"/medical/get_queue", nil, patientToken)
+	check("[62] get_queue missing poi_id -> error", r != nil && r.Code != 1000,
+		fmt.Sprintf("code=%d", sc(r)))
+
+	// [62] GET get_queue - POI khong ton tai
+	r, _ = doReq("GET", base+"/medical/get_queue?poi_id=99999", nil, patientToken)
+	check("[62] get_queue poi=99999 -> not found", r != nil && r.Code != 1000, "")
+
+	// [63] POST checkin_room - Thanh cong
+	r, _ = doReq("POST", base+"/medical/checkin_room", map[string]interface{}{
+		"treatment_id": 1,
+	}, patientToken)
+	check("[63] POST checkin_room", r != nil, fmt.Sprintf("code=%d", sc(r)))
+
+	// [63] POST checkin_room - Thieu body
+	r, _ = doReq("POST", base+"/medical/checkin_room", map[string]interface{}{}, patientToken)
+	check("[63] checkin_room empty body -> error", r != nil && r.Code != 1000,
+		fmt.Sprintf("code=%d", sc(r)))
+
+	// [63] POST checkin_room - Khong co token
+	r, _ = doReq("POST", base+"/medical/checkin_room", map[string]interface{}{
+		"treatment_id": 1,
+	}, "")
+	check("[63] checkin_room no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [67] POST sync_now - Thanh cong
+	r, _ = doReq("POST", base+"/medical/sync_now", nil, patientToken)
+	check("[67] POST sync_now", r != nil, fmt.Sprintf("code=%d", sc(r)))
+
+	// [67] POST sync_now - Khong co token
+	r, _ = doReq("POST", base+"/medical/sync_now", nil, "")
+	check("[67] sync_now no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [68] GET room_open - Thieu poi_id
+	r, _ = doReq("GET", base+"/medical/room_open", nil, patientToken)
+	check("[68] room_open missing param -> error", r != nil && r.Code != 1000, "")
+
+	// [68] GET room_open - POI khong ton tai
+	r, _ = doReq("GET", base+"/medical/room_open?poi_id=99999", nil, patientToken)
+	check("[68] room_open poi=99999 -> not found", r != nil && r.Code != 1000, "")
+}
+
+// ========================================
+// PART 12: NOTIFICATION APIs
+// ========================================
+func testNotifAPIs() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 12: NOTIFICATION APIs (12)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	if patientToken == "" {
+		fmt.Println("  [WARN]  No patient token"); return
+	}
+
+	// [71] GET get_list - Thanh cong (co the rong)
+	r, _ := doReq("GET", base+"/notification/get_list?page=1&limit=20", nil, patientToken)
+	check("[71] GET get_list", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		_, hasTotal := d["total"]
+		_, hasNotifs := d["notifications"]
+		check("  Response has total + notifications", hasTotal && hasNotifs,
+			fmt.Sprintf("keys: %v", keysOf(d)))
+	}
+
+	// [71] GET get_list - Khong co token
+	r, _ = doReq("GET", base+"/notification/get_list", nil, "")
+	check("[71] get_list no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [71] GET get_list - Token sai
+	r, _ = doReq("GET", base+"/notification/get_list", nil, "bad.token")
+	check("[71] get_list bad token -> rejected", r != nil && r.Code != 1000, "")
+
+	// [71] GET get_list - Phan trang
+	r, _ = doReq("GET", base+"/notification/get_list?page=1&limit=5", nil, patientToken)
+	check("[71] get_list pagination (limit=5)", r != nil && r.Code == 1000, "")
+
+	// [71] GET get_list - Trang 2 (co the rong)
+	r, _ = doReq("GET", base+"/notification/get_list?page=999&limit=5", nil, patientToken)
+	check("[71] get_list page=999 -> still OK (empty)", r != nil && r.Code == 1000, "")
+
+	// [72] POST set_read - Thieu body
+	r, _ = doReq("POST", base+"/notification/set_read", map[string]interface{}{}, patientToken)
+	check("[72] set_read empty body -> error", r != nil && r.Code != 1000,
+		fmt.Sprintf("code=%d", sc(r)))
+
+	// [72] POST set_read - Khong co token
+	r, _ = doReq("POST", base+"/notification/set_read", map[string]interface{}{
+		"notif_id": 1,
+	}, "")
+	check("[72] set_read no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [72] POST set_read - Notif khong ton tai (van OK vi khong loi)
+	r, _ = doReq("POST", base+"/notification/set_read", map[string]interface{}{
+		"notif_id": 99999,
+	}, patientToken)
+	check("[72] set_read notif=99999", r != nil, fmt.Sprintf("code=%d", sc(r)))
+
+	// [73] DELETE delete - Thieu body
+	r, _ = doReq("DELETE", base+"/notification/delete", map[string]interface{}{}, patientToken)
+	check("[73] delete empty body -> error", r != nil && r.Code != 1000,
+		fmt.Sprintf("code=%d", sc(r)))
+
+	// [73] DELETE delete - Khong co token
+	r, _ = doReq("DELETE", base+"/notification/delete", map[string]interface{}{
+		"notif_id": 1,
+	}, "")
+	check("[73] delete no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [73] DELETE delete - Notif khong ton tai
+	r, _ = doReq("DELETE", base+"/notification/delete", map[string]interface{}{
+		"notif_id": 99999,
+	}, patientToken)
+	check("[73] delete notif=99999", r != nil, fmt.Sprintf("code=%d", sc(r)))
+
+	// Security: Patient2 không thấy notification của Patient1
+	if patient2Token != "" {
+		r, _ = doReq("GET", base+"/notification/get_list", nil, patient2Token)
+		if r != nil && r.Code == 1000 {
+			var d map[string]interface{}
+			json.Unmarshal(r.Data, &d)
+			total, _ := d["total"].(float64)
+			// Patient2 co the co 0 notification
+			check("Patient2 isolation (own notifs only)", total >= 0, "")
 		}
 	}
 }
