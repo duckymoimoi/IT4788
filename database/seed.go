@@ -204,6 +204,12 @@ func Seed() error {
 	SeedRoute(DB)
 
 	return nil
+
+	// --- BUOC 9: Seed du lieu y te (Slice 6) ---
+    // Goi ham seed cua Person C de tao treatments va queues
+    SeedMedical(DB) 
+
+    return nil
 }
 
 // hashPassword ma hoa mat khau bang BCrypt cost=12.
@@ -215,3 +221,4 @@ func hashPassword(password string) string {
 	}
 	return string(hash)
 }
+
