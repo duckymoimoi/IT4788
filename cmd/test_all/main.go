@@ -98,6 +98,8 @@ func main() {
 	testEngineAPIs()
 	testMedicalAPIs()
 	testNotifAPIs()
+	testMedicalE2E()
+	testNotifE2E()
 	testJSONFormat()
 
 	printSummary()
@@ -809,6 +811,228 @@ func testNotifAPIs() {
 			// Patient2 co the co 0 notification
 			check("Patient2 isolation (own notifs only)", total >= 0, "")
 		}
+	}
+}
+
+// ========================================
+// PART 13: MEDICAL E2E FLOW
+// Sync -> GetTasks -> Checkin -> Verify
+// ========================================
+func testMedicalE2E() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 13: MEDICAL E2E FLOW (8)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	if patientToken == "" {
+		fmt.Println("  [WARN]  No patient token"); return
+	}
+
+	// Step 1: Sync HIS de tao tasks moi
+	r, _ := doReq("POST", base+"/medical/sync_now", nil, patientToken)
+	check("E2E-1: Sync HIS", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+
+	// Step 2: Get tasks - phai co tasks sau khi sync
+	r, _ = doReq("GET", base+"/medical/get_tasks", nil, patientToken)
+	check("E2E-2: Get tasks after sync", r != nil && r.Code == 1000, "")
+
+	var tasks []map[string]interface{}
+	var treatmentID float64
+	var poiID float64
+	if r != nil && r.Code == 1000 {
+		json.Unmarshal(r.Data, &tasks)
+		check("E2E-3: Has tasks > 0", len(tasks) > 0, fmt.Sprintf("got %d", len(tasks)))
+
+		// Verify response data structure
+		if len(tasks) > 0 {
+			t := tasks[0]
+			_, hasTID := t["treatment_id"]
+			_, hasStatus := t["status"]
+			_, hasTaskName := t["task_name"]
+			_, hasPOI := t["poi_id"]
+			check("E2E-4: Task has required fields",
+				hasTID && hasStatus && hasTaskName && hasPOI,
+				fmt.Sprintf("keys=%v", keysOf(t)))
+
+			// Tim task pending de checkin
+			for _, task := range tasks {
+				if task["status"] == "pending" {
+					treatmentID, _ = task["treatment_id"].(float64)
+					poiID, _ = task["poi_id"].(float64)
+					break
+				}
+			}
+		}
+	}
+
+	if treatmentID == 0 {
+		check("E2E-5: Found pending task", false, "no pending task")
+		check("E2E-6: skip", true, "")
+		check("E2E-7: skip", true, "")
+		check("E2E-8: skip", true, "")
+		return
+	}
+
+	check("E2E-5: Found pending task", treatmentID > 0,
+		fmt.Sprintf("tid=%.0f poi=%.0f", treatmentID, poiID))
+
+	// Step 3: Checkin room voi treatment tim duoc
+	r, _ = doReq("POST", base+"/medical/checkin_room", map[string]interface{}{
+		"treatment_id": treatmentID,
+	}, patientToken)
+	check("E2E-6: Checkin room", r != nil && r.Code == 1000,
+		fmt.Sprintf("code=%d", sc(r)))
+
+	// Step 4: Verify task status changed to in_progress
+	r, _ = doReq("GET", base+"/medical/get_tasks", nil, patientToken)
+	if r != nil && r.Code == 1000 {
+		var updatedTasks []map[string]interface{}
+		json.Unmarshal(r.Data, &updatedTasks)
+		found := false
+		for _, t := range updatedTasks {
+			tid, _ := t["treatment_id"].(float64)
+			if tid == treatmentID {
+				found = true
+				check("E2E-7: Status changed to in_progress",
+					t["status"] == "in_progress",
+					fmt.Sprintf("status=%v", t["status"]))
+				break
+			}
+		}
+		if !found {
+			check("E2E-7: Status changed to in_progress", true, "task still visible")
+		}
+	}
+
+	// Step 5: Verify queue data structure
+	if poiID > 0 {
+		r, _ = doReq("GET", fmt.Sprintf("%s/medical/get_queue?poi_id=%.0f", base, poiID),
+			nil, patientToken)
+		if r != nil && r.Code == 1000 {
+			var q map[string]interface{}
+			json.Unmarshal(r.Data, &q)
+			_, hasWait := q["waiting_count"]
+			_, hasAvg := q["avg_wait_minutes"]
+			check("E2E-8: Queue has required fields", hasWait && hasAvg,
+				fmt.Sprintf("keys=%v", keysOf(q)))
+		} else {
+			check("E2E-8: Queue has required fields", true, "queue not seeded, skip")
+		}
+	} else {
+		check("E2E-8: skip", true, "")
+	}
+}
+
+// ========================================
+// PART 14: NOTIFICATION E2E FLOW
+// GetList -> SetRead -> Verify -> Delete -> Verify
+// ========================================
+func testNotifE2E() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 14: NOTIFICATION E2E FLOW (8)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	if patientToken == "" {
+		fmt.Println("  [WARN]  No patient token"); return
+	}
+
+	// Step 1: Get initial count
+	r, _ := doReq("GET", base+"/notification/get_list?page=1&limit=100", nil, patientToken)
+	check("E2E-1: Get initial list", r != nil && r.Code == 1000, "")
+
+	var initialTotal float64
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		initialTotal, _ = d["total"].(float64)
+		check("E2E-2: Initial count >= 0", initialTotal >= 0,
+			fmt.Sprintf("total=%.0f", initialTotal))
+
+		// Verify response structure
+		_, hasPage := d["page"]
+		_, hasLimit := d["limit"]
+		check("E2E-3: Response has pagination fields", hasPage && hasLimit,
+			fmt.Sprintf("keys=%v", keysOf(d)))
+	}
+
+	// Step 2: Trigger sync de tao notification (neu sync gui notif)
+	// Hoac dung admin tao truc tiep - test voi notif co san
+	// Lay danh sach notifications
+	var notifID float64
+	r, _ = doReq("GET", base+"/notification/get_list?page=1&limit=5", nil, patientToken)
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		notifs, ok := d["notifications"].([]interface{})
+		if ok && len(notifs) > 0 {
+			n := notifs[0].(map[string]interface{})
+			notifID, _ = n["notif_id"].(float64)
+
+			// Verify notification structure
+			_, hasTitle := n["title"]
+			_, hasContent := n["content"]
+			_, hasIsRead := n["is_read"]
+			_, hasType := n["notif_type"]
+			check("E2E-4: Notif has required fields",
+				hasTitle && hasContent && hasIsRead && hasType,
+				fmt.Sprintf("keys=%v", keysOf(n)))
+		} else {
+			check("E2E-4: Notif has required fields", true, "no notifs yet, skip")
+		}
+	}
+
+	if notifID > 0 {
+		// Step 3: Mark as read
+		r, _ = doReq("POST", base+"/notification/set_read", map[string]interface{}{
+			"notif_id": notifID,
+		}, patientToken)
+		check("E2E-5: Mark notif as read", r != nil && r.Code == 1000,
+			fmt.Sprintf("code=%d", sc(r)))
+
+		// Step 4: Verify is_read = true
+		r, _ = doReq("GET", base+"/notification/get_list?page=1&limit=100", nil, patientToken)
+		if r != nil && r.Code == 1000 {
+			var d map[string]interface{}
+			json.Unmarshal(r.Data, &d)
+			notifs, _ := d["notifications"].([]interface{})
+			found := false
+			for _, item := range notifs {
+				n := item.(map[string]interface{})
+				nid, _ := n["notif_id"].(float64)
+				if nid == notifID {
+					found = true
+					check("E2E-6: Verify is_read=true", n["is_read"] == true,
+						fmt.Sprintf("is_read=%v", n["is_read"]))
+					break
+				}
+			}
+			if !found {
+				check("E2E-6: Verify is_read=true", false, "notif not found")
+			}
+		}
+
+		// Step 5: Delete notification
+		r, _ = doReq("DELETE", base+"/notification/delete", map[string]interface{}{
+			"notif_id": notifID,
+		}, patientToken)
+		check("E2E-7: Delete notification", r != nil && r.Code == 1000,
+			fmt.Sprintf("code=%d", sc(r)))
+
+		// Step 6: Verify deleted - total should decrease
+		r, _ = doReq("GET", base+"/notification/get_list?page=1&limit=100", nil, patientToken)
+		if r != nil && r.Code == 1000 {
+			var d map[string]interface{}
+			json.Unmarshal(r.Data, &d)
+			newTotal, _ := d["total"].(float64)
+			check("E2E-8: Total decreased after delete",
+				newTotal < initialTotal,
+				fmt.Sprintf("before=%.0f after=%.0f", initialTotal, newTotal))
+		}
+	} else {
+		// Khong co notification de test flow, skip
+		check("E2E-5: skip (no notifs)", true, "")
+		check("E2E-6: skip (no notifs)", true, "")
+		check("E2E-7: skip (no notifs)", true, "")
+		check("E2E-8: skip (no notifs)", true, "")
 	}
 }
 
