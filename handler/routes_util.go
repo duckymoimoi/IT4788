@@ -42,6 +42,7 @@ func RegisterUtilRoutes(api *gin.RouterGroup, db *gorm.DB) {
 		authGroup.Use(middleware.Auth())
 		{
 			authGroup.POST("/feedback", utilHandler.SubmitFeedback)
+			authGroup.POST("/upload", utilHandler.Upload)   // #103
 		}
 	}
 }

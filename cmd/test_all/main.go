@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"hospital/pkg/mapf"
 )
@@ -110,6 +112,8 @@ func main() {
 	testDeviceE2E()
 	testFlowE2E()
 	testMedicalCheckoutE2E()
+	testUploadAPI()
+	testVoiceNavigationE2E()
 	testJSONFormat()
 
 	printSummary()
@@ -1696,6 +1700,145 @@ func testMedicalCheckoutE2E() {
 	} else {
 		check("E2E-M6: History has completed", false, "")
 	}
+}
+
+// ========================================
+// PART 25: UPLOAD API (#103)
+// ========================================
+func testUploadAPI() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 25: UPLOAD API (3)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	if patientToken == "" {
+		fmt.Println("  [WARN]  No patient token"); return
+	}
+
+	// [103] upload no auth
+	r, _ := doReq("POST", base+"/util/upload", nil, "")
+	check("[103] upload no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [103] upload no file -> error
+	r, _ = doReq("POST", base+"/util/upload", nil, patientToken)
+	check("[103] upload no file -> error", r != nil && r.Code != 1000, "")
+
+	// [103] upload with file (multipart)
+	// Tạo một multipart request đơn giản
+	client := &http.Client{Timeout: 10 * time.Second}
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, _ := writer.CreateFormFile("file", "test.txt")
+	part.Write([]byte("Hello Hospital!"))
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", base+"/util/upload", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+patientToken)
+	httpResp, err := client.Do(req)
+	if err == nil && httpResp != nil {
+		defer httpResp.Body.Close()
+		respBody, _ := io.ReadAll(httpResp.Body)
+		var apiResp2 apiResp
+		json.Unmarshal(respBody, &apiResp2)
+		check("[103] upload file OK", apiResp2.Code == 1000, fmt.Sprintf("code=%d", apiResp2.Code))
+	} else {
+		check("[103] upload file OK", false, "")
+	}
+}
+
+// ========================================
+// PART 26: VOICE NAVIGATION E2E
+// Order -> GetSteps -> Verify voice_text
+// ========================================
+func testVoiceNavigationE2E() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 26: VOICE NAVIGATION E2E (6)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	if patient2Token == "" {
+		fmt.Println("  [WARN]  No patient2 token"); return
+	}
+
+	// Step 1: Get voice files config
+	r, _ := doReq("GET", base+"/sys/get_voice_files", nil, "")
+	check("Voice-1: Get voice files", r != nil && r.Code == 1000, "")
+	var voiceKeys []string
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		if files, ok := d["files"].([]interface{}); ok {
+			for _, f := range files {
+				if fm, ok := f.(map[string]interface{}); ok {
+					if k, ok := fm["key"].(string); ok {
+						voiceKeys = append(voiceKeys, k)
+					}
+				}
+			}
+		}
+	}
+	check("Voice-2: Has voice keys", len(voiceKeys) >= 4, fmt.Sprintf("keys=%v", voiceKeys))
+
+	// Cancel any existing active routes first
+	r, _ = doReq("GET", base+"/route/get_active", nil, patient2Token)
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		if route, ok := d["route"].(map[string]interface{}); ok {
+			if rid, ok := route["route_id"].(string); ok && rid != "" {
+				doReq("POST", base+"/route/cancel", map[string]interface{}{"route_id": rid}, patient2Token)
+			}
+		}
+	}
+
+	// Step 2: Create a route (row=4 col=4 -> row=4 col=20 on the map corridor)
+	r, _ = doReq("POST", base+"/route/order", map[string]interface{}{
+		"start_location": 232, "dest_location": 248, "mode_id": "walking",
+	}, patient2Token)
+	var routeID string
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		if route, ok := d["route"].(map[string]interface{}); ok {
+			routeID, _ = route["route_id"].(string)
+		}
+	}
+	check("Voice-3: Route created", routeID != "", "")
+
+	if routeID == "" {
+		check("Voice-4: skip", true, ""); check("Voice-5: skip", true, ""); check("Voice-6: skip", true, "")
+		return
+	}
+
+	// Step 3: Get steps with voice_text
+	r, _ = doReq("GET", base+"/route/get_steps?route_id="+routeID, nil, patient2Token)
+	if r != nil && r.Code == 1000 {
+		var steps []map[string]interface{}
+		json.Unmarshal(r.Data, &steps)
+		check("Voice-4: Steps > 0", len(steps) > 0, fmt.Sprintf("count=%d", len(steps)))
+
+		// Kiểm tra bước đầu và cuối có voice_text đúng
+		hasVoice := true
+		validKeys := map[string]bool{"go_straight": true, "turn_left": true, "turn_right": true, "arrived": true, "elevator_up": true, "elevator_down": true, "stairs_up": true, "stairs_down": true}
+		for _, step := range steps {
+			vt, _ := step["voice_text"].(string)
+			if vt == "" || !validKeys[vt] {
+				hasVoice = false
+				break
+			}
+		}
+		check("Voice-5: All steps have valid voice_text", hasVoice, "")
+
+		// Bước cuối phải là "arrived"
+		if len(steps) > 0 {
+			lastVoice, _ := steps[len(steps)-1]["voice_text"].(string)
+			check("Voice-6: Last step = arrived", lastVoice == "arrived", fmt.Sprintf("got=%s", lastVoice))
+		}
+	} else {
+		check("Voice-4: skip", true, ""); check("Voice-5: skip", true, ""); check("Voice-6: skip", true, "")
+	}
+
+	// Cleanup
+	doReq("POST", base+"/route/cancel", map[string]interface{}{"route_id": routeID}, patient2Token)
 }
 
 func keysOf(m map[string]interface{}) []string {

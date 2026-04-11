@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"hospital/middleware"
 	"hospital/repository"
 	response "hospital/pkg"
@@ -184,4 +185,52 @@ func (h *UtilHandler) GetWeather(c *gin.Context) {
 		}
 	}
 	response.Success(c, result)
+}
+
+// [103] POST /api/util/upload
+// Lưu file vào ./uploads/ và trả URL tĩnh để dùng trong các API khác.
+func (h *UtilHandler) Upload(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		response.Error(c, 4000, "Khong co file trong request")
+		return
+	}
+
+	// Giới hạn 10MB
+	if file.Size > 10*1024*1024 {
+		response.Error(c, 4000, "File qua lon (max 10MB)")
+		return
+	}
+
+	// Tạo tên file unique
+	ext := ""
+	if dotIdx := len(file.Filename) - 1; dotIdx > 0 {
+		for i := len(file.Filename) - 1; i >= 0; i-- {
+			if file.Filename[i] == '.' {
+				ext = file.Filename[i:]
+				break
+			}
+		}
+	}
+	filename := fmt.Sprintf("%d_%s%s", time.Now().UnixMilli(), file.Filename[:min(len(file.Filename)-len(ext), 20)], ext)
+
+	// Lưu vào ./uploads/
+	dst := "uploads/" + filename
+	if err := c.SaveUploadedFile(file, dst); err != nil {
+		response.Error(c, 5000, "Luu file that bai: "+err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"file_url":  "/uploads/" + filename,
+		"file_name": file.Filename,
+		"file_size": file.Size,
+	})
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

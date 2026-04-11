@@ -50,6 +50,10 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
+	// Tạo thư mục uploads nếu chưa có
+	os.MkdirAll("uploads", 0755)
+	router.Static("/uploads", "./uploads")
+
 	handler.RegisterRoutes(router, database.DB)
 
 	port := os.Getenv("PORT")
