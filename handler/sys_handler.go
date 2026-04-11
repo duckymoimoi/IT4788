@@ -53,18 +53,28 @@ func (h *SysHandler) GetVoiceKey(c *gin.Context) {
 }
 
 // [80] GET /api/sys/get_voice_files
+// Trả danh sách file âm thanh dẫn đường tiếng Việt.
+// File .mp3 được tự động tạo từ Google Translate TTS khi server khởi động.
 func (h *SysHandler) GetVoiceFiles(c *gin.Context) {
+	// Tự detect base URL để client có full path
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+	baseURL := scheme + "://" + c.Request.Host
+
 	response.Success(c, gin.H{
 		"language": "vi",
+		"base_url": baseURL,
 		"files": []gin.H{
-			{"key": "turn_left", "url": "/audio/turn_left.mp3", "text": "Rẽ trái"},
-			{"key": "turn_right", "url": "/audio/turn_right.mp3", "text": "Rẽ phải"},
-			{"key": "go_straight", "url": "/audio/go_straight.mp3", "text": "Đi thẳng"},
-			{"key": "arrived", "url": "/audio/arrived.mp3", "text": "Đã đến đích"},
-			{"key": "elevator_up", "url": "/audio/elevator_up.mp3", "text": "Đi thang máy lên"},
-			{"key": "elevator_down", "url": "/audio/elevator_down.mp3", "text": "Đi thang máy xuống"},
-			{"key": "stairs_up", "url": "/audio/stairs_up.mp3", "text": "Đi cầu thang lên"},
-			{"key": "stairs_down", "url": "/audio/stairs_down.mp3", "text": "Đi cầu thang xuống"},
+			{"key": "turn_left", "url": baseURL + "/audio/turn_left.mp3", "text": "Rẽ trái"},
+			{"key": "turn_right", "url": baseURL + "/audio/turn_right.mp3", "text": "Rẽ phải"},
+			{"key": "go_straight", "url": baseURL + "/audio/go_straight.mp3", "text": "Đi thẳng"},
+			{"key": "arrived", "url": baseURL + "/audio/arrived.mp3", "text": "Bạn đã đến đích"},
+			{"key": "elevator_up", "url": baseURL + "/audio/elevator_up.mp3", "text": "Đi thang máy lên"},
+			{"key": "elevator_down", "url": baseURL + "/audio/elevator_down.mp3", "text": "Đi thang máy xuống"},
+			{"key": "stairs_up", "url": baseURL + "/audio/stairs_up.mp3", "text": "Đi cầu thang lên"},
+			{"key": "stairs_down", "url": baseURL + "/audio/stairs_down.mp3", "text": "Đi cầu thang xuống"},
 		},
 	})
 }
