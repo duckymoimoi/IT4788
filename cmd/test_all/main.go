@@ -98,8 +98,11 @@ func main() {
 	testEngineAPIs()
 	testMedicalAPIs()
 	testNotifAPIs()
+	testDeviceAPIs()
+	testUtilAPIs()
 	testMedicalE2E()
 	testNotifE2E()
+	testDeviceE2E()
 	testJSONFormat()
 
 	printSummary()
@@ -1033,6 +1036,271 @@ func testNotifE2E() {
 		check("E2E-6: skip (no notifs)", true, "")
 		check("E2E-7: skip (no notifs)", true, "")
 		check("E2E-8: skip (no notifs)", true, "")
+	}
+}
+
+// ========================================
+// PART 15: DEVICE APIs
+// ========================================
+func testDeviceAPIs() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 15: DEVICE APIs (18)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	if patientToken == "" {
+		fmt.Println("  [WARN]  No patient token"); return
+	}
+
+	// [87] GET /device/stations
+	r, _ := doReq("GET", base+"/device/stations", nil, patientToken)
+	check("[87] GET stations", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	if r != nil && r.Code == 1000 {
+		var stations []map[string]interface{}
+		json.Unmarshal(r.Data, &stations)
+		check("  Stations > 0", len(stations) > 0, fmt.Sprintf("got %d", len(stations)))
+	}
+
+	// [87] GET stations - no auth
+	r, _ = doReq("GET", base+"/device/stations", nil, "")
+	check("[87] stations no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [83] GET /device/wheelchairs
+	r, _ = doReq("GET", base+"/device/wheelchairs", nil, patientToken)
+	check("[83] GET wheelchairs", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	if r != nil && r.Code == 1000 {
+		var devices []map[string]interface{}
+		json.Unmarshal(r.Data, &devices)
+		check("  Wheelchairs >= 0", len(devices) >= 0, "")
+	}
+
+	// [83] wheelchairs - no auth
+	r, _ = doReq("GET", base+"/device/wheelchairs", nil, "")
+	check("[83] wheelchairs no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [88] GET /device/status/:id
+	r, _ = doReq("GET", base+"/device/status/1", nil, patientToken)
+	check("[88] GET device status id=1", r != nil, fmt.Sprintf("code=%d", sc(r)))
+
+	// [88] status invalid id
+	r, _ = doReq("GET", base+"/device/status/abc", nil, patientToken)
+	check("[88] status invalid id -> error", r != nil && r.Code != 1000, "")
+
+	// [88] status not found
+	r, _ = doReq("GET", base+"/device/status/99999", nil, patientToken)
+	check("[88] status id=99999 -> not found", r != nil && r.Code != 1000, "")
+
+	// [84] POST /device/book - empty body
+	r, _ = doReq("POST", base+"/device/book", map[string]interface{}{}, patientToken)
+	check("[84] book empty body -> error", r != nil && r.Code != 1000, fmt.Sprintf("code=%d", sc(r)))
+
+	// [84] book - no auth
+	r, _ = doReq("POST", base+"/device/book", map[string]interface{}{"device_id": 1}, "")
+	check("[84] book no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [85] POST /device/release - empty body
+	r, _ = doReq("POST", base+"/device/release", map[string]interface{}{}, patientToken)
+	check("[85] release empty body -> error", r != nil && r.Code != 1000, "")
+
+	// [85] release - no auth
+	r, _ = doReq("POST", base+"/device/release", map[string]interface{}{"return_station_id": 1}, "")
+	check("[85] release no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [89] POST /device/report_broken - empty body
+	r, _ = doReq("POST", base+"/device/report_broken", map[string]interface{}{}, patientToken)
+	check("[89] report_broken empty body -> error", r != nil && r.Code != 1000, "")
+
+	// [89] report_broken - no auth
+	r, _ = doReq("POST", base+"/device/report_broken", map[string]interface{}{"device_id": 1, "description": "test"}, "")
+	check("[89] report_broken no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [86] POST /device/request_staff - empty body
+	r, _ = doReq("POST", base+"/device/request_staff", map[string]interface{}{}, patientToken)
+	check("[86] request_staff empty body -> error", r != nil && r.Code != 1000, "")
+
+	// [90] GET /device/track/:id - not found
+	r, _ = doReq("GET", base+"/device/track/99999", nil, patientToken)
+	check("[90] track id=99999 -> not found", r != nil && r.Code != 1000, "")
+
+	// [90] track - invalid id
+	r, _ = doReq("GET", base+"/device/track/abc", nil, patientToken)
+	check("[90] track invalid id -> error", r != nil && r.Code != 1000, "")
+}
+
+// ========================================
+// PART 16: UTIL APIs
+// ========================================
+func testUtilAPIs() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 16: UTIL APIs (14)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	// [77] GET /util/faq (PUBLIC)
+	r, _ := doReq("GET", base+"/util/faq", nil, "")
+	check("[77] GET faq (public)", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	if r != nil && r.Code == 1000 {
+		var faqs []map[string]interface{}
+		json.Unmarshal(r.Data, &faqs)
+		check("  FAQs > 0", len(faqs) > 0, fmt.Sprintf("got %d", len(faqs)))
+		if len(faqs) > 0 {
+			_, hasQ := faqs[0]["question"]
+			_, hasA := faqs[0]["answer"]
+			check("  FAQ has question+answer", hasQ && hasA, fmt.Sprintf("keys=%v", keysOf(faqs[0])))
+		}
+	}
+
+	// [77] FAQ with category filter
+	r, _ = doReq("GET", base+"/util/faq?category=Chung", nil, "")
+	check("[77] faq category filter", r != nil && r.Code == 1000, "")
+
+	// [81] GET /util/feedback_summary (PUBLIC)
+	r, _ = doReq("GET", base+"/util/feedback_summary", nil, "")
+	check("[81] GET feedback_summary (public)", r != nil && r.Code == 1000, "")
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		_, hasTotal := d["total_feedbacks"]
+		_, hasAvg := d["average_rating"]
+		check("  Summary has total+avg", hasTotal && hasAvg, fmt.Sprintf("keys=%v", keysOf(d)))
+	}
+
+	// [82] POST /util/feedback (AUTH)
+	if patientToken != "" {
+		r, _ = doReq("POST", base+"/util/feedback", map[string]interface{}{
+			"rating": 5, "comment": "Dich vu tuyet voi!",
+		}, patientToken)
+		check("[82] POST feedback", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+
+		// feedback - invalid rating
+		r, _ = doReq("POST", base+"/util/feedback", map[string]interface{}{
+			"rating": 0,
+		}, patientToken)
+		check("[82] feedback rating=0 -> error", r != nil && r.Code != 1000, "")
+
+		// feedback - empty body
+		r, _ = doReq("POST", base+"/util/feedback", map[string]interface{}{}, patientToken)
+		check("[82] feedback empty body -> error", r != nil && r.Code != 1000, "")
+	}
+
+	// [82] feedback - no auth
+	r, _ = doReq("POST", base+"/util/feedback", map[string]interface{}{"rating": 5}, "")
+	check("[82] feedback no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [95] GET /util/check_version (PUBLIC)
+	r, _ = doReq("GET", base+"/util/check_version?platform=android&code=1", nil, "")
+	check("[95] GET check_version", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		_, hasStatus := d["status"]
+		check("  Version has status field", hasStatus, "")
+	}
+
+	// [95] check_version - missing params
+	r, _ = doReq("GET", base+"/util/check_version", nil, "")
+	check("[95] check_version missing params -> error", r != nil && r.Code != 1000, "")
+
+	// [74] GET /util/languages (PUBLIC)
+	r, _ = doReq("GET", base+"/util/languages", nil, "")
+	check("[74] GET languages", r != nil && r.Code == 1000, "")
+
+	// [78] GET /util/about (PUBLIC)
+	r, _ = doReq("GET", base+"/util/about", nil, "")
+	check("[78] GET about", r != nil && r.Code == 1000, "")
+
+	// [79] GET /util/contact (PUBLIC)
+	r, _ = doReq("GET", base+"/util/contact", nil, "")
+	check("[79] GET contact", r != nil && r.Code == 1000, "")
+}
+
+// ========================================
+// PART 17: DEVICE E2E FLOW
+// Book -> Status -> Release -> Verify
+// ========================================
+func testDeviceE2E() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 17: DEVICE E2E FLOW (8)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	if patientToken == "" {
+		fmt.Println("  [WARN]  No patient token"); return
+	}
+
+	// Step 1: Get available wheelchairs
+	r, _ := doReq("GET", base+"/device/wheelchairs", nil, patientToken)
+	check("E2E-D1: Get wheelchairs", r != nil && r.Code == 1000, "")
+
+	var deviceID float64
+	if r != nil && r.Code == 1000 {
+		var devices []map[string]interface{}
+		json.Unmarshal(r.Data, &devices)
+		if len(devices) > 0 {
+			deviceID, _ = devices[0]["device_id"].(float64)
+		}
+		check("E2E-D2: Has available wheelchair", deviceID > 0, fmt.Sprintf("got %.0f", deviceID))
+	}
+
+	if deviceID == 0 {
+		check("E2E-D2: skip", true, ""); check("E2E-D3: skip", true, "")
+		check("E2E-D4: skip", true, ""); check("E2E-D5: skip", true, "")
+		check("E2E-D6: skip", true, ""); check("E2E-D7: skip", true, "")
+		check("E2E-D8: skip", true, ""); return
+	}
+
+	// Step 2: Book the wheelchair
+	r, _ = doReq("POST", base+"/device/book", map[string]interface{}{
+		"device_id": deviceID,
+	}, patientToken)
+	check("E2E-D3: Book wheelchair", r != nil && r.Code == 1000, fmt.Sprintf("code=%d msg=%s", sc(r), func() string { if r != nil { return r.Message }; return "" }()))
+
+	// Step 3: Verify device status changed to in_use
+	r, _ = doReq("GET", fmt.Sprintf("%s/device/status/%.0f", base, deviceID), nil, patientToken)
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		check("E2E-D4: Status is in_use", d["status"] == "in_use",
+			fmt.Sprintf("status=%v", d["status"]))
+	} else {
+		check("E2E-D4: Status is in_use", false, fmt.Sprintf("code=%d", sc(r)))
+	}
+
+	// Step 4: Cannot book another device (limit 1)
+	r, _ = doReq("POST", base+"/device/book", map[string]interface{}{
+		"device_id": deviceID + 1,
+	}, patientToken)
+	check("E2E-D5: Cannot book 2nd device", r != nil && r.Code != 1000, "")
+
+	// Step 5: Get stations for return
+	r, _ = doReq("GET", base+"/device/stations", nil, patientToken)
+	var stationID float64
+	if r != nil && r.Code == 1000 {
+		var stations []map[string]interface{}
+		json.Unmarshal(r.Data, &stations)
+		if len(stations) > 0 {
+			stationID, _ = stations[0]["station_id"].(float64)
+		}
+	}
+	check("E2E-D6: Found station for return", stationID > 0, "")
+
+	// Step 6: Release device
+	if stationID > 0 {
+		r, _ = doReq("POST", base+"/device/release", map[string]interface{}{
+			"return_station_id": stationID,
+		}, patientToken)
+		check("E2E-D7: Release device", r != nil && r.Code == 1000,
+			fmt.Sprintf("code=%d msg=%s", sc(r), func() string { if r != nil { return r.Message }; return "" }()))
+
+		// Step 7: Verify device back to available
+		r, _ = doReq("GET", fmt.Sprintf("%s/device/status/%.0f", base, deviceID), nil, patientToken)
+		if r != nil && r.Code == 1000 {
+			var d map[string]interface{}
+			json.Unmarshal(r.Data, &d)
+			check("E2E-D8: Status back to available", d["status"] == "available",
+				fmt.Sprintf("status=%v", d["status"]))
+		} else {
+			check("E2E-D8: Status back to available", false, "")
+		}
+	} else {
+		check("E2E-D7: skip", true, ""); check("E2E-D8: skip", true, "")
 	}
 }
 

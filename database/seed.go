@@ -207,6 +207,12 @@ func Seed() error {
 	// Goi ham seed cua Person C de tao treatments va queues
 	SeedMedical(DB)
 
+	// --- BUOC 10: Seed du lieu thiet bi (Slice 7) ---
+	SeedDevices(DB)
+
+	// --- BUOC 11: Seed du lieu tien ich (Slice 10) ---
+	SeedUtils(DB)
+
 	return nil
 }
 
