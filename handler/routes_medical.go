@@ -26,10 +26,15 @@ func RegisterMedicalRoutes(api *gin.RouterGroup, db *gorm.DB) {
 	medical := api.Group("/medical")
 	medical.Use(middleware.Auth())
 	{
-		medical.GET("/get_tasks", h.GetTasks)       // #61
-		medical.GET("/get_queue", h.GetQueue)        // #62
-		medical.POST("/checkin_room", h.CheckinRoom) // #63
-		medical.POST("/sync_now", h.SyncNow)         // #67
-		medical.GET("/room_open", h.GetRoomOpen)     // #68
+		medical.GET("/get_tasks", h.GetTasks)             // #61
+		medical.GET("/get_queue", h.GetQueue)              // #62
+		medical.POST("/checkin_room", h.CheckinRoom)       // #63
+		medical.POST("/checkout_room", h.CheckoutRoom)     // #64
+		medical.GET("/result_status", h.GetResultStatus)   // #65
+		medical.GET("/get_prescription", h.GetPrescription) // #66
+		medical.POST("/sync_now", h.SyncNow)               // #67
+		medical.GET("/room_open", h.GetRoomOpen)           // #68
+		medical.POST("/cancel_task", h.CancelTask)         // #69
+		medical.GET("/get_history", h.GetHistory)          // #70
 	}
 }

@@ -113,3 +113,76 @@ func (h *MedicalHandler) GetRoomOpen(c *gin.Context) {
 
 	response.Success(c, hours)
 }
+
+// [64] POST /api/medical/checkout_room
+func (h *MedicalHandler) CheckoutRoom(c *gin.Context) {
+	var req checkinRequest // reuse: cùng cần treatment_id
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	err := h.svc.CheckoutRoom(c, req.TreatmentID)
+	if err != nil {
+		response.Error(c, response.CodeDBQueryFailed, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"checkout": true})
+}
+
+// [65] GET /api/medical/result_status?treatment_id=
+func (h *MedicalHandler) GetResultStatus(c *gin.Context) {
+	tid, _ := strconv.ParseUint(c.Query("treatment_id"), 10, 64)
+	if tid == 0 {
+		response.ErrMissingParam(c)
+		return
+	}
+
+	result, err := h.svc.GetResultStatus(c, tid)
+	if err != nil {
+		response.ErrNotFound(c)
+		return
+	}
+
+	response.Success(c, result)
+}
+
+// [66] GET /api/medical/get_prescription
+func (h *MedicalHandler) GetPrescription(c *gin.Context) {
+	prescriptions, err := h.svc.GetPrescriptions(c)
+	if err != nil {
+		response.Error(c, response.CodeDBQueryFailed, err.Error())
+		return
+	}
+
+	response.Success(c, prescriptions)
+}
+
+// [69] POST /api/medical/cancel_task
+func (h *MedicalHandler) CancelTask(c *gin.Context) {
+	var req checkinRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	err := h.svc.CancelTask(c, req.TreatmentID)
+	if err != nil {
+		response.Error(c, response.CodeDBQueryFailed, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"cancelled": true})
+}
+
+// [70] GET /api/medical/get_history
+func (h *MedicalHandler) GetHistory(c *gin.Context) {
+	treatments, err := h.svc.GetHistory(c)
+	if err != nil {
+		response.Error(c, response.CodeDBQueryFailed, err.Error())
+		return
+	}
+
+	response.Success(c, treatments)
+}

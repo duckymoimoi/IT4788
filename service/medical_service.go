@@ -15,6 +15,11 @@ type MedicalService interface {
 	GetMyTasks(c *gin.Context) ([]schema.Treatment, error)
 	GetQueueStatus(poiID uint32) (schema.Queue, error)
 	CheckinRoom(c *gin.Context, treatmentID uint64) error
+	CheckoutRoom(c *gin.Context, treatmentID uint64) error
+	GetResultStatus(c *gin.Context, treatmentID uint64) (gin.H, error)
+	GetPrescriptions(c *gin.Context) ([]schema.Prescription, error)
+	CancelTask(c *gin.Context, treatmentID uint64) error
+	GetHistory(c *gin.Context) ([]schema.Treatment, error)
 	SyncHIS(c *gin.Context) error
 	GetRoomOpeningHours(poiID uint32) (gin.H, error)
 }
@@ -106,3 +111,56 @@ func (s *medicalService) GetRoomOpeningHours(poiID uint32) (gin.H, error) {
 		"close":    "17:00",
 	}, nil
 }
+
+// #64: Checkout hoàn thành khám
+func (s *medicalService) CheckoutRoom(c *gin.Context, treatmentID uint64) error {
+	userID := middleware.GetUserID(c)
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 1. Cập nhật treatment -> completed
+		err := s.repo.UpdateTreatmentStatus(tx, treatmentID, userID, "completed")
+		if err != nil {
+			return err
+		}
+		// 2. Lấy POI ID và tăng current_number
+		var t schema.Treatment
+		tx.First(&t, treatmentID)
+		return tx.Model(&schema.Queue{}).
+			Where("poi_id = ?", t.PoiID).
+			UpdateColumn("current_number", gorm.Expr("current_number + 1")).Error
+	})
+}
+
+// #65: Xem trạng thái kết quả khám
+func (s *medicalService) GetResultStatus(c *gin.Context, treatmentID uint64) (gin.H, error) {
+	userID := middleware.GetUserID(c)
+	t, err := s.repo.GetTreatmentByID(treatmentID, userID)
+	if err != nil {
+		return nil, errors.New("treatment not found")
+	}
+	return gin.H{
+		"treatment_id": t.TreatmentID,
+		"task_name":    t.TaskName,
+		"status":       t.Status,
+		"has_result":   t.HasResult,
+	}, nil
+}
+
+// #66: Lấy đơn thuốc của bệnh nhân
+func (s *medicalService) GetPrescriptions(c *gin.Context) ([]schema.Prescription, error) {
+	userID := middleware.GetUserID(c)
+	return s.repo.GetPrescriptionsByUser(userID)
+}
+
+// #69: Hủy chỉ định khám
+func (s *medicalService) CancelTask(c *gin.Context, treatmentID uint64) error {
+	userID := middleware.GetUserID(c)
+	return s.db.Model(&schema.Treatment{}).
+		Where("treatment_id = ? AND user_id = ? AND status = ?", treatmentID, userID, "pending").
+		Update("status", "skipped").Error
+}
+
+// #70: Lịch sử khám đã hoàn thành
+func (s *medicalService) GetHistory(c *gin.Context) ([]schema.Treatment, error) {
+	userID := middleware.GetUserID(c)
+	return s.repo.GetCompletedTreatments(userID)
+}

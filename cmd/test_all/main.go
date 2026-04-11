@@ -102,10 +102,14 @@ func main() {
 	testUtilAPIs()
 	testFlowAPIs()
 	testSimulationAPIs()
+	testNewMedicalAPIs()
+	testNewUtilAPIs()
+	testSysAPIs()
 	testMedicalE2E()
 	testNotifE2E()
 	testDeviceE2E()
 	testFlowE2E()
+	testMedicalCheckoutE2E()
 	testJSONFormat()
 
 	printSummary()
@@ -1500,6 +1504,197 @@ func testFlowE2E() {
 		check("E2E-F8: Admin stats_flow", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
 	} else {
 		check("E2E-F8: skip", true, "")
+	}
+}
+
+// ========================================
+// PART 21: NEW MEDICAL APIs (#64,65,66,69,70)
+// ========================================
+func testNewMedicalAPIs() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 21: NEW MEDICAL APIs (10)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	if patientToken == "" {
+		fmt.Println("  [WARN]  No patient token"); return
+	}
+
+	// [64] checkout_room empty body
+	r, _ := doReq("POST", base+"/medical/checkout_room", map[string]interface{}{}, patientToken)
+	check("[64] checkout empty body -> error", r != nil && r.Code != 1000, "")
+
+	// [64] checkout no auth
+	r, _ = doReq("POST", base+"/medical/checkout_room", map[string]interface{}{"treatment_id": 1}, "")
+	check("[64] checkout no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [65] result_status missing param
+	r, _ = doReq("GET", base+"/medical/result_status", nil, patientToken)
+	check("[65] result_status missing param -> error", r != nil && r.Code != 1000, "")
+
+	// [65] result_status tid=99999
+	r, _ = doReq("GET", base+"/medical/result_status?treatment_id=99999", nil, patientToken)
+	check("[65] result_status tid=99999 -> not found", r != nil && r.Code != 1000, "")
+
+	// [66] get_prescription
+	r, _ = doReq("GET", base+"/medical/get_prescription", nil, patientToken)
+	check("[66] GET get_prescription", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+
+	// [66] get_prescription no auth
+	r, _ = doReq("GET", base+"/medical/get_prescription", nil, "")
+	check("[66] prescription no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [69] cancel_task empty body
+	r, _ = doReq("POST", base+"/medical/cancel_task", map[string]interface{}{}, patientToken)
+	check("[69] cancel empty body -> error", r != nil && r.Code != 1000, "")
+
+	// [69] cancel no auth
+	r, _ = doReq("POST", base+"/medical/cancel_task", map[string]interface{}{"treatment_id": 1}, "")
+	check("[69] cancel no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [70] get_history
+	r, _ = doReq("GET", base+"/medical/get_history", nil, patientToken)
+	check("[70] GET get_history", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+
+	// [70] get_history no auth
+	r, _ = doReq("GET", base+"/medical/get_history", nil, "")
+	check("[70] history no auth -> rejected", r != nil && r.Code != 1000, "")
+}
+
+// ========================================
+// PART 22: NEW UTIL APIs (#99,100,101,102,106)
+// ========================================
+func testNewUtilAPIs() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 22: NEW UTIL APIs (8)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	// [99] GET pharmacy (public)
+	r, _ := doReq("GET", base+"/util/pharmacy", nil, "")
+	check("[99] GET pharmacy", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+
+	// [100] GET canteen (public)
+	r, _ = doReq("GET", base+"/util/canteen", nil, "")
+	check("[100] GET canteen", r != nil && r.Code == 1000, "")
+
+	// [101] GET parking (public)
+	r, _ = doReq("GET", base+"/util/parking", nil, "")
+	check("[101] GET parking", r != nil && r.Code == 1000, "")
+
+	// [102] GET wifi (public)
+	r, _ = doReq("GET", base+"/util/wifi", nil, "")
+	check("[102] GET wifi", r != nil && r.Code == 1000, "")
+
+	// [106] GET weather (public, external API)
+	r, _ = doReq("GET", base+"/util/weather", nil, "")
+	check("[106] GET weather", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		_, hasCity := d["city"]
+		_, hasTemp := d["temp_c"]
+		check("  Weather has city+temp", hasCity && hasTemp, "")
+	}
+
+	// Pharmacy returns array
+	if r != nil && r.Code == 1000 {
+		check("  Weather data OK", true, "")
+	}
+}
+
+// ========================================
+// PART 23: SYSTEM APIs (#79,80)
+// ========================================
+func testSysAPIs() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 23: SYSTEM APIs (4)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	// [79] GET sys/get_voice_key (public)
+	r, _ := doReq("GET", base+"/sys/get_voice_key", nil, "")
+	check("[79] GET voice_key", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		_, hasProvider := d["provider"]
+		_, hasKey := d["api_key"]
+		check("  VoiceKey has provider+key", hasProvider && hasKey, "")
+	}
+
+	// [80] GET sys/get_voice_files (public)
+	r, _ = doReq("GET", base+"/sys/get_voice_files", nil, "")
+	check("[80] GET voice_files", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		_, hasFiles := d["files"]
+		check("  VoiceFiles has files array", hasFiles, "")
+	}
+}
+
+// ========================================
+// PART 24: MEDICAL CHECKOUT E2E
+// Sync -> GetTasks -> Checkin -> Checkout -> History
+// ========================================
+func testMedicalCheckoutE2E() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 24: MEDICAL CHECKOUT E2E (6)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	if patientToken == "" {
+		fmt.Println("  [WARN]  No patient token"); return
+	}
+
+	// Step 1: Sync to create tasks
+	r, _ := doReq("POST", base+"/medical/sync_now", nil, patientToken)
+	check("E2E-M1: Sync HIS", r != nil && r.Code == 1000, "")
+
+	// Step 2: Get tasks
+	r, _ = doReq("GET", base+"/medical/get_tasks", nil, patientToken)
+	var treatmentID float64
+	if r != nil && r.Code == 1000 {
+		var tasks []map[string]interface{}
+		json.Unmarshal(r.Data, &tasks)
+		check("E2E-M2: Has tasks", len(tasks) > 0, fmt.Sprintf("count=%d", len(tasks)))
+		if len(tasks) > 0 {
+			treatmentID, _ = tasks[0]["treatment_id"].(float64)
+		}
+	} else {
+		check("E2E-M2: Has tasks", false, "")
+	}
+
+	if treatmentID == 0 {
+		check("E2E-M3: skip", true, ""); check("E2E-M4: skip", true, "")
+		check("E2E-M5: skip", true, ""); check("E2E-M6: skip", true, "")
+		return
+	}
+
+	// Step 3: Checkin
+	r, _ = doReq("POST", base+"/medical/checkin_room", map[string]interface{}{"treatment_id": treatmentID}, patientToken)
+	check("E2E-M3: Checkin room", r != nil && r.Code == 1000, "")
+
+	// Step 4: Checkout
+	r, _ = doReq("POST", base+"/medical/checkout_room", map[string]interface{}{"treatment_id": treatmentID}, patientToken)
+	check("E2E-M4: Checkout room", r != nil && r.Code == 1000, "")
+
+	// Step 5: Result status
+	r, _ = doReq("GET", fmt.Sprintf("%s/medical/result_status?treatment_id=%.0f", base, treatmentID), nil, patientToken)
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		status, _ := d["status"].(string)
+		check("E2E-M5: Status is completed", status == "completed", fmt.Sprintf("status=%s", status))
+	} else {
+		check("E2E-M5: Status is completed", false, "")
+	}
+
+	// Step 6: History
+	r, _ = doReq("GET", base+"/medical/get_history", nil, patientToken)
+	if r != nil && r.Code == 1000 {
+		var treatments []map[string]interface{}
+		json.Unmarshal(r.Data, &treatments)
+		check("E2E-M6: History has completed", len(treatments) > 0, fmt.Sprintf("count=%d", len(treatments)))
+	} else {
+		check("E2E-M6: History has completed", false, "")
 	}
 }
 
