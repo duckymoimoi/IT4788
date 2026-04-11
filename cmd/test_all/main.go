@@ -100,9 +100,12 @@ func main() {
 	testNotifAPIs()
 	testDeviceAPIs()
 	testUtilAPIs()
+	testFlowAPIs()
+	testSimulationAPIs()
 	testMedicalE2E()
 	testNotifE2E()
 	testDeviceE2E()
+	testFlowE2E()
 	testJSONFormat()
 
 	printSummary()
@@ -1301,6 +1304,202 @@ func testDeviceE2E() {
 		}
 	} else {
 		check("E2E-D7: skip", true, ""); check("E2E-D8: skip", true, "")
+	}
+}
+
+// ========================================
+// PART 18: FLOW APIs
+// ========================================
+func testFlowAPIs() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 18: FLOW APIs (18)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	if patientToken == "" {
+		fmt.Println("  [WARN]  No patient token"); return
+	}
+
+	// [47] GET /flow/get_density (PUBLIC)
+	r, _ := doReq("GET", base+"/flow/get_density?grid_location=100", nil, "")
+	check("[47] GET density loc=100", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		_, hasCount := d["count"]
+		_, hasLoc := d["grid_location"]
+		check("  Density has count+location", hasCount && hasLoc, "")
+	}
+
+	// [47] density missing param
+	r, _ = doReq("GET", base+"/flow/get_density", nil, "")
+	check("[47] density missing param -> error", r != nil && r.Code != 1000, "")
+
+	// [48] GET /flow/get_heatmap (PUBLIC)
+	r, _ = doReq("GET", base+"/flow/get_heatmap", nil, "")
+	check("[48] GET heatmap", r != nil && r.Code == 1000, "")
+
+	// [49] GET /flow/get_bottlenecks (PUBLIC)
+	r, _ = doReq("GET", base+"/flow/get_bottlenecks?limit=5", nil, "")
+	check("[49] GET bottlenecks", r != nil && r.Code == 1000, "")
+
+	// [52] GET /flow/get_forecast (PUBLIC)
+	r, _ = doReq("GET", base+"/flow/get_forecast?hours=24", nil, "")
+	check("[52] GET forecast", r != nil && r.Code == 1000, "")
+
+	// [54] GET /flow/get_alerts (PUBLIC)
+	r, _ = doReq("GET", base+"/flow/get_alerts", nil, "")
+	check("[54] GET alerts", r != nil && r.Code == 1000, "")
+
+	// [55] GET /flow/edge_status (PUBLIC)
+	r, _ = doReq("GET", base+"/flow/edge_status?grid_location=100", nil, "")
+	check("[55] GET edge_status", r != nil && r.Code == 1000, "")
+
+	// [55] edge_status missing param
+	r, _ = doReq("GET", base+"/flow/edge_status", nil, "")
+	check("[55] edge_status missing -> error", r != nil && r.Code != 1000, "")
+
+	// [46] POST /flow/ping_location (AUTH)
+	r, _ = doReq("POST", base+"/flow/ping_location", map[string]interface{}{
+		"grid_location": 100, "grid_row": 2, "grid_col": 10,
+	}, patientToken)
+	check("[46] POST ping_location", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+
+	// [46] ping no auth
+	r, _ = doReq("POST", base+"/flow/ping_location", map[string]interface{}{
+		"grid_location": 100, "grid_row": 2, "grid_col": 10,
+	}, "")
+	check("[46] ping no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [46] ping empty body
+	r, _ = doReq("POST", base+"/flow/ping_location", map[string]interface{}{}, patientToken)
+	check("[46] ping empty body -> error", r != nil && r.Code != 1000, "")
+
+	// [50] POST /flow/report_obstacle (AUTH)
+	r, _ = doReq("POST", base+"/flow/report_obstacle", map[string]interface{}{
+		"grid_location": 500, "report_type": "wet_floor", "description": "Test",
+	}, patientToken)
+	check("[50] POST report_obstacle", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+
+	// [50] report no auth
+	r, _ = doReq("POST", base+"/flow/report_obstacle", map[string]interface{}{
+		"grid_location": 500, "report_type": "wet_floor",
+	}, "")
+	check("[50] report no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// GET /flow/get_obstacles (AUTH)
+	r, _ = doReq("GET", base+"/flow/get_obstacles?page=1&limit=10", nil, patientToken)
+	check("GET get_obstacles", r != nil && r.Code == 1000, "")
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		_, hasReports := d["reports"]
+		_, hasTotal := d["total"]
+		check("  Obstacles has reports+total", hasReports && hasTotal, "")
+	}
+}
+
+// ========================================
+// PART 19: SIMULATION APIs
+// ========================================
+func testSimulationAPIs() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 19: SIMULATION APIs (5)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	if adminToken == "" {
+		fmt.Println("  [WARN]  No admin token"); return
+	}
+
+	// [60] GET /simulate/status (admin only)
+	r, _ := doReq("GET", base+"/simulate/status", nil, adminToken)
+	check("[60] GET simulate/status", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		_, hasRunning := d["running"]
+		check("  Status has running field", hasRunning, "")
+	}
+
+	// [60] simulate/status no auth
+	r, _ = doReq("GET", base+"/simulate/status", nil, "")
+	check("[60] status no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// [60] simulate/status patient
+	r, _ = doReq("GET", base+"/simulate/status", nil, patientToken)
+	check("[60] status patient -> rejected", r != nil && r.Code != 1000, "")
+
+	// [59] POST simulate/stop (no sim running)
+	r, _ = doReq("POST", base+"/simulate/stop", nil, adminToken)
+	check("[59] stop no sim -> error", r != nil && r.Code != 1000, "")
+}
+
+// ========================================
+// PART 20: FLOW E2E
+// Ping -> Density -> Report -> Obstacles -> Priority -> Alerts
+// ========================================
+func testFlowE2E() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  PART 20: FLOW E2E (8)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	if patientToken == "" {
+		fmt.Println("  [WARN]  No patient token"); return
+	}
+
+	// Step 1: Ping a specific location
+	testLoc := 999
+	r, _ := doReq("POST", base+"/flow/ping_location", map[string]interface{}{
+		"grid_location": testLoc, "grid_row": 18, "grid_col": 24,
+	}, patientToken)
+	check("E2E-F1: Ping location", r != nil && r.Code == 1000, "")
+
+	// Step 2: Verify density increased
+	r, _ = doReq("GET", fmt.Sprintf("%s/flow/get_density?grid_location=%d", base, testLoc), nil, "")
+	check("E2E-F2: Density > 0 after ping", r != nil && r.Code == 1000, "")
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		count, _ := d["count"].(float64)
+		check("E2E-F3: Count >= 1", count >= 1, fmt.Sprintf("count=%.0f", count))
+	}
+
+	// Step 3: Report obstacle at that location
+	r, _ = doReq("POST", base+"/flow/report_obstacle", map[string]interface{}{
+		"grid_location": testLoc, "report_type": "equipment", "description": "E2E test obstacle",
+	}, patientToken)
+	check("E2E-F4: Report obstacle", r != nil && r.Code == 1000, "")
+
+	// Step 4: Verify obstacle in list
+	r, _ = doReq("GET", base+"/flow/get_obstacles?status=pending&page=1&limit=50", nil, patientToken)
+	if r != nil && r.Code == 1000 {
+		var d map[string]interface{}
+		json.Unmarshal(r.Data, &d)
+		totalVal, _ := d["total"].(float64)
+		check("E2E-F5: Obstacles count > 0", totalVal > 0, fmt.Sprintf("total=%.0f", totalVal))
+	} else {
+		check("E2E-F5: Obstacles count > 0", false, "")
+	}
+
+	// Step 5: Check heatmap has data
+	r, _ = doReq("GET", base+"/flow/get_heatmap", nil, "")
+	check("E2E-F6: Heatmap has entries", r != nil && r.Code == 1000, "")
+
+	// Step 6: Check alerts
+	r, _ = doReq("GET", base+"/flow/get_alerts", nil, "")
+	if r != nil && r.Code == 1000 {
+		var alerts []map[string]interface{}
+		json.Unmarshal(r.Data, &alerts)
+		check("E2E-F7: Alerts seeded > 0", len(alerts) > 0, fmt.Sprintf("got %d", len(alerts)))
+	} else {
+		check("E2E-F7: Alerts seeded > 0", false, "")
+	}
+
+	// Step 7: Admin stats_flow
+	if adminToken != "" {
+		r, _ = doReq("GET", base+"/admin/stats_flow?hours=24", nil, adminToken)
+		check("E2E-F8: Admin stats_flow", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	} else {
+		check("E2E-F8: skip", true, "")
 	}
 }
 

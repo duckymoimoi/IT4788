@@ -213,6 +213,9 @@ func Seed() error {
 	// --- BUOC 11: Seed du lieu tien ich (Slice 10) ---
 	SeedUtils(DB)
 
+	// --- BUOC 12: Seed du lieu flow (Slice 5) ---
+	SeedFlow(DB)
+
 	return nil
 }
 
