@@ -203,6 +203,8 @@ func Seed() error {
 	// --- BUOC 8: Seed travel_modes ---
 	SeedRoute(DB)
 
+	SeedFlow(DB)
+
 	return nil
 }
 
