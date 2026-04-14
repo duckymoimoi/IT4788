@@ -65,6 +65,8 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	// SYS  - Public
 	// =============================================
 	api.GET("/sys/check_version", sysH.CheckVersion)
+	api.GET("/sys/get_voice_key", sysH.GetVoiceKey)     // #79
+	api.GET("/sys/get_voice_files", sysH.GetVoiceFiles)  // #80
 
 	// =============================================
 	// MAP  - Public (API 16-22, 24)

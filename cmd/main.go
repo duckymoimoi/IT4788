@@ -14,6 +14,7 @@ import (
 
 	"hospital/database"
 	"hospital/handler"
+	"hospital/pkg/tts"
 )
 
 func main() {
@@ -49,6 +50,18 @@ func main() {
 		AllowCredentials: false,
 		MaxAge:           12 * time.Hour,
 	}))
+
+	// Tạo thư mục uploads nếu chưa có
+	os.MkdirAll("uploads", 0755)
+	router.Static("/uploads", "./uploads")
+
+	// Tạo voice files (TTS) và serve static
+	go func() {
+		if err := tts.GenerateAll("audio"); err != nil {
+			log.Println("[TTS] WARNING:", err)
+		}
+	}()
+	router.Static("/audio", "./audio")
 
 	handler.RegisterRoutes(router, database.DB)
 

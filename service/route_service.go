@@ -121,6 +121,7 @@ func (s *RouteService) OrderRoute(userID uint64, startLoc, destLoc int, modeID s
 			GridCol:      step.GridCol,
 			GridLocation: step.GridLocation,
 			Instruction:  generateInstruction(i, preview.Steps),
+			VoiceText:    getVoiceKey(i, preview.Steps),
 		}
 	}
 
@@ -245,6 +246,7 @@ func (s *RouteService) RecalculateRoute(routeID string, userID uint64, currentLo
 			GridCol:      step.GridCol,
 			GridLocation: step.GridLocation,
 			Instruction:  generateInstruction(i, preview.Steps),
+			VoiceText:    getVoiceKey(i, preview.Steps),
 		}
 	}
 
@@ -390,6 +392,16 @@ func generateInstruction(stepIdx int, steps []StepInfo) string {
 	dr := curr.GridRow - prev.GridRow
 	dc := curr.GridCol - prev.GridCol
 
+	// Kiểm tra xem hướng có thay đổi so với bước trước không
+	if stepIdx >= 2 {
+		prevPrev := steps[stepIdx-2]
+		prevDr := prev.GridRow - prevPrev.GridRow
+		prevDc := prev.GridCol - prevPrev.GridCol
+		if dr == prevDr && dc == prevDc {
+			return "Tiếp tục đi thẳng"
+		}
+	}
+
 	switch {
 	case dr == -1:
 		return "Đi lên (Bắc)"
@@ -401,6 +413,46 @@ func generateInstruction(stepIdx int, steps []StepInfo) string {
 		return "Rẽ trái (Tây)"
 	default:
 		return "Tiếp tục đi thẳng"
+	}
+}
+
+// getVoiceKey tra ve key cua file audio tuong ung voi buoc di.
+// Client dung key nay de map voi danh sach file tu API get_voice_files.
+func getVoiceKey(stepIdx int, steps []StepInfo) string {
+	if stepIdx == 0 {
+		return "go_straight"
+	}
+	if stepIdx == len(steps)-1 {
+		return "arrived"
+	}
+
+	prev := steps[stepIdx-1]
+	curr := steps[stepIdx]
+
+	dr := curr.GridRow - prev.GridRow
+	dc := curr.GridCol - prev.GridCol
+
+	// Nếu hướng không đổi → đi thẳng
+	if stepIdx >= 2 {
+		prevPrev := steps[stepIdx-2]
+		prevDr := prev.GridRow - prevPrev.GridRow
+		prevDc := prev.GridCol - prevPrev.GridCol
+		if dr == prevDr && dc == prevDc {
+			return "go_straight"
+		}
+	}
+
+	switch {
+	case dr == -1:
+		return "go_straight" // đi lên = tiến thẳng
+	case dr == 1:
+		return "go_straight" // đi xuống = tiến thẳng
+	case dc == 1:
+		return "turn_right"
+	case dc == -1:
+		return "turn_left"
+	default:
+		return "go_straight"
 	}
 }
 

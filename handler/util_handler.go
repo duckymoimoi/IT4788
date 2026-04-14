@@ -1,20 +1,28 @@
 package handler
 
 import (
+	"encoding/json"
+	"fmt"
 	"hospital/middleware"
+	"hospital/repository"
 	response "hospital/pkg"
+	"hospital/schema"
 	"hospital/service"
+	"io"
+	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 type UtilHandler struct {
-	svc *service.UtilService
+	svc    *service.UtilService
+	mapRepo *repository.MapRepo
 }
 
-func NewUtilHandler(svc *service.UtilService) *UtilHandler {
-	return &UtilHandler{svc: svc}
+func NewUtilHandler(svc *service.UtilService, mapRepo *repository.MapRepo) *UtilHandler {
+	return &UtilHandler{svc: svc, mapRepo: mapRepo}
 }
 
 // ========================================
@@ -106,4 +114,123 @@ func (h *UtilHandler) GetAbout(c *gin.Context) {
 // [79] GET /api/util/contact
 func (h *UtilHandler) GetContact(c *gin.Context) {
 	response.Success(c, h.svc.GetContactInfo())
+}
+
+// [99] GET /api/util/pharmacy
+func (h *UtilHandler) GetPharmacy(c *gin.Context) {
+	pois, err := h.mapRepo.FindPOIsByType(schema.POITypePharmacy, 0)
+	if err != nil {
+		response.ErrInternalError(c)
+		return
+	}
+	response.Success(c, pois)
+}
+
+// [100] GET /api/util/canteen
+func (h *UtilHandler) GetCanteen(c *gin.Context) {
+	pois, err := h.mapRepo.FindPOIsByType(schema.POITypeCanteen, 0)
+	if err != nil {
+		response.ErrInternalError(c)
+		return
+	}
+	response.Success(c, pois)
+}
+
+// [101] GET /api/util/parking
+func (h *UtilHandler) GetParking(c *gin.Context) {
+	pois, err := h.mapRepo.FindPOIsByType(schema.POITypeParking, 0)
+	if err != nil {
+		response.ErrInternalError(c)
+		return
+	}
+	response.Success(c, pois)
+}
+
+// [102] GET /api/util/wifi
+func (h *UtilHandler) GetWifi(c *gin.Context) {
+	pois, err := h.mapRepo.FindPOIsByType(schema.POITypeWifi, 0)
+	if err != nil {
+		response.ErrInternalError(c)
+		return
+	}
+	response.Success(c, pois)
+}
+
+// [106] GET /api/util/weather
+// Sử dụng wttr.in free API - không cần API key
+func (h *UtilHandler) GetWeather(c *gin.Context) {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get("https://wttr.in/Hanoi?format=j1")
+	if err != nil {
+		response.Error(c, 5000, "Khong ket noi duoc toi weather API")
+		return
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var weather map[string]interface{}
+	json.Unmarshal(body, &weather)
+
+	// Trích xuất thông tin chính
+	result := gin.H{"city": "Hanoi", "raw": weather}
+	if cc, ok := weather["current_condition"].([]interface{}); ok && len(cc) > 0 {
+		current := cc[0].(map[string]interface{})
+		result = gin.H{
+			"city":         "Hanoi",
+			"temp_c":       current["temp_C"],
+			"feels_like_c": current["FeelsLikeC"],
+			"humidity":     current["humidity"],
+			"description":  current["weatherDesc"],
+			"wind_speed":   current["windspeedKmph"],
+		}
+	}
+	response.Success(c, result)
+}
+
+// [103] POST /api/util/upload
+// Lưu file vào ./uploads/ và trả URL tĩnh để dùng trong các API khác.
+func (h *UtilHandler) Upload(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		response.Error(c, 4000, "Khong co file trong request")
+		return
+	}
+
+	// Giới hạn 10MB
+	if file.Size > 10*1024*1024 {
+		response.Error(c, 4000, "File qua lon (max 10MB)")
+		return
+	}
+
+	// Tạo tên file unique
+	ext := ""
+	if dotIdx := len(file.Filename) - 1; dotIdx > 0 {
+		for i := len(file.Filename) - 1; i >= 0; i-- {
+			if file.Filename[i] == '.' {
+				ext = file.Filename[i:]
+				break
+			}
+		}
+	}
+	filename := fmt.Sprintf("%d_%s%s", time.Now().UnixMilli(), file.Filename[:min(len(file.Filename)-len(ext), 20)], ext)
+
+	// Lưu vào ./uploads/
+	dst := "uploads/" + filename
+	if err := c.SaveUploadedFile(file, dst); err != nil {
+		response.Error(c, 5000, "Luu file that bai: "+err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"file_url":  "/uploads/" + filename,
+		"file_name": file.Filename,
+		"file_size": file.Size,
+	})
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

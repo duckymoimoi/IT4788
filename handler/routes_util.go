@@ -1,4 +1,4 @@
-﻿package handler
+package handler
 
 import (
 	"hospital/middleware"
@@ -10,12 +10,12 @@ import (
 )
 
 // RegisterUtilRoutes dang ky utility endpoints (Slice 10).
-// Nguoi D implement - thay the ham nay bang code that.
 func RegisterUtilRoutes(api *gin.RouterGroup, db *gorm.DB) {
-	// 1. Khởi tạo dây chuyền xử lý: Repo -> Service -> Handler
+	// 1. Khởi tạo dây chuyền xử lý
 	utilRepo := repository.NewUtilRepo(db)
+	mapRepo := repository.NewMapRepo(db)
 	utilService := service.NewUtilService(utilRepo)
-	utilHandler := NewUtilHandler(utilService)
+	utilHandler := NewUtilHandler(utilService, mapRepo)
 
 	// 2. Tạo nhóm route lớn /util
 	utilGroup := api.Group("/util")
@@ -29,16 +29,20 @@ func RegisterUtilRoutes(api *gin.RouterGroup, db *gorm.DB) {
 		utilGroup.GET("/languages", utilHandler.GetLanguages)
 		utilGroup.GET("/about", utilHandler.GetAbout)
 		utilGroup.GET("/contact", utilHandler.GetContact)
+		utilGroup.GET("/pharmacy", utilHandler.GetPharmacy)     // #99
+		utilGroup.GET("/canteen", utilHandler.GetCanteen)       // #100
+		utilGroup.GET("/parking", utilHandler.GetParking)       // #101
+		utilGroup.GET("/wifi", utilHandler.GetWifi)             // #102
+		utilGroup.GET("/weather", utilHandler.GetWeather)       // #106
 
 		// ========================================
 		// ZONE 2: API BẢO MẬT (Bắt buộc đăng nhập)
 		// ========================================
-		// Tạo một nhóm con ẩn danh để áp dụng middleware bảo vệ
 		authGroup := utilGroup.Group("")
-		authGroup.Use(middleware.Auth()) 
+		authGroup.Use(middleware.Auth())
 		{
-			// Chỉ có API SubmitFeedback là bị yêu cầu kiểm tra Token
 			authGroup.POST("/feedback", utilHandler.SubmitFeedback)
+			authGroup.POST("/upload", utilHandler.Upload)   // #103
 		}
 	}
 }
