@@ -86,7 +86,7 @@ func (r *FlowRepo) GetPingsByHour(hours int) ([]HourlyStats, error) {
 	since := time.Now().Add(-time.Duration(hours) * time.Hour)
 
 	err := r.db.Model(&schema.UserPing{}).
-		Select("strftime('%H', created_at) as hour, COUNT(*) as count").
+		Select("EXTRACT(HOUR FROM created_at)::int as hour, COUNT(*) as count").
 		Where("created_at > ?", since).
 		Group("hour").
 		Order("hour ASC").

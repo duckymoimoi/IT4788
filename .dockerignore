@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Database files (SQLite - old)
+*.db
+
+# Docker
+docker-compose.yml
+Dockerfile
+
+# MAPF build
+mapf/build/
+mapf/build_new/
+mapf/PlanViz/
+mapf/image/
+
+# Docs
+docs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads (build fresh)
+uploads/
+audio/
+
+# Benchmark/Test binaries
+benchmark.exe
+test_all.exe

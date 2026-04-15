@@ -18,9 +18,9 @@ import (
 )
 
 func main() {
-	dsn := os.Getenv("DB_PATH")
+	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
-		dsn = "hospital.db"
+		dsn = "host=localhost user=postgres password=postgres dbname=hospital port=5432 sslmode=disable"
 	}
 
 	if err := database.Connect(dsn); err != nil {

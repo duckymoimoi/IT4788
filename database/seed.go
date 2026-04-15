@@ -48,6 +48,7 @@ func Seed() error {
 	genderFemale := schema.GenderFemale
 
 	users := []schema.User{
+		// === 5 user goc (KHONG duoc thay doi - test phu thuoc) ===
 		{
 			PhoneNumber:  "0900000001",
 			PasswordHash: testPassword,
@@ -89,6 +90,23 @@ func Seed() error {
 			Gender:       &genderMale,
 			Status:       schema.UserStatusActive,
 		},
+		// === Them 10 benh nhan ===
+		{PhoneNumber: "0912000001", PasswordHash: testPassword, FullName: "Dao Minh Tuan", UserType: schema.UserTypePatient, DateOfBirth: dobPtr(1985, 3, 20), Gender: &genderMale, Status: schema.UserStatusActive},
+		{PhoneNumber: "0912000002", PasswordHash: testPassword, FullName: "Vu Thi Lan", UserType: schema.UserTypePatient, DateOfBirth: dobPtr(1978, 7, 10), Gender: &genderFemale, Status: schema.UserStatusActive},
+		{PhoneNumber: "0912000003", PasswordHash: testPassword, FullName: "Bui Duc Manh", UserType: schema.UserTypePatient, DateOfBirth: dobPtr(1960, 12, 5), Gender: &genderMale, Status: schema.UserStatusActive},
+		{PhoneNumber: "0912000004", PasswordHash: testPassword, FullName: "Nguyen Thi Hoa", UserType: schema.UserTypePatient, DateOfBirth: dobPtr(1995, 1, 15), Gender: &genderFemale, Status: schema.UserStatusActive},
+		{PhoneNumber: "0912000005", PasswordHash: testPassword, FullName: "Tran Quoc Viet", UserType: schema.UserTypePatient, DateOfBirth: dobPtr(1972, 8, 22), Gender: &genderMale, Status: schema.UserStatusActive},
+		{PhoneNumber: "0912000006", PasswordHash: testPassword, FullName: "Le Thi Mai", UserType: schema.UserTypePatient, DateOfBirth: dobPtr(1988, 4, 8), Gender: &genderFemale, Status: schema.UserStatusActive},
+		{PhoneNumber: "0912000007", PasswordHash: testPassword, FullName: "Phan Van Son", UserType: schema.UserTypePatient, DateOfBirth: dobPtr(1955, 11, 30), Gender: &genderMale, Status: schema.UserStatusActive},
+		{PhoneNumber: "0912000008", PasswordHash: testPassword, FullName: "Ngo Thanh Thuy", UserType: schema.UserTypePatient, DateOfBirth: dobPtr(2000, 6, 18), Gender: &genderFemale, Status: schema.UserStatusActive},
+		{PhoneNumber: "0912000009", PasswordHash: testPassword, FullName: "Vo Quang Hieu", UserType: schema.UserTypePatient, DateOfBirth: dobPtr(1968, 2, 25), Gender: &genderMale, Status: schema.UserStatusActive},
+		{PhoneNumber: "0912000010", PasswordHash: testPassword, FullName: "Dang Thi Ngoc", UserType: schema.UserTypePatient, DateOfBirth: dobPtr(1992, 9, 3), Gender: &genderFemale, Status: schema.UserStatusActive},
+		// === Them 5 nhan vien ===
+		{PhoneNumber: "0900000006", PasswordHash: testPassword, FullName: "Trinh Van Bac Si", UserType: schema.UserTypeStaff, Gender: &genderMale, Status: schema.UserStatusActive},
+		{PhoneNumber: "0900000007", PasswordHash: testPassword, FullName: "Luong Thi Y Ta", UserType: schema.UserTypeStaff, Gender: &genderFemale, Status: schema.UserStatusActive},
+		{PhoneNumber: "0900000008", PasswordHash: testPassword, FullName: "Mai Van Ky Thuat", UserType: schema.UserTypeStaff, Gender: &genderMale, Status: schema.UserStatusActive},
+		{PhoneNumber: "0900000009", PasswordHash: testPassword, FullName: "Ha Thi Le Tan", UserType: schema.UserTypeStaff, Gender: &genderFemale, Status: schema.UserStatusActive},
+		{PhoneNumber: "0900000010", PasswordHash: testPassword, FullName: "Do Van Bao Ve", UserType: schema.UserTypeStaff, Gender: &genderMale, Status: schema.UserStatusActive},
 	}
 
 	if err := DB.Create(&users).Error; err != nil {
@@ -227,5 +245,11 @@ func hashPassword(password string) string {
 		log.Fatal("Loi khi hash password trong seed:", err)
 	}
 	return string(hash)
+}
+
+// dobPtr tao pointer time.Time cho DateOfBirth, tien dung trong seed.
+func dobPtr(year, month, day int) *time.Time {
+	t := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+	return &t
 }
 
