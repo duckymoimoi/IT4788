@@ -1,11 +1,11 @@
-﻿package database
+package database
 
 import (
 	"fmt"
 	"log"
 	"os"
 
-	"github.com/glebarez/sqlite"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
@@ -16,15 +16,10 @@ import (
 // Duoc khoi tao 1 lan khi start server, dung chung cho toan bo ung dung.
 var DB *gorm.DB
 
-// Connect khoi tao ket noi den SQLite va chay auto-migrate.
-// dsn la duong dan file SQLite, vi du: "hospital.db"
+// Connect khoi tao ket noi den PostgreSQL va chay auto-migrate.
+// dsn co dang: "host=localhost user=postgres password=secret dbname=hospital port=5432 sslmode=disable"
 //
-// De chuyen sang PostgreSQL ve sau, chi can thay 2 dong:
-//
-//	import "gorm.io/driver/postgres"
-//	gorm.Open(postgres.Open(dsn), &gorm.Config{})
-//
-// Toan bo code query, schema, handler khong can thay doi gi.
+// Environment variable: DB_DSN hoac truyen truc tiep.
 func Connect(dsn string) error {
 	// Cau hinh logger: hien thi SQL query ra console khi dev,
 	// tat di khi production de tranh lo du lieu nhay cam.
@@ -43,8 +38,11 @@ func Connect(dsn string) error {
 	)
 
 	var err error
-	DB, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{
+	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: gormLogger,
+		// Tat FK constraint khi AutoMigrate de tranh loi circular dependency
+		// (users -> routes -> users). FK van duoc enforce luc runtime.
+		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
 		return fmt.Errorf("ket noi database that bai: %w", err)
@@ -56,21 +54,12 @@ func Connect(dsn string) error {
 		return fmt.Errorf("lay sql.DB that bai: %w", err)
 	}
 
-	// KHONG bat PRAGMA foreign_keys = ON.
-	// Ly do: GORM auto-migrate tao FK constraint cho circular dependency
-	// staffs.ward_id -> wards va wards.head_staff_id -> staffs.
-	// Khi FK = ON, SQLite block INSERT vao bat ky bang nao lien quan.
-	// FK integrity duoc quan ly o tang application (GORM relations,
-	// thu tu insert trong seed.go) thay vi o tang database.
-	// Khi chuyen sang PostgreSQL (ho tro deferred FK), co the bat lai.
+	// PostgreSQL ho tro concurrent connections tot,
+	// dat connection pool phu hop voi production.
+	sqlDB.SetMaxOpenConns(50)
+	sqlDB.SetMaxIdleConns(10)
 
-	// Gioi han connection pool cho SQLite.
-	// SQLite khong ho tro concurrent write nen dat MaxOpenConns = 1
-	// de tranh loi "database is locked".
-	sqlDB.SetMaxOpenConns(1)
-	sqlDB.SetMaxIdleConns(1)
-
-	log.Println("Ket noi database thanh cong:", dsn)
+	log.Println("Ket noi PostgreSQL thanh cong")
 	return nil
 }
 
@@ -82,20 +71,10 @@ func Connect(dsn string) error {
 //  4. otp_codes
 //  5. user_settings (FK -> users)
 //  6. fcm_tokens    (FK -> users)
-//
-// Luu y voi circular dependency giua staffs va wards:
-// GORM se tao column head_staff_id trong wards nhung khong tao FK constraint
-// tu dong vi de tranh loi. FK nay duoc quan ly o tang application.
 func Migrate() error {
-	// Tam tat foreign key khi migrate de tranh loi circular dependency
-	// giua staffs va wards.
-	if err := DB.Exec("PRAGMA foreign_keys = OFF").Error; err != nil {
-		return fmt.Errorf("tat foreign key truoc migrate that bai: %w", err)
-	}
-
 	// Chay auto-migrate theo thu tu phu thuoc
 	err := DB.AutoMigrate(
-		// --- Core (đã có) ---
+		// --- Core ---
 		&schema.Ward{},
 		&schema.User{},
 		&schema.Staff{},
@@ -104,11 +83,11 @@ func Migrate() error {
 		&schema.FCMToken{},
 		&schema.AppVersion{},
 
-		// --- Map module (Slice 0 PASS) ---
+		// --- Map module ---
 		&schema.GridMap{},
 		&schema.GridPOI{},
 
-		// --- Route module (Slice 2-4) ---
+		// --- Route module ---
 		&schema.TravelMode{},
 		&schema.Route{},
 		&schema.RoutePath{},
@@ -116,43 +95,40 @@ func Migrate() error {
 		&schema.RouteShare{},
 		&schema.RouteFeedback{},
 
-		// --- Flow module (Slice 5) ---
+		// --- Flow module ---
 		&schema.UserPing{},
 		&schema.ObstacleReport{},
 		&schema.HeatmapSnapshot{},
 		&schema.PriorityRoute{},
 
-		// --- Simulation (Slice 5) ---
+		// --- Simulation ---
 		&schema.SimulationRun{},
 		&schema.PatientAgent{},
 
-		// --- Medical (Slice 6) ---
+		// --- Medical ---
 		&schema.Treatment{},
 		&schema.Prescription{},
 		&schema.Queue{},
 
-		// --- Device (Slice 7) ---
+		// --- Device ---
 		&schema.DeviceStation{},
 		&schema.Device{},
 		&schema.DeviceBooking{},
 		&schema.DeviceBrokenReport{},
 
-		// --- Support (Slice 8-9) ---
+		// --- Support ---
 		&schema.Notification{},
 		&schema.SOSRequest{},
 		&schema.Conversation{},
 		&schema.Message{},
 
-		// --- Util (Slice 10) ---
+		// --- Util ---
 		&schema.Feedback{},
 		&schema.FAQ{},
 	)
 	if err != nil {
 		return fmt.Errorf("auto-migrate that bai: %w", err)
 	}
-
-	// Giu foreign_keys = OFF do circular dependency staffs <-> wards.
-	// FK integrity duoc dam bao o tang application.
 
 	log.Println("Auto-migrate hoan thanh")
 	return nil

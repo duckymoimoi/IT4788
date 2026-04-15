@@ -1,0 +1,54 @@
+# ==============================================================
+# HOSPITAL NAVIGATION SYSTEM - Docker Compose
+# 2 containers: Go API + PostgreSQL
+# ==============================================================
+# Chay:  docker compose up --build
+# Dung:  docker compose down
+# Reset: docker compose down -v  (xoa data PostgreSQL)
+# ==============================================================
+
+services:
+  # ---- PostgreSQL Database ----
+  db:
+    image: postgres:17-alpine
+    container_name: hospital-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hospital
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"                # Port 5433 de tranh conflict voi PostgreSQL local
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hospital"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---- Go API Server ----
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hospital-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      APP_ENV: production
+      PORT: "8080"
+      DB_DSN: "host=db user=postgres password=postgres dbname=hospital port=5432 sslmode=disable"
+      JWT_SECRET: "hospital-prod-secret-change-me-2026"
+    volumes:
+      - uploads:/app/uploads       # Giu file uploads giua cac lan restart
+      - audio:/app/audio           # Cache TTS audio files
+
+volumes:
+  pgdata:                          # PostgreSQL data persist
+  uploads:                         # User uploaded files
+  audio:                           # TTS voice files cache

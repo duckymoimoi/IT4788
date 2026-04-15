@@ -33,3 +33,7 @@ mapf/image/
 mapf/plot.ipynb
 mapf/printer.txt
 mapf/example_problems/
+
+# Uploads & Audio (generated at runtime)
+uploads/
+audio/

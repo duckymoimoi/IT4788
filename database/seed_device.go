@@ -18,29 +18,49 @@ func SeedDevices(db *gorm.DB) {
 
 	log.Println("Seeding Device Stations and Devices...")
 
-	// 1. Tao cac Tram thiet bi (Gia su POI ID 1 va 2 da duoc tao boi Person A)
+	// 4 Tram thiet bi
 	stations := []schema.DeviceStation{
-		{PoiID: 1, StationName: "Tram Sanh Chinh - Tang 1", Capacity: 10, IsActive: true},
-		{PoiID: 2, StationName: "Tram Cap Cuu - TNGT", Capacity: 5, IsActive: true},
+		{PoiID: 1, StationName: "Trạm Sảnh Chính - Tầng 1", Capacity: 15, IsActive: true},
+		{PoiID: 2, StationName: "Trạm Cấp Cứu - TNGT", Capacity: 8, IsActive: true},
+		{PoiID: 3, StationName: "Trạm Khoa Nội - Tầng 2", Capacity: 10, IsActive: true},
+		{PoiID: 4, StationName: "Trạm Khoa Ngoại - Tầng 3", Capacity: 6, IsActive: true},
 	}
 	if err := db.Create(&stations).Error; err != nil {
 		log.Printf("Error seeding stations: %v\n", err)
 		return
 	}
 
-	// 2. Tao Thiet bi (3 Xe lan, 2 Cang)
-	battery100 := 100
+	// 15 Thiet bi (10 xe lan, 5 cang)
+	bat100 := 100
+	bat85 := 85
+	bat60 := 60
+	bat40 := 40
 	devices := []schema.Device{
-		{DeviceCode: "WL-001", DeviceType: schema.DeviceTypeWheelchair, StationID: &stations[0].StationID, Status: schema.DeviceStatusAvailable, BatteryLevel: &battery100},
-		{DeviceCode: "WL-002", DeviceType: schema.DeviceTypeWheelchair, StationID: &stations[0].StationID, Status: schema.DeviceStatusAvailable, BatteryLevel: &battery100},
-		{DeviceCode: "WL-003", DeviceType: schema.DeviceTypeWheelchair, StationID: &stations[1].StationID, Status: schema.DeviceStatusAvailable, BatteryLevel: &battery100},
-		{DeviceCode: "ST-001", DeviceType: schema.DeviceTypeStretcher, StationID: &stations[1].StationID, Status: schema.DeviceStatusAvailable},
+		// Xe lan - Tram 1 (Sanh chinh)
+		{DeviceCode: "WL-001", DeviceType: schema.DeviceTypeWheelchair, StationID: &stations[0].StationID, Status: schema.DeviceStatusAvailable, BatteryLevel: &bat100},
+		{DeviceCode: "WL-002", DeviceType: schema.DeviceTypeWheelchair, StationID: &stations[0].StationID, Status: schema.DeviceStatusAvailable, BatteryLevel: &bat100},
+		{DeviceCode: "WL-003", DeviceType: schema.DeviceTypeWheelchair, StationID: &stations[0].StationID, Status: schema.DeviceStatusAvailable, BatteryLevel: &bat85},
+		{DeviceCode: "WL-004", DeviceType: schema.DeviceTypeWheelchair, StationID: &stations[0].StationID, Status: schema.DeviceStatusAvailable, BatteryLevel: &bat60},
+		// Xe lan - Tram 2 (Cap cuu)
+		{DeviceCode: "WL-005", DeviceType: schema.DeviceTypeWheelchair, StationID: &stations[1].StationID, Status: schema.DeviceStatusAvailable, BatteryLevel: &bat100},
+		{DeviceCode: "WL-006", DeviceType: schema.DeviceTypeWheelchair, StationID: &stations[1].StationID, Status: schema.DeviceStatusAvailable, BatteryLevel: &bat85},
+		// Xe lan - Tram 3 (Khoa Noi)
+		{DeviceCode: "WL-007", DeviceType: schema.DeviceTypeWheelchair, StationID: &stations[2].StationID, Status: schema.DeviceStatusAvailable, BatteryLevel: &bat100},
+		{DeviceCode: "WL-008", DeviceType: schema.DeviceTypeWheelchair, StationID: &stations[2].StationID, Status: schema.DeviceStatusAvailable, BatteryLevel: &bat40},
+		// Xe lan - Tram 4 (Khoa Ngoai)
+		{DeviceCode: "WL-009", DeviceType: schema.DeviceTypeWheelchair, StationID: &stations[3].StationID, Status: schema.DeviceStatusAvailable, BatteryLevel: &bat100},
+		{DeviceCode: "WL-010", DeviceType: schema.DeviceTypeWheelchair, StationID: &stations[3].StationID, Status: schema.DeviceStatusAvailable, BatteryLevel: &bat85},
+		// Cang - phan bo deu
+		{DeviceCode: "ST-001", DeviceType: schema.DeviceTypeStretcher, StationID: &stations[0].StationID, Status: schema.DeviceStatusAvailable},
 		{DeviceCode: "ST-002", DeviceType: schema.DeviceTypeStretcher, StationID: &stations[1].StationID, Status: schema.DeviceStatusAvailable},
+		{DeviceCode: "ST-003", DeviceType: schema.DeviceTypeStretcher, StationID: &stations[1].StationID, Status: schema.DeviceStatusAvailable},
+		{DeviceCode: "ST-004", DeviceType: schema.DeviceTypeStretcher, StationID: &stations[2].StationID, Status: schema.DeviceStatusAvailable},
+		{DeviceCode: "ST-005", DeviceType: schema.DeviceTypeStretcher, StationID: &stations[3].StationID, Status: schema.DeviceStatusAvailable},
 	}
 
 	if err := db.Create(&devices).Error; err != nil {
 		log.Printf("Error seeding devices: %v\n", err)
 	} else {
-		log.Println("Seed Devices completed!")
+		log.Printf("Da tao %d tram, %d thiet bi", len(stations), len(devices))
 	}
 }
