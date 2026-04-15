@@ -1436,9 +1436,19 @@ func testSimulationAPIs() {
 	r, _ = doReq("GET", base+"/simulate/status", nil, patientToken)
 	check("[60] status patient -> rejected", r != nil && r.Code != 1000, "")
 
-	// [59] POST simulate/stop (no sim running)
+	// [59] POST simulate/stop
+	// Stop sim hien tai (auto-start hoac chua), start moi, roi stop
+	doReq("POST", base+"/simulate/stop", nil, adminToken) // ignore result
+	doReq("POST", base+"/simulate/start", map[string]interface{}{
+		"map_id": 1, "output_file": "data/output.json", "tick_rate_ms": 2000,
+	}, adminToken)
 	r, _ = doReq("POST", base+"/simulate/stop", nil, adminToken)
-	check("[59] stop no sim -> error", r != nil && r.Code != 1000, "")
+	check("[59] stop running sim -> OK", r != nil && r.Code == 1000, "")
+
+	// Restart sim cho cac test khac
+	doReq("POST", base+"/simulate/start", map[string]interface{}{
+		"map_id": 1, "output_file": "data/output.json", "tick_rate_ms": 2000,
+	}, adminToken)
 }
 
 // ========================================

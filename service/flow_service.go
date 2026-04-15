@@ -22,6 +22,18 @@ func NewFlowService(repo *repository.FlowRepo) *FlowService {
 	}
 }
 
+// AutoStartSimulation tu dong bat dau mo phong khi server khoi dong.
+// Chay loop vo han (reset ve timestep 0 khi het makespan).
+// Goi tu RegisterFlowRoutes trong goroutine rieng.
+func (s *FlowService) AutoStartSimulation(outputFile string, tickRateMs int) error {
+	if err := s.manager.Start(outputFile, tickRateMs); err != nil {
+		return fmt.Errorf("auto-start simulation failed: %w", err)
+	}
+	teamSize, makespan, _, _, _ := s.manager.GetInfo()
+	fmt.Printf("[SIM] Auto-started: %d agents, makespan=%d, tick=%dms (loop forever)\n", teamSize, makespan, tickRateMs)
+	return nil
+}
+
 // ========================================
 // FLOW APIs (12 methods)
 // ========================================
