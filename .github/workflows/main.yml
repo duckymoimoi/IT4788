@@ -54,6 +54,6 @@ jobs:
         script: |
           cd /home/deploy/group3
           docker compose pull
-          docker compose up -f docker-compose.ci.yml -d
+          docker compose -f docker-compose.ci.yml up -d
 
     
