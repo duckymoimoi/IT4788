@@ -66,7 +66,8 @@ func (m *AgentManager) Start(outputFile string, tickRateMs int) error {
 }
 
 // advanceLoop tu dong tang timestep theo ticker.
-// Dung khi het makespan hoac bi Stop().
+// Khi het makespan -> quay lai timestep 0 (loop vo han).
+// Chi dung khi bi Stop().
 func (m *AgentManager) advanceLoop() {
 	for {
 		select {
@@ -75,11 +76,8 @@ func (m *AgentManager) advanceLoop() {
 			if m.currentTS < m.result.Makespan {
 				m.currentTS++
 			} else {
-				// Mo phong hoan thanh
-				m.running = false
-				m.ticker.Stop()
-				m.mu.Unlock()
-				return
+				// Het makespan -> quay lai tu dau (loop vo han)
+				m.currentTS = 0
 			}
 			m.mu.Unlock()
 		case <-m.stopCh:

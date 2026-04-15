@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"log"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
@@ -15,6 +17,14 @@ func RegisterFlowRoutes(api *gin.RouterGroup, db *gorm.DB) {
 	repo := repository.NewFlowRepo(db)
 	svc := service.NewFlowService(repo)
 	h := NewFlowHandler(svc)
+
+	// Auto-start MAPF simulation (loop vo han, tick 2s)
+	go func() {
+		outputFile := "data/output.json"
+		if err := svc.AutoStartSimulation(outputFile, 2000); err != nil {
+			log.Println("[SIM]", err)
+		}
+	}()
 
 	// =============================================
 	// FLOW  - Public (khong can auth)
