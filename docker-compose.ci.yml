@@ -49,6 +49,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.group3-api.rule=Host(`group3.it4788.sukkaito.id.vn`)"
       - "traefik.http.routers.group3-api.entrypoints=web"
+      - "traefik.http.services.group3-api.loadbalancer.server.port=8080"
     networks:
       - proxy-net
 
