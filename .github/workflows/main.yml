@@ -53,8 +53,7 @@ jobs:
         key: ${{ secrets.ACTION_DEPLOY_SSH_KEY }}
         script: |
           cd /home/deploy/group3
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin || true
           docker compose -f docker-compose.ci.yml pull
-          docker compose -f docker-compose.ci.yml up -d --force-recreate
+          docker compose -f docker-compose.ci.yml up -d
 
     
