@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -17,23 +19,42 @@ import (
 	"hospital/pkg/tts"
 )
 
+var startTime = time.Now()
+
 func main() {
+	log.Println("[BOOT] ========== SERVER STARTING ==========")
+	log.Printf("[BOOT] Go version: %s, OS: %s, Arch: %s\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
+	log.Printf("[BOOT] NumCPU: %d, GOMAXPROCS: %d\n", runtime.NumCPU(), runtime.GOMAXPROCS(0))
+
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+	log.Printf("[BOOT] Memory: Alloc=%dMB, Sys=%dMB\n", memStats.Alloc/1024/1024, memStats.Sys/1024/1024)
+
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
 		dsn = "host=localhost user=postgres password=postgres dbname=hospital port=5432 sslmode=disable"
 	}
+	// Mask password for log
+	log.Printf("[BOOT] DB_DSN: %s...\n", dsn[:min(40, len(dsn))])
 
+	log.Println("[BOOT] Connecting to database...")
 	if err := database.Connect(dsn); err != nil {
-		log.Fatal("Khong the ket noi database:", err)
+		log.Fatal("[BOOT] FATAL - Khong the ket noi database:", err)
 	}
 	defer database.Close()
+	log.Println("[BOOT] Database connected OK")
 
+	log.Println("[BOOT] Running migrations...")
 	if err := database.Migrate(); err != nil {
-		log.Fatal("Migrate that bai:", err)
+		log.Fatal("[BOOT] FATAL - Migrate that bai:", err)
 	}
+	log.Println("[BOOT] Migrations OK")
 
+	log.Println("[BOOT] Seeding data...")
 	if err := database.Seed(); err != nil {
-		log.Println("Seed bi bo qua (du lieu da ton tai):", err)
+		log.Println("[BOOT] Seed bi bo qua (du lieu da ton tai):", err)
+	} else {
+		log.Println("[BOOT] Seed OK")
 	}
 
 	if os.Getenv("APP_ENV") == "production" {
@@ -63,7 +84,23 @@ func main() {
 	}()
 	router.Static("/audio", "./audio")
 
+	// Debug endpoint - khong can DB, khong can auth
+	router.GET("/debug/ping", func(c *gin.Context) {
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		c.JSON(200, gin.H{
+			"status":     "alive",
+			"go_version": runtime.Version(),
+			"goroutines": runtime.NumGoroutine(),
+			"mem_alloc_mb": fmt.Sprintf("%.1f", float64(m.Alloc)/1024/1024),
+			"mem_sys_mb":   fmt.Sprintf("%.1f", float64(m.Sys)/1024/1024),
+			"uptime":     time.Since(startTime).String(),
+		})
+	})
+
+	log.Println("[BOOT] Registering routes...")
 	handler.RegisterRoutes(router, database.DB)
+	log.Println("[BOOT] Routes registered OK")
 
 	port := os.Getenv("PORT")
 	if port == "" {
