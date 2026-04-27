@@ -56,4 +56,24 @@ jobs:
           docker compose -f docker-compose.ci.yml pull
           docker compose -f docker-compose.ci.yml up -d
 
+    - name: Check container health
+      uses: appleboy/ssh-action@v1.2.5
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.ACTION_DEPLOY_USERNAME }}
+        key: ${{ secrets.ACTION_DEPLOY_SSH_KEY }}
+        script: |
+          echo "=== Waiting 15s for containers to start ==="
+          sleep 15
+          echo "=== Docker PS ==="
+          docker ps -a --filter "name=hospital" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          echo "=== API Container Logs (last 50 lines) ==="
+          docker logs hospital-api --tail 50 2>&1 || echo "No API container found"
+          echo "=== DB Container Logs (last 10 lines) ==="
+          docker logs hospital-db --tail 10 2>&1 || echo "No DB container found"
+          echo "=== Network Check ==="
+          docker network ls | grep proxy
+          echo "=== Curl test from inside server ==="
+          curl -s -o /dev/null -w "HTTP %{http_code}" http://localhost:8080/debug/ping 2>&1 || echo "curl failed"
+
     
