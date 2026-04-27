@@ -2,7 +2,6 @@ package handler
 
 import (
 	"log"
-	"os"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -19,19 +18,15 @@ func RegisterFlowRoutes(api *gin.RouterGroup, db *gorm.DB) {
 	svc := service.NewFlowService(repo)
 	h := NewFlowHandler(svc)
 
-	// Auto-start MAPF simulation (chi khi ENABLE_SIM=true)
-	// Tren server gia re, loop vo han co the gay OOM
-	if os.Getenv("ENABLE_SIM") == "true" {
-		go func() {
-			outputFile := "data/output.json"
-			if err := svc.AutoStartSimulation(outputFile, 2000); err != nil {
-				log.Println("[SIM]", err)
-			}
-		}()
-		log.Println("[BOOT] Simulation auto-start ENABLED (tick 2s)")
-	} else {
-		log.Println("[BOOT] Simulation auto-start DISABLED (set ENABLE_SIM=true to enable)")
-	}
+	// Auto-start MAPF simulation (loop vo han, tick 2s)
+	go func() {
+		outputFile := "data/output.json"
+		if err := svc.AutoStartSimulation(outputFile, 2000); err != nil {
+			log.Println("[SIM]", err)
+		} else {
+			log.Println("[BOOT] Simulation auto-start OK")
+		}
+	}()
 
 	// =============================================
 	// FLOW  - Public (khong can auth)
