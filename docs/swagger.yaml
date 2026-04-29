@@ -612,29 +612,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Response" }
 
-  /api/admin/add_edge:
-    post:
-      tags: [Admin-Map]
-      summary: Thêm cạnh (not supported - auto-computed)
-      security: [{ BearerAuth: [] }]
-      responses:
-        "200":
-          description: Edges are auto-computed from grid
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Response" }
-
-  /api/admin/del_edge:
-    delete:
-      tags: [Admin-Map]
-      summary: Xóa cạnh (not supported - auto-computed)
-      security: [{ BearerAuth: [] }]
-      responses:
-        "200":
-          description: Edges are auto-computed from grid
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Response" }
+  # NOTE: add_edge / del_edge không có trong swagger
+  # Edges tự sinh từ grid adjacency — backend trả code 2003 "not supported"
 
   /api/admin/set_weight:
     patch:
