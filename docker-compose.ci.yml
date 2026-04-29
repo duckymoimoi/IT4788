@@ -15,14 +15,14 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: hospital
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5433:5432"                # Port 5433 de tranh conflict voi PostgreSQL local
+      POSTGRES_USER: admin_hospital
+      POSTGRES_PASSWORD: $2a$1
+    # ports:
+    #   - "5433:5432"  # REMOVED TO PREVENT BOTNET ATTACKS
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d hospital"]
+      test: ["CMD-SHELL", "pg_isready -U admin_hospital -d hospital"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -40,7 +40,7 @@ services:
     environment:
       APP_ENV: production
       PORT: "8080"
-      DB_DSN: "host=db user=postgres password=postgres dbname=hospital port=5432 sslmode=disable"
+      DB_DSN: "host=db user=admin_hospital password=$$2a$$12$$SecureRandomPassword2026! dbname=hospital port=5432 sslmode=disable"
       JWT_SECRET: "hospital-prod-secret-change-me-2026"
     volumes:
       - uploads:/app/uploads       # Giu file uploads giua cac lan restart
