@@ -540,41 +540,18 @@ paths:
   # ============================================================
   # ADMIN - Map Management (Admin only)
   # ============================================================
-  /api/admin/add_node:
-    post:
-      tags: [Admin-Map]
-      summary: Thêm POI
-      security: [{ BearerAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                map_id: { type: integer }
-                ward_id: { type: integer, nullable: true }
-                poi_code: { type: string }
-                poi_name: { type: string }
-                poi_type: { type: string }
-                grid_row: { type: integer }
-                grid_col: { type: integer }
-                is_landmark: { type: boolean }
-                wheelchair_accessible: { type: boolean }
-                capacity: { type: integer, nullable: true }
-                details: { type: string, nullable: true }
-                open_hours: { type: string, nullable: true }
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Response" }
+  # NOTE: add_node, del_node, set_weight đã bị loại bỏ.
+  # Map được load từ file JSON cố định, việc thêm/xóa/sửa weight
+  # sẽ phá vỡ topology grid và gây lỗi Dijkstra/MAPF simulation.
+  # Chỉ giữ edit_node (sửa metadata) và set_capacity.
 
   /api/admin/edit_node:
     post:
       tags: [Admin-Map]
-      summary: Sửa POI
+      summary: Sửa metadata POI (tên, mô tả, giờ mở cửa)
+      description: |
+        Chỉ cho phép sửa metadata của POI, KHÔNG sửa vị trí grid.
+        Các trường cho phép: poi_name, poi_type, is_landmark, wheelchair_accessible, capacity, open_hours, details.
       security: [{ BearerAuth: [] }]
       requestBody:
         required: true
@@ -585,55 +562,13 @@ paths:
               required: [poi_id]
               properties:
                 poi_id: { type: integer }
-                poi_code: { type: string }
                 poi_name: { type: string }
                 poi_type: { type: string }
                 is_landmark: { type: boolean }
                 wheelchair_accessible: { type: boolean }
                 capacity: { type: integer }
-                custom_weight: { type: number }
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Response" }
-
-  /api/admin/del_node:
-    delete:
-      tags: [Admin-Map]
-      summary: Xóa POI
-      security: [{ BearerAuth: [] }]
-      parameters:
-        - name: poi_id
-          in: query
-          required: true
-          schema: { type: integer }
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Response" }
-
-  # NOTE: add_edge / del_edge không có trong swagger
-  # Edges tự sinh từ grid adjacency — backend trả code 2003 "not supported"
-
-  /api/admin/set_weight:
-    patch:
-      tags: [Admin-Map]
-      summary: Đặt weight cho POI
-      security: [{ BearerAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [poi_id, weight]
-              properties:
-                poi_id: { type: integer }
-                weight: { type: number }
+                open_hours: { type: string }
+                details: { type: string }
       responses:
         "200":
           description: OK
@@ -2347,45 +2282,8 @@ paths:
               },
           },
       }
-  /api/engine/update_cost:
-    post:
-      {
-        tags: [Engine],
-        summary: Cập nhật POI cost,
-        security: [{ BearerAuth: [] }],
-        requestBody:
-          {
-            required: true,
-            content:
-              {
-                application/json:
-                  {
-                    schema:
-                      {
-                        type: object,
-                        required: [poi_id, weight],
-                        properties:
-                          {
-                            poi_id: { type: integer },
-                            weight: { type: number },
-                          },
-                      },
-                  },
-              },
-          },
-        responses:
-          {
-            "200":
-              {
-                description: OK,
-                content:
-                  {
-                    application/json:
-                      { schema: { $ref: "#/components/schemas/Response" } },
-                  },
-              },
-          },
-      }
+  # /api/engine/update_cost — ĐÃ LOẠI BỎ
+  # Weight được tính tự động từ flow density, manual override gây xung đột với simulation.
   /api/engine/convergence:
     get:
       {
