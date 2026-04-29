@@ -305,14 +305,115 @@ func testLogin() {
 // ========================================
 func testMapAPIs() {
 	fmt.Println("\n" + strings.Repeat("-", 50))
-	fmt.Println("  PART 5: MAP APIs (2)")
+	fmt.Println("  PART 5: MAP APIs (12)")
 	fmt.Println(strings.Repeat("-", 50))
 
+	// [16] get_floors
 	r, _ := doReq("GET", base+"/map/get_floors", nil, "")
 	check("[16] GET get_floors", r != nil && r.Code == 1000, "")
 
+	// Lấy map_id đầu tiên để test get_edges
+	var mapID float64
+	if r != nil && r.Code == 1000 {
+		var floors []map[string]interface{}
+		json.Unmarshal(r.Data, &floors)
+		if len(floors) > 0 {
+			if v, ok := floors[0]["map_id"]; ok {
+				mapID, _ = v.(float64)
+			}
+		}
+	}
+
+	// [17] get_nodes
 	r, _ = doReq("GET", base+"/map/get_nodes?map_id=0", nil, "")
 	check("[17] GET get_nodes", r != nil && r.Code == 1000, "")
+
+	// ----------------------------------------
+	// [18] get_edges — Test suite
+	// ----------------------------------------
+
+	// Test 1: Gọi với map_id hợp lệ
+	if mapID > 0 {
+		r, _ = doReq("GET", fmt.Sprintf("%s/map/get_edges?map_id=%.0f", base, mapID), nil, "")
+		check("[18] GET get_edges (valid map_id)", r != nil && r.Code == 1000,
+			fmt.Sprintf("code=%d", sc(r)))
+
+		// Test 2: Response có cấu trúc đúng (map_id, total, edges)
+		if r != nil && r.Code == 1000 {
+			var d map[string]interface{}
+			json.Unmarshal(r.Data, &d)
+
+			_, hasMapID := d["map_id"]
+			_, hasTotal := d["total"]
+			_, hasEdges := d["edges"]
+			check("  Response has map_id, total, edges",
+				hasMapID && hasTotal && hasEdges,
+				fmt.Sprintf("keys: %v", keysOf(d)))
+
+			// Test 3: total > 0 (grid phải có edges)
+			total, _ := d["total"].(float64)
+			check("  total > 0 (grid has edges)", total > 0,
+				fmt.Sprintf("total=%.0f", total))
+
+			// Test 4: edges array length == total
+			if edgesRaw, ok := d["edges"]; ok {
+				var edges []map[string]interface{}
+				b, _ := json.Marshal(edgesRaw)
+				json.Unmarshal(b, &edges)
+				check("  len(edges) == total",
+					len(edges) == int(total),
+					fmt.Sprintf("len=%d total=%.0f", len(edges), total))
+
+				// Test 5: Mỗi edge có đủ fields
+				if len(edges) > 0 {
+					e := edges[0]
+					_, hasFromRow := e["from_row"]
+					_, hasFromCol := e["from_col"]
+					_, hasFromLoc := e["from_location"]
+					_, hasToRow := e["to_row"]
+					_, hasToCol := e["to_col"]
+					_, hasToLoc := e["to_location"]
+					check("  Edge has all 6 fields",
+						hasFromRow && hasFromCol && hasFromLoc &&
+							hasToRow && hasToCol && hasToLoc,
+						fmt.Sprintf("keys: %v", keysOf(e)))
+
+					// Test 6: from_location < to_location (1 chiều)
+					fromLoc, _ := e["from_location"].(float64)
+					toLoc, _ := e["to_location"].(float64)
+					check("  from_location < to_location (unidirectional)",
+						fromLoc < toLoc,
+						fmt.Sprintf("from=%.0f to=%.0f", fromLoc, toLoc))
+
+					// Test 7: Edges liền kề (diff == 1 hoặc == cols)
+					fromRow, _ := e["from_row"].(float64)
+					fromCol, _ := e["from_col"].(float64)
+					toRow, _ := e["to_row"].(float64)
+					toCol, _ := e["to_col"].(float64)
+					rowDiff := toRow - fromRow
+					colDiff := toCol - fromCol
+					if rowDiff < 0 { rowDiff = -rowDiff }
+					if colDiff < 0 { colDiff = -colDiff }
+					isAdjacent := (rowDiff + colDiff) == 1
+					check("  Edge is 4-dir adjacent (diff=1)",
+						isAdjacent,
+						fmt.Sprintf("from(%v,%v) to(%v,%v)", fromRow, fromCol, toRow, toCol))
+				}
+			}
+		}
+	} else {
+		check("[18] GET get_edges (skip: no map_id)", false, "no floor found")
+	}
+
+	// Test 8: Thiếu map_id → error
+	r, _ = doReq("GET", base+"/map/get_edges", nil, "")
+	check("[18] get_edges missing map_id -> error", r != nil && r.Code != 1000,
+		fmt.Sprintf("code=%d", sc(r)))
+
+	// Test 9: map_id không tồn tại → error
+	r, _ = doReq("GET", base+"/map/get_edges?map_id=99999", nil, "")
+	check("[18] get_edges map_id=99999 -> not found", r != nil && r.Code != 1000,
+		fmt.Sprintf("code=%d", sc(r)))
 }
 
 // ========================================
