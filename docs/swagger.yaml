@@ -1,0 +1,2582 @@
+openapi: 3.0.3
+info:
+  title: Hospital Navigation API
+  description: Hệ thống điều hướng và quản lý bệnh viện thông minh
+  version: 1.0.0
+servers:
+  - url: http://group3.it4788.sukkaito.id.vn
+    description: Production
+  - url: http://localhost:8080
+    description: Local
+
+tags:
+  - name: Auth
+    description: Xác thực người dùng
+  - name: User
+    description: Quản lý hồ sơ & cài đặt
+  - name: System
+    description: Hệ thống (version, voice)
+  - name: Map
+    description: Bản đồ, POI, tầng
+  - name: Admin-Map
+    description: Quản trị bản đồ (Admin only)
+  - name: Route
+    description: Tìm đường & điều hướng
+  - name: Flow
+    description: Luồng người & mật độ
+  - name: Simulate
+    description: Mô phỏng MAPF
+  - name: Medical
+    description: Y tế / HIS
+  - name: Device
+    description: Thiết bị / Xe lăn
+  - name: Notification
+    description: Thông báo
+  - name: SOS
+    description: Khẩn cấp
+  - name: Chat
+    description: Chat hỗ trợ
+  - name: Util
+    description: Tiện ích (FAQ, feedback...)
+  - name: Engine
+    description: Engine tính toán (Admin only)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Response:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 1000
+        message:
+          type: string
+          example: OK
+        data:
+          type: object
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        data:
+          nullable: true
+          example: null
+
+paths:
+  # ============================================================
+  # AUTH - Public
+  # ============================================================
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Đăng nhập
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone_number, password]
+              properties:
+                phone_number: { type: string, example: "0900000001" }
+                password: { type: string, example: "password123" }
+                device_token: { type: string }
+                platform: { type: string, enum: [android, ios] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 1000 }
+                  message: { type: string, example: OK }
+                  data:
+                    type: object
+                    properties:
+                      user_id: { type: integer }
+                      full_name: { type: string }
+                      phone_number: { type: string }
+                      token: { type: string }
+                      role: { type: string }
+
+  /api/auth/signup:
+    post:
+      tags: [Auth]
+      summary: Đăng ký tài khoản
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone_number, password, full_name]
+              properties:
+                phone_number: { type: string }
+                password: { type: string, minLength: 6 }
+                full_name: { type: string }
+                dob: { type: string, example: "2000-01-01" }
+                gender: { type: integer, enum: [0, 1, 2] }
+      responses:
+        "200":
+          description: OK - trả OTP info
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/auth/verify_otp:
+    post:
+      tags: [Auth]
+      summary: Xác thực OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone_number, otp]
+              properties:
+                phone_number: { type: string }
+                otp: { type: string }
+                otp_type:
+                  {
+                    type: string,
+                    enum: [signup, reset_password],
+                    default: signup,
+                  }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/auth/forgot_password:
+    post:
+      tags: [Auth]
+      summary: Quên mật khẩu (gửi OTP)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone_number]
+              properties:
+                phone_number: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/auth/reset_password:
+    post:
+      tags: [Auth]
+      summary: Đặt lại mật khẩu
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone_number, otp, new_password]
+              properties:
+                phone_number: { type: string }
+                otp: { type: string }
+                new_password: { type: string, minLength: 6 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Đăng xuất
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fcm_token: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/auth/change_password:
+    post:
+      tags: [Auth]
+      summary: Đổi mật khẩu
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [old_password, new_password]
+              properties:
+                old_password: { type: string }
+                new_password: { type: string, minLength: 6 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  # ============================================================
+  # USER - Private
+  # ============================================================
+  /api/user/get_profile:
+    get:
+      tags: [User]
+      summary: Lấy hồ sơ
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/user/set_profile:
+    post:
+      tags: [User]
+      summary: Cập nhật hồ sơ
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                full_name: { type: string }
+                dob: { type: string }
+                gender: { type: integer }
+                avatar: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/user/set_devtoken:
+    post:
+      tags: [User]
+      summary: Đăng ký device token (FCM)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_token, platform]
+              properties:
+                device_token: { type: string }
+                platform: { type: string, enum: [android, ios] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/user/get_settings:
+    get:
+      tags: [User]
+      summary: Lấy cài đặt
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/user/set_settings:
+    post:
+      tags: [User]
+      summary: Cập nhật cài đặt
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                language: { type: string }
+                theme: { type: string }
+                notification: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/user/delete_account:
+    delete:
+      tags: [User]
+      summary: Xóa tài khoản
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  # ============================================================
+  # SYSTEM - Public
+  # ============================================================
+  /api/sys/check_version:
+    get:
+      tags: [System]
+      summary: Kiểm tra phiên bản app
+      parameters:
+        - name: platform
+          in: query
+          required: true
+          schema: { type: string, enum: [android, ios] }
+        - name: app_version
+          in: query
+          required: true
+          schema: { type: string, example: "1.0.0" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/sys/get_voice_key:
+    get:
+      tags: [System]
+      summary: Lấy voice API key
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/sys/get_voice_files:
+    get:
+      tags: [System]
+      summary: Danh sách file giọng nói dẫn đường
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  # ============================================================
+  # MAP - Public
+  # ============================================================
+  /api/map/get_floors:
+    get:
+      tags: [Map]
+      summary: Danh sách tầng
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/map/get_nodes:
+    get:
+      tags: [Map]
+      summary: Danh sách POI trên bản đồ
+      parameters:
+        - name: map_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/map/get_edges:
+    get:
+      tags: [Map]
+      summary: Danh sách cạnh (auto-computed)
+      parameters:
+        - name: map_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/map/get_meta:
+    get:
+      tags: [Map]
+      summary: Metadata bản đồ
+      parameters:
+        - name: map_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/map/get_depts:
+    get:
+      tags: [Map]
+      summary: Danh sách khoa/phòng
+      parameters:
+        - name: node_type
+          in: query
+          schema: { type: string }
+        - name: ward_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/map/search_location:
+    get:
+      tags: [Map]
+      summary: Tìm kiếm vị trí
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema: { type: string }
+        - name: map_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/map/get_landmarks:
+    get:
+      tags: [Map]
+      summary: Danh sách landmark
+      parameters:
+        - name: map_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/map/sync_full:
+    get:
+      tags: [Map]
+      summary: Đồng bộ toàn bộ bản đồ
+      parameters:
+        - name: map_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  # ============================================================
+  # ADMIN - Map Management (Admin only)
+  # ============================================================
+  /api/admin/add_node:
+    post:
+      tags: [Admin-Map]
+      summary: Thêm POI
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                map_id: { type: integer }
+                ward_id: { type: integer, nullable: true }
+                poi_code: { type: string }
+                poi_name: { type: string }
+                poi_type: { type: string }
+                grid_row: { type: integer }
+                grid_col: { type: integer }
+                is_landmark: { type: boolean }
+                wheelchair_accessible: { type: boolean }
+                capacity: { type: integer, nullable: true }
+                details: { type: string, nullable: true }
+                open_hours: { type: string, nullable: true }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/edit_node:
+    post:
+      tags: [Admin-Map]
+      summary: Sửa POI
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [poi_id]
+              properties:
+                poi_id: { type: integer }
+                poi_code: { type: string }
+                poi_name: { type: string }
+                poi_type: { type: string }
+                is_landmark: { type: boolean }
+                wheelchair_accessible: { type: boolean }
+                capacity: { type: integer }
+                custom_weight: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/del_node:
+    delete:
+      tags: [Admin-Map]
+      summary: Xóa POI
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: poi_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/add_edge:
+    post:
+      tags: [Admin-Map]
+      summary: Thêm cạnh (not supported - auto-computed)
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Edges are auto-computed from grid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/del_edge:
+    delete:
+      tags: [Admin-Map]
+      summary: Xóa cạnh (not supported - auto-computed)
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Edges are auto-computed from grid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/set_weight:
+    patch:
+      tags: [Admin-Map]
+      summary: Đặt weight cho POI
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [poi_id, weight]
+              properties:
+                poi_id: { type: integer }
+                weight: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  # ============================================================
+  # ROUTE
+  # ============================================================
+  /api/route/get_modes:
+    get:
+      tags: [Route]
+      summary: Danh sách chế độ di chuyển
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/preview:
+    post:
+      tags: [Route]
+      summary: Xem trước tuyến đường
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start_location, dest_location, mode_id]
+              properties:
+                start_location: { type: integer }
+                dest_location: { type: integer }
+                mode_id:
+                  {
+                    type: string,
+                    enum: [walking, wheelchair, stretcher, hospital_cart],
+                  }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/order:
+    post:
+      tags: [Route]
+      summary: Đặt tuyến đường
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start_location, dest_location, mode_id]
+              properties:
+                start_location: { type: integer }
+                dest_location: { type: integer }
+                mode_id: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/get_steps:
+    get:
+      tags: [Route]
+      summary: Lấy các bước đi
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: route_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/get_eta:
+    post:
+      tags: [Route]
+      summary: Ước tính thời gian
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [route_id]
+              properties:
+                route_id: { type: string }
+                current_step: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/get_active:
+    get:
+      tags: [Route]
+      summary: Lấy tuyến đường đang hoạt động
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/cancel:
+    post:
+      tags: [Route]
+      summary: Hủy tuyến đường
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [route_id]
+              properties:
+                route_id: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/recalculate:
+    post:
+      tags: [Route]
+      summary: Tính lại tuyến đường
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [route_id, current_location]
+              properties:
+                route_id: { type: string }
+                current_location: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/pass_node:
+    post:
+      tags: [Route]
+      summary: Ghi nhận đi qua node
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [route_id, grid_location]
+              properties:
+                route_id: { type: string }
+                grid_location: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/get_next:
+    get:
+      tags: [Route]
+      summary: Lấy bước tiếp theo
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: route_id
+          in: query
+          required: true
+          schema: { type: string }
+        - name: current_step
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 5 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/get_history:
+    get:
+      tags: [Route]
+      summary: Lịch sử tuyến đường
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/clear_history:
+    delete:
+      tags: [Route]
+      summary: Xóa lịch sử
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/share:
+    post:
+      tags: [Route]
+      summary: Chia sẻ tuyến đường
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [route_id]
+              properties:
+                route_id: { type: string }
+                receiver_phone: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/rate:
+    post:
+      tags: [Route]
+      summary: Đánh giá tuyến đường
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [route_id, rating]
+              properties:
+                route_id: { type: string }
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                comment: { type: string }
+                is_accurate: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  # ============================================================
+  # FLOW - Public
+  # ============================================================
+  /api/flow/get_density:
+    get:
+      tags: [Flow]
+      summary: Mật độ tại vị trí
+      description: |
+        Trả về mật độ tại 1 grid_location.
+        - Khi simulation đang chạy: trả frequency (số lần agent đi qua) trong window 5 phút, window_minutes > 0.
+        - Khi không có simulation: đếm user_pings trong 30 phút gần nhất.
+      parameters:
+        - name: grid_location
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK — `data.count` là số lượt, `data.window_minutes` là cửa sổ thời gian
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/flow/get_heatmap:
+    get:
+      tags: [Flow]
+      summary: Bản đồ nhiệt
+      description: |
+        Trả về heatmap toàn bệnh viện.
+        - Khi simulation đang chạy: dùng tần suất tích lũy (throughput) trong window 5 phút — ô nào agents đi qua nhiều sẽ có density cao.
+        - Khi không có simulation: query user_pings 30 phút gần nhất, GROUP BY grid_location.
+      responses:
+        "200":
+          description: OK — `data[]` là mảng `{grid_location, density}`
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/flow/get_bottlenecks:
+    get:
+      tags: [Flow]
+      summary: Điểm tắc nghẽn
+      description: |
+        Trả về top N điểm tắc nghẽn nhất.
+        - Khi simulation đang chạy: top N vị trí có tần suất agent đi qua cao nhất (window 5 phút).
+        - Khi không có simulation: top N từ user_pings 30 phút gần nhất.
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+      responses:
+        "200":
+          description: OK — `data[]` là mảng `{grid_location, count}` sắp xếp giảm dần
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/flow/get_forecast:
+    get:
+      tags: [Flow]
+      summary: Dự báo mật độ
+      parameters:
+        - name: hours
+          in: query
+          schema: { type: integer, default: 24 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/flow/get_alerts:
+    get:
+      tags: [Flow]
+      summary: Cảnh báo luồng
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/flow/edge_status:
+    get:
+      tags: [Flow]
+      summary: Trạng thái cạnh
+      parameters:
+        - name: grid_location
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/flow/ping_location:
+    post:
+      tags: [Flow]
+      summary: Ping vị trí hiện tại
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [grid_location, grid_row, grid_col]
+              properties:
+                grid_location: { type: integer }
+                grid_row: { type: integer }
+                grid_col: { type: integer }
+                route_id: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/flow/report_obstacle:
+    post:
+      tags: [Flow]
+      summary: Báo cáo chướng ngại vật
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [grid_location, report_type]
+              properties:
+                grid_location: { type: integer }
+                report_type: { type: string }
+                description: { type: string }
+                route_id: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/flow/get_obstacles:
+    get:
+      tags: [Flow]
+      summary: Danh sách báo cáo chướng ngại
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/flow/set_priority:
+    post:
+      tags: [Flow]
+      summary: Đặt ưu tiên đường
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from_location, to_location, reason]
+              properties:
+                from_location: { type: integer }
+                to_location: { type: integer }
+                reason: { type: string }
+                emergency_id: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/flow/expire_priority:
+    post:
+      tags: [Flow]
+      summary: Hết hạn ưu tiên
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [priority_id]
+              properties:
+                priority_id: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/flow/resolve_obstacle:
+    post:
+      tags: [Flow]
+      summary: Xử lý chướng ngại (Staff only)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [report_id]
+              properties:
+                report_id: { type: integer }
+                action:
+                  { type: string, enum: [resolve, reject], default: resolve }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  # ============================================================
+  # ADMIN - Flow (Admin only)
+  # ============================================================
+  /api/admin/set_capacity:
+    patch:
+      tags: [Flow]
+      summary: Đặt sức chứa POI (Admin)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [poi_id, capacity]
+              properties:
+                poi_id: { type: integer }
+                capacity: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/stats_flow:
+    get:
+      tags: [Flow]
+      summary: Thống kê luồng (Admin)
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: hours
+          in: query
+          schema: { type: integer, default: 24 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/reset_flow:
+    post:
+      tags: [Flow]
+      summary: Reset dữ liệu luồng (Admin)
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  # ============================================================
+  # SIMULATE (Admin only)
+  # ============================================================
+  /api/simulate/start:
+    post:
+      tags: [Simulate]
+      summary: Bắt đầu mô phỏng
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [map_id, output_file]
+              properties:
+                map_id: { type: integer }
+                output_file: { type: string }
+                tick_rate_ms: { type: integer, default: 1000 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/simulate/stop:
+    post:
+      tags: [Simulate]
+      summary: Dừng mô phỏng
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/simulate/status:
+    get:
+      tags: [Simulate]
+      summary: Trạng thái mô phỏng
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  # ============================================================
+  # MEDICAL (Auth required)
+  # ============================================================
+  /api/medical/get_tasks:
+    get:
+      {
+        tags: [Medical],
+        summary: Danh sách chỉ định,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/medical/get_queue:
+    get:
+      {
+        tags: [Medical],
+        summary: Hàng đợi phòng khám,
+        security: [{ BearerAuth: [] }],
+        parameters:
+          [
+            {
+              name: poi_id,
+              in: query,
+              required: true,
+              schema: { type: integer },
+            },
+          ],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/medical/checkin_room:
+    post:
+      {
+        tags: [Medical],
+        summary: Check-in phòng khám,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [treatment_id],
+                        properties: { treatment_id: { type: integer } },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/medical/checkout_room:
+    post:
+      {
+        tags: [Medical],
+        summary: Check-out phòng khám,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [treatment_id],
+                        properties: { treatment_id: { type: integer } },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/medical/result_status:
+    get:
+      {
+        tags: [Medical],
+        summary: Kết quả xét nghiệm,
+        security: [{ BearerAuth: [] }],
+        parameters:
+          [
+            {
+              name: treatment_id,
+              in: query,
+              required: true,
+              schema: { type: integer },
+            },
+          ],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/medical/get_prescription:
+    get:
+      {
+        tags: [Medical],
+        summary: Đơn thuốc,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/medical/sync_now:
+    post:
+      {
+        tags: [Medical],
+        summary: Đồng bộ HIS,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/medical/room_open:
+    get:
+      {
+        tags: [Medical],
+        summary: Giờ mở cửa phòng,
+        security: [{ BearerAuth: [] }],
+        parameters:
+          [
+            {
+              name: poi_id,
+              in: query,
+              required: true,
+              schema: { type: integer },
+            },
+          ],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/medical/cancel_task:
+    post:
+      {
+        tags: [Medical],
+        summary: Hủy chỉ định,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [treatment_id],
+                        properties: { treatment_id: { type: integer } },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/medical/get_history:
+    get:
+      {
+        tags: [Medical],
+        summary: Lịch sử khám bệnh,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+
+  # ============================================================
+  # DEVICE (Auth required)
+  # ============================================================
+  /api/device/stations:
+    get:
+      {
+        tags: [Device],
+        summary: Danh sách trạm thiết bị,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/device/wheelchairs:
+    get:
+      {
+        tags: [Device],
+        summary: Xe lăn còn trống,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  "/api/device/status/{id}":
+    get:
+      {
+        tags: [Device],
+        summary: Trạng thái thiết bị,
+        security: [{ BearerAuth: [] }],
+        parameters:
+          [{ name: id, in: path, required: true, schema: { type: integer } }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  "/api/device/track/{id}":
+    get:
+      {
+        tags: [Device],
+        summary: Vị trí thiết bị,
+        security: [{ BearerAuth: [] }],
+        parameters:
+          [{ name: id, in: path, required: true, schema: { type: integer } }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/device/book:
+    post:
+      {
+        tags: [Device],
+        summary: Mượn thiết bị,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [device_id],
+                        properties: { device_id: { type: integer } },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/device/release:
+    post:
+      {
+        tags: [Device],
+        summary: Trả thiết bị,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [return_station_id],
+                        properties: { return_station_id: { type: integer } },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/device/report_broken:
+    post:
+      {
+        tags: [Device],
+        summary: Báo hỏng thiết bị,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [device_id, description],
+                        properties:
+                          {
+                            device_id: { type: integer },
+                            description: { type: string },
+                            image_url: { type: string },
+                          },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/device/request_staff:
+    post:
+      {
+        tags: [Device],
+        summary: Yêu cầu nhân viên hỗ trợ,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [poi_id],
+                        properties:
+                          { poi_id: { type: integer }, note: { type: string } },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+
+  # ============================================================
+  # NOTIFICATION (Auth required)
+  # ============================================================
+  /api/notification/get_list:
+    get:
+      {
+        tags: [Notification],
+        summary: Danh sách thông báo,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/notification/set_read:
+    post:
+      {
+        tags: [Notification],
+        summary: Đánh dấu đã đọc,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/notification/delete:
+    delete:
+      {
+        tags: [Notification],
+        summary: Xóa thông báo,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+
+  # ============================================================
+  # SOS
+  # ============================================================
+  /api/sos/create:
+    post:
+      {
+        tags: [SOS],
+        summary: Tạo SOS,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/sos/get_detail:
+    get:
+      {
+        tags: [SOS],
+        summary: Chi tiết SOS,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/sos/get_list:
+    get:
+      {
+        tags: [SOS],
+        summary: Danh sách SOS (Staff),
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/sos/respond:
+    post:
+      {
+        tags: [SOS],
+        summary: Nhận SOS (Staff),
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/sos/resolve:
+    post:
+      {
+        tags: [SOS],
+        summary: Đóng SOS (Staff),
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+
+  # ============================================================
+  # CHAT
+  # ============================================================
+  /api/chat/create_room:
+    post:
+      {
+        tags: [Chat],
+        summary: Tạo phòng chat,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/chat/get_rooms:
+    get:
+      {
+        tags: [Chat],
+        summary: Danh sách phòng,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/chat/get_messages:
+    get:
+      {
+        tags: [Chat],
+        summary: Tin nhắn trong phòng,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/chat/send_message:
+    post:
+      {
+        tags: [Chat],
+        summary: Gửi tin nhắn,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/chat/get_unread_count:
+    get:
+      {
+        tags: [Chat],
+        summary: Số tin chưa đọc,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/chat/mark_read:
+    post:
+      {
+        tags: [Chat],
+        summary: Đánh dấu đã đọc,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/chat/close_room:
+    post:
+      {
+        tags: [Chat],
+        summary: Đóng phòng (Staff),
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/ws/chat:
+    get:
+      {
+        tags: [Chat],
+        summary: "WebSocket chat (token qua query: ?token=xxx)",
+        responses: { "101": { description: WebSocket upgrade } },
+      }
+
+  # ============================================================
+  # UTIL
+  # ============================================================
+  /api/util/faq:
+    get:
+      {
+        tags: [Util],
+        summary: Câu hỏi thường gặp,
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/util/about:
+    get:
+      {
+        tags: [Util],
+        summary: Thông tin bệnh viện,
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/util/contact:
+    get:
+      {
+        tags: [Util],
+        summary: Thông tin liên hệ,
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/util/feedback_summary:
+    get:
+      {
+        tags: [Util],
+        summary: Tổng hợp feedback,
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/util/languages:
+    get:
+      {
+        tags: [Util],
+        summary: Danh sách ngôn ngữ,
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/util/pharmacy:
+    get:
+      {
+        tags: [Util],
+        summary: Thông tin nhà thuốc,
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/util/canteen:
+    get:
+      {
+        tags: [Util],
+        summary: Thông tin căn tin,
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/util/parking:
+    get:
+      {
+        tags: [Util],
+        summary: Thông tin bãi đỗ xe,
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/util/wifi:
+    get:
+      {
+        tags: [Util],
+        summary: Thông tin WiFi,
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/util/weather:
+    get:
+      {
+        tags: [Util],
+        summary: Thời tiết,
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/util/check_version:
+    get:
+      {
+        tags: [Util],
+        summary: Kiểm tra phiên bản (duplicate of /api/sys),
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/util/feedback:
+    post:
+      {
+        tags: [Util],
+        summary: Gửi feedback,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/util/upload:
+    post:
+      {
+        tags: [Util],
+        summary: Upload file,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+
+  # ============================================================
+  # ENGINE (Admin only)
+  # ============================================================
+  /api/engine/solve:
+    post:
+      {
+        tags: [Engine],
+        summary: Chạy Dijkstra,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [start_location, dest_location, mode_id],
+                        properties:
+                          {
+                            start_location: { type: integer },
+                            dest_location: { type: integer },
+                            mode_id: { type: string },
+                          },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/engine/update_cost:
+    post:
+      {
+        tags: [Engine],
+        summary: Cập nhật POI cost,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [poi_id, weight],
+                        properties:
+                          {
+                            poi_id: { type: integer },
+                            weight: { type: number },
+                          },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/engine/convergence:
+    get:
+      {
+        tags: [Engine],
+        summary: Trạng thái hội tụ,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/engine/set_params:
+    post:
+      {
+        tags: [Engine],
+        summary: Thiết lập tham số,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        properties:
+                          {
+                            max_agents: { type: integer },
+                            time_step_ms: { type: integer },
+                            cost_multiplier: { type: number },
+                          },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/engine/health:
+    get:
+      {
+        tags: [Engine],
+        summary: Health check engine,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/engine/clear_cache:
+    post:
+      {
+        tags: [Engine],
+        summary: Xóa cache Dijkstra,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/engine/load_mapf:
+    post:
+      {
+        tags: [Engine],
+        summary: Load MAPF output,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [file_path],
+                        properties: { file_path: { type: string } },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/engine/mapf_positions:
+    get:
+      {
+        tags: [Engine],
+        summary: Vị trí agents tại timestep,
+        security: [{ BearerAuth: [] }],
+        parameters:
+          [
+            {
+              name: timestep,
+              in: query,
+              schema: { type: integer, default: 0 },
+            },
+          ],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/engine/mapf_info:
+    get:
+      {
+        tags: [Engine],
+        summary: MAPF metadata,
+        security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }

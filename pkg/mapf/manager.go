@@ -2,6 +2,7 @@ package mapf
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 )
@@ -23,6 +24,14 @@ type AgentManager struct {
 	ticker      *time.Ticker
 	stopCh      chan struct{}
 	outputFile  string
+
+	// Frequency tracking voi time window tu dong reset.
+	// freqMap dem so lan agent xuat hien tai moi grid_location.
+	// Tu dong reset sau moi windowDuration de tiet kiem RAM.
+	freqMap        map[int]int64
+	totalTicks     int64         // tong tick trong window hien tai
+	windowStart    time.Time     // thoi diem bat dau window hien tai
+	windowDuration time.Duration // do dai moi window (default 5 phut)
 }
 
 // NewAgentManager tao AgentManager moi (chua running).
@@ -57,6 +66,10 @@ func (m *AgentManager) Start(outputFile string, tickRateMs int) error {
 	m.tickRateMs = tickRateMs
 	m.running = true
 	m.stopCh = make(chan struct{})
+	m.freqMap = make(map[int]int64)
+	m.totalTicks = 0
+	m.windowStart = time.Now()
+	m.windowDuration = 5 * time.Minute // Reset moi 5 phut
 
 	// Auto-advance timestep trong goroutine rieng
 	m.ticker = time.NewTicker(time.Duration(tickRateMs) * time.Millisecond)
@@ -76,9 +89,23 @@ func (m *AgentManager) advanceLoop() {
 			if m.currentTS < m.result.Makespan {
 				m.currentTS++
 			} else {
-				// Het makespan -> quay lai tu dau (loop vo han)
 				m.currentTS = 0
 			}
+
+			// Auto-reset frequency khi het window de tiet kiem RAM
+			if time.Since(m.windowStart) >= m.windowDuration {
+				m.freqMap = make(map[int]int64)
+				m.totalTicks = 0
+				m.windowStart = time.Now()
+			}
+
+			// Ghi nhan tan suat trong window hien tai
+			positions := m.result.GetPositionsAtTimestep(m.currentTS)
+			for _, pos := range positions {
+				m.freqMap[pos.Location]++
+			}
+			m.totalTicks++
+
 			m.mu.Unlock()
 		case <-m.stopCh:
 			return
@@ -157,4 +184,79 @@ func (m *AgentManager) GetResult() *MAPFResult {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.result
+}
+
+// ========================================
+// FREQUENCY TRACKING - Do luong throughput
+// ========================================
+
+// FrequencyEntry 1 o tren ban do tan suat.
+type FrequencyEntry struct {
+	Location  int   `json:"grid_location"`
+	Frequency int64 `json:"frequency"`
+}
+
+// GetFrequencyMap tra ve ban do tan suat tich luy, sap xep giam dan.
+// Moi entry the hien so lan bat ky agent nao da xuat hien tai o do.
+func (m *AgentManager) GetFrequencyMap() []FrequencyEntry {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	entries := make([]FrequencyEntry, 0, len(m.freqMap))
+	for loc, freq := range m.freqMap {
+		entries = append(entries, FrequencyEntry{Location: loc, Frequency: freq})
+	}
+
+	// Sap xep giam dan theo tan suat
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Frequency > entries[j].Frequency
+	})
+
+	return entries
+}
+
+// GetLocationFrequency tra ve tan suat tai 1 vi tri cu the.
+func (m *AgentManager) GetLocationFrequency(gridLocation int) int64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.freqMap[gridLocation]
+}
+
+// GetTotalTicks tra ve tong so tick da chay.
+func (m *AgentManager) GetTotalTicks() int64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.totalTicks
+}
+
+// ResetFrequency xoa ban do tan suat (khong dung simulation).
+func (m *AgentManager) ResetFrequency() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.freqMap = make(map[int]int64)
+	m.totalTicks = 0
+}
+
+// GetWindowDuration tra ve do dai window hien tai.
+func (m *AgentManager) GetWindowDuration() time.Duration {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.windowDuration
+}
+
+// SetWindowDuration thay doi do dai window (ap dung tu window tiep theo).
+func (m *AgentManager) SetWindowDuration(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if d < 1*time.Minute {
+		d = 1 * time.Minute // toi thieu 1 phut
+	}
+	m.windowDuration = d
+}
+
+// GetWindowElapsed tra ve thoi gian da troi tu dau window hien tai.
+func (m *AgentManager) GetWindowElapsed() time.Duration {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return time.Since(m.windowStart)
 }

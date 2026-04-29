@@ -58,9 +58,23 @@ type DensityInfo struct {
 	Minutes      int   `json:"window_minutes"`
 }
 
-// GetDensity lay mat do tai 1 diem trong 30 phut gan nhat.
+// GetDensity lay mat do tai 1 diem.
+// Neu simulation dang chay, tra ve tan suat agent di qua (throughput).
+// Neu khong, dem user pings trong 30 phut gan nhat.
 // API #47 GET get_density
 func (s *FlowService) GetDensity(gridLocation int) (*DensityInfo, error) {
+	// Uu tien du lieu tu simulation (neu dang chay)
+	if s.manager.IsRunning() {
+		freq := s.manager.GetLocationFrequency(gridLocation)
+		windowMin := int(s.manager.GetWindowDuration().Minutes())
+		return &DensityInfo{
+			GridLocation: gridLocation,
+			Count:        freq,
+			Minutes:      windowMin, // window hien tai cua simulation
+		}, nil
+	}
+
+	// Fallback: dem pings thuc te
 	minutes := 30
 	count, err := s.repo.GetDensityByLocation(gridLocation, minutes)
 	if err != nil {
@@ -80,19 +94,20 @@ type HeatmapEntry struct {
 	Density      int64 `json:"density"`
 }
 
-// GetHeatmap lay heatmap density tu pings gan day.
+// GetHeatmap lay heatmap density.
+// Neu simulation dang chay: dung tan suat tich luy (throughput) thay vi snapshot.
+// Neu khong: query user_pings 30 phut gan nhat.
 // API #48 GET get_heatmap
 func (s *FlowService) GetHeatmap() ([]HeatmapEntry, error) {
-	// Neu simulation dang chay, lay tu AgentManager
+	// Neu simulation dang chay, lay tu ban do tan suat (throughput)
 	if s.manager.IsRunning() {
-		positions := s.manager.GetAllPositions()
-		densityMap := make(map[int]int64)
-		for _, pos := range positions {
-			densityMap[pos.Location]++
-		}
-		entries := make([]HeatmapEntry, 0, len(densityMap))
-		for loc, count := range densityMap {
-			entries = append(entries, HeatmapEntry{GridLocation: loc, Density: count})
+		freqEntries := s.manager.GetFrequencyMap()
+		entries := make([]HeatmapEntry, len(freqEntries))
+		for i, fe := range freqEntries {
+			entries[i] = HeatmapEntry{
+				GridLocation: fe.Location,
+				Density:      fe.Frequency,
+			}
 		}
 		return entries, nil
 	}
@@ -114,11 +129,30 @@ func (s *FlowService) GetHeatmap() ([]HeatmapEntry, error) {
 }
 
 // GetBottlenecks lay top N diem un tac.
+// Neu simulation dang chay: top N vi tri co tan suat cao nhat.
+// Neu khong: top N tu user_pings.
 // API #49 GET get_bottlenecks
 func (s *FlowService) GetBottlenecks(limit int) ([]repository.DensityResult, error) {
 	if limit <= 0 {
 		limit = 10
 	}
+
+	// Neu simulation dang chay, lay tu frequency map
+	if s.manager.IsRunning() {
+		freqEntries := s.manager.GetFrequencyMap()
+		results := make([]repository.DensityResult, 0, limit)
+		for i, fe := range freqEntries {
+			if i >= limit {
+				break
+			}
+			results = append(results, repository.DensityResult{
+				GridLocation: fe.Location,
+				Count:        fe.Frequency,
+			})
+		}
+		return results, nil
+	}
+
 	return s.repo.GetBottlenecks(30, limit)
 }
 
