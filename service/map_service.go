@@ -1,6 +1,7 @@
-﻿package service
+package service
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -181,12 +182,78 @@ func (s *MapService) GetNodes(mapID uint32) ([]POIItem, error) {
 	return poisToItems(pois), nil
 }
 
-// [18] GetEdges - grid-based: edges tính tự động từ adjacency.
-// Trả về code 2003 "edges auto-computed from grid".
-func (s *MapService) GetEdges(mapID uint32) (map[string]interface{}, error) {
+// EdgeItem 1 cạnh giữa 2 ô walkable liền kề.
+type EdgeItem struct {
+	FromRow      int `json:"from_row"`
+	FromCol      int `json:"from_col"`
+	FromLocation int `json:"from_location"`
+	ToRow        int `json:"to_row"`
+	ToCol        int `json:"to_col"`
+	ToLocation   int `json:"to_location"`
+}
+
+// [18] GetEdges tính edges từ grid adjacency (4 hướng: N, S, E, W).
+// Trả về danh sách cạnh giữa các ô walkable liền kề.
+func (s *MapService) GetEdges(mapID uint32) (interface{}, error) {
+	if mapID == 0 {
+		return nil, ErrMissingField
+	}
+
+	m, err := s.repo.FindMapByID(mapID)
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return nil, ErrMapNotFound
+	}
+
+	// Parse grid_data JSON: [[0,1,0],[1,0,0],...]
+	var grid [][]int
+	if err := json.Unmarshal([]byte(m.GridData), &grid); err != nil {
+		return nil, errors.New("invalid grid_data format")
+	}
+
+	rows := len(grid)
+	if rows == 0 {
+		return []EdgeItem{}, nil
+	}
+	cols := len(grid[0])
+
+	// 4-direction: N, S, E, W
+	dirs := [4][2]int{{-1, 0}, {1, 0}, {0, 1}, {0, -1}}
+
+	edges := make([]EdgeItem, 0, rows*cols) // ước lượng
+
+	for r := 0; r < rows; r++ {
+		for c := 0; c < cols; c++ {
+			if grid[r][c] != 0 {
+				continue // obstacle
+			}
+			for _, d := range dirs {
+				nr, nc := r+d[0], c+d[1]
+				if nr < 0 || nr >= rows || nc < 0 || nc >= cols {
+					continue
+				}
+				if grid[nr][nc] != 0 {
+					continue
+				}
+				// Chỉ lưu 1 chiều (from < to) để tránh trùng
+				fromLoc := r*cols + c
+				toLoc := nr*cols + nc
+				if fromLoc < toLoc {
+					edges = append(edges, EdgeItem{
+						FromRow: r, FromCol: c, FromLocation: fromLoc,
+						ToRow: nr, ToCol: nc, ToLocation: toLoc,
+					})
+				}
+			}
+		}
+	}
+
 	return map[string]interface{}{
-		"message": "edges are auto-computed from grid adjacency",
-		"map_id":  mapID,
+		"map_id":     mapID,
+		"total":      len(edges),
+		"edges":      edges,
 	}, nil
 }
 

@@ -1,4 +1,4 @@
-﻿package handler
+package handler
 
 import (
 	"errors"
@@ -84,8 +84,12 @@ func (h *MapHandler) GetNodes(c *gin.Context) {
 // [18] GET /api/map/get_edges?map_id=
 func (h *MapHandler) GetEdges(c *gin.Context) {
 	mapID := parseUint32(c.Query("map_id"))
-	result, _ := h.svc.GetEdges(mapID)
-	response.SuccessWithCode(c, 2003, result)
+	result, err := h.svc.GetEdges(mapID)
+	if err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+	response.Success(c, result)
 }
 
 // [19] GET /api/map/get_meta?map_id=

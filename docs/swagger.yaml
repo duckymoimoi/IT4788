@@ -438,14 +438,18 @@ paths:
   /api/map/get_edges:
     get:
       tags: [Map]
-      summary: Danh sách cạnh (auto-computed)
+      summary: Danh sách cạnh (adjacency)
+      description: |
+        Tính edges tự động từ grid_data (4 hướng N/S/E/W).
+        Trả về danh sách cạnh giữa các ô walkable liền kề, mỗi cạnh chỉ 1 chiều (from_location < to_location).
       parameters:
         - name: map_id
           in: query
+          required: true
           schema: { type: integer }
       responses:
         "200":
-          description: OK
+          description: OK — `data.edges[]` là mảng `{from_row, from_col, from_location, to_row, to_col, to_location}`, `data.total` là tổng số cạnh
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Response" }
