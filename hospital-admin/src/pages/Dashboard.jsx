@@ -190,11 +190,11 @@ function MiniHeatmap({ data }) {
 
   return (
     <Card title="🗺️ Mini Heatmap (Top 20 cells)" style={{ marginTop: 16 }}>
-      <ResponsiveContainer width="100%" height={200}>
-        <BarChart data={chartData} layout="vertical">
+      <ResponsiveContainer width="100%" height={chartData.length * 25 + 50}>
+        <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis type="number" />
-          <YAxis dataKey="location" type="category" width={80} tick={{ fontSize: 11 }} />
+          <YAxis dataKey="location" type="category" width={80} tick={{ fontSize: 11 }} interval={0} />
           <Tooltip />
           <Bar dataKey="density" radius={[0, 4, 4, 0]}>
             {chartData.map((entry, index) => (
