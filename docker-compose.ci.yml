@@ -43,6 +43,7 @@ services:
     volumes:
       - uploads:/app/uploads       # Giu file uploads giua cac lan restart
       - audio:/app/audio           # Cache TTS audio files
+      - mapdata:/app/data          # Luu tru file map va output.json
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.group3-api.rule=Host(`group3.it4788.sukkaito.id.vn`)"
@@ -70,6 +71,8 @@ volumes:
   pgdata:                          # PostgreSQL data persist
   uploads:                         # User uploaded files
   audio:                           # TTS voice files cache
+  mapdata:                         # Map and output files
 networks:
+
   proxy-net:
     external: true

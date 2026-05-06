@@ -1,4 +1,4 @@
-﻿package repository
+package repository
 
 import (
 	"hospital/schema"
@@ -40,14 +40,55 @@ func (r *MapRepo) FindMapByID(mapID uint32) (*schema.GridMap, error) {
 	return &m, err
 }
 
+// FindMapByIDAnyStatus trả về 1 bản đồ theo ID bất kể trạng thái active hay không.
+func (r *MapRepo) FindMapByIDAnyStatus(mapID uint32) (*schema.GridMap, error) {
+	var m schema.GridMap
+	err := r.db.First(&m, "map_id = ?", mapID).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	return &m, err
+}
+
 // CreateMap tạo bản đồ mới.
 func (r *MapRepo) CreateMap(m *schema.GridMap) error {
 	return r.db.Omit(clause.Associations).Create(m).Error
 }
 
+// GetAllMaps trả về tất cả bản đồ (cả active và inactive).
+func (r *MapRepo) GetAllMaps() ([]schema.GridMap, error) {
+	var maps []schema.GridMap
+	err := r.db.Order("map_id ASC").Find(&maps).Error
+	return maps, err
+}
+
+// SetActiveMap set is_active = true cho map truyền vào, false cho các map khác.
+func (r *MapRepo) SetActiveMap(mapID uint32) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// Set tất cả về false
+		if err := tx.Model(&schema.GridMap{}).Where("1 = 1").Update("is_active", false).Error; err != nil {
+			return err
+		}
+		// Set map mong muốn thành true
+		if err := tx.Model(&schema.GridMap{}).Where("map_id = ?", mapID).Update("is_active", true).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
 // ========================================
 // GRID POIS  - CRUD
 // ========================================
+
+// IsSimulationRunning kiem tra xem co simulation nao dang chay tren ban do nay khong.
+func (r *MapRepo) IsSimulationRunning(mapID uint32) bool {
+	var count int64
+	r.db.Model(&schema.SimulationRun{}).
+		Where("map_id = ? AND status = ?", mapID, schema.SimulationRunning).
+		Count(&count)
+	return count > 0
+}
 
 // FindAllPOIs trả về tất cả POI đang active của 1 map.
 func (r *MapRepo) FindAllPOIs(mapID uint32) ([]schema.GridPOI, error) {

@@ -47,6 +47,7 @@ services:
     volumes:
       - uploads:/app/uploads       # Giu file uploads giua cac lan restart
       - audio:/app/audio           # Cache TTS audio files
+      - mapdata:/app/data
 
   # ---- Admin Panel (React + Nginx) ----
   admin:

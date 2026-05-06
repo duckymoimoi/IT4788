@@ -92,6 +92,13 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	admin.POST("/add_edge", mapH.AddEdge)
 	admin.DELETE("/del_edge", mapH.DelEdge)
 	admin.PATCH("/set_weight", mapH.SetWeight)
+	
+	// Map File APIs
+	admin.POST("/upload_map", mapH.UploadMap)
+	admin.POST("/upload_output", mapH.UploadOutput)
+	admin.POST("/set_active_map", mapH.SetActiveMap)
+	admin.GET("/get_maps", mapH.GetMaps)
+	admin.GET("/export_map", mapH.ExportMap)
 
 	// =============================================
 	// ROUTE  - Public + Private (shared routeH)

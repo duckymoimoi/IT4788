@@ -95,8 +95,9 @@ type AddNodeInput struct {
 }
 
 type EditNodeInput struct {
-	POIID                uint32   `json:"poi_id"`
-	POICode              *string  `json:"poi_code"`
+	POICode              string   `json:"poi_code"` // Used as primary lookup
+	GridRow              *int     `json:"grid_row"`
+	GridCol              *int     `json:"grid_col"`
 	POIName              *string  `json:"poi_name"`
 	POIType              *string  `json:"poi_type"`
 	IsLandmark           *bool    `json:"is_landmark"`
@@ -350,6 +351,9 @@ func (s *MapService) AddNode(input AddNodeInput) (*POIItem, error) {
 	if m == nil {
 		return nil, ErrMapNotFound
 	}
+	if s.repo.IsSimulationRunning(input.MapID) {
+		return nil, errors.New("cannot add node: simulation is currently running on this map")
+	}
 
 	// Kiểm tra trùng code
 	existing, err := s.repo.FindPOIByCode(code)
@@ -391,11 +395,11 @@ func (s *MapService) AddNode(input AddNodeInput) (*POIItem, error) {
 
 // [26] EditNode cập nhật POI.
 func (s *MapService) EditNode(input EditNodeInput) (*POIItem, error) {
-	if input.POIID == 0 {
+	if input.POICode == "" {
 		return nil, ErrMissingField
 	}
 
-	poi, err := s.repo.FindPOIByID(input.POIID)
+	poi, err := s.repo.FindPOIByCode(input.POICode)
 	if err != nil {
 		return nil, err
 	}
@@ -403,26 +407,24 @@ func (s *MapService) EditNode(input EditNodeInput) (*POIItem, error) {
 		return nil, ErrNodeNotFound
 	}
 
+	if s.repo.IsSimulationRunning(poi.MapID) {
+		return nil, errors.New("cannot edit node: simulation is currently running on this map")
+	}
+
 	updates := map[string]interface{}{}
 
-	if input.POICode != nil {
-		c := strings.TrimSpace(*input.POICode)
-		if c != "" && c != poi.POICode {
-			existing, err := s.repo.FindPOIByCode(c)
-			if err != nil {
-				return nil, err
-			}
-			if existing != nil && existing.POIID != poi.POIID {
-				return nil, ErrNodeCodeExist
-			}
-			updates["poi_code"] = c
-		}
-	}
 	if input.POIName != nil {
 		updates["poi_name"] = strings.TrimSpace(*input.POIName)
 	}
 	if input.POIType != nil {
 		updates["poi_type"] = *input.POIType
+	}
+	if input.GridRow != nil {
+		updates["grid_row"] = *input.GridRow
+		// Note: Location depends on map cols; assume logic handles update in repository/storage layer.
+	}
+	if input.GridCol != nil {
+		updates["grid_col"] = *input.GridCol
 	}
 	if input.IsLandmark != nil {
 		updates["is_landmark"] = *input.IsLandmark
@@ -447,32 +449,36 @@ func (s *MapService) EditNode(input EditNodeInput) (*POIItem, error) {
 	}
 
 	if len(updates) > 0 {
-		if err := s.repo.UpdatePOI(input.POIID, updates); err != nil {
+		if err := s.repo.UpdatePOI(poi.POIID, updates); err != nil {
 			return nil, err
+		}
+		// Refresh
+		updatedPoi, _ := s.repo.FindPOIByID(poi.POIID)
+		if updatedPoi != nil {
+			poi = updatedPoi
 		}
 	}
 
-	updated, err := s.repo.FindPOIByID(input.POIID)
-	if err != nil {
-		return nil, err
-	}
-	item := poiToItem(*updated)
+	item := poiToItem(*poi)
 	return &item, nil
 }
 
 // [27] DelNode xóa (soft delete) POI.
-func (s *MapService) DelNode(poiID uint32) error {
-	if poiID == 0 {
+func (s *MapService) DelNode(poiCode string) error {
+	if poiCode == "" {
 		return ErrMissingField
 	}
-	poi, err := s.repo.FindPOIByID(poiID)
+	poi, err := s.repo.FindPOIByCode(poiCode)
 	if err != nil {
 		return err
 	}
 	if poi == nil {
 		return ErrNodeNotFound
 	}
-	return s.repo.DeactivatePOI(poiID)
+	if s.repo.IsSimulationRunning(poi.MapID) {
+		return errors.New("cannot delete node: simulation is currently running on this map")
+	}
+	return s.repo.DeactivatePOI(poi.POIID)
 }
 
 // [28] AddEdge - grid-based: không hỗ trợ thêm edge thủ công.
@@ -501,8 +507,56 @@ func (s *MapService) SetWeight(poiID uint32, weight float32) error {
 	if poi == nil {
 		return ErrNodeNotFound
 	}
+	if s.repo.IsSimulationRunning(poi.MapID) {
+		return errors.New("cannot set weight: simulation is currently running on this map")
+	}
 
 	return s.repo.UpdatePOI(poiID, map[string]interface{}{
 		"custom_weight": weight,
 	})
+}
+
+// ========================================
+// MAP FILE APIs
+// ========================================
+
+// UploadMap luu thong tin map moi vao DB
+func (s *MapService) UploadMap(mapName string, mapFilePath string, rows int, cols int, gridData string) (*schema.GridMap, error) {
+	if mapName == "" || mapFilePath == "" {
+		return nil, ErrMissingField
+	}
+	m := &schema.GridMap{
+		MapName:     mapName,
+		MapFilePath: mapFilePath,
+		Rows:        rows,
+		Cols:        cols,
+		GridData:    gridData,
+		IsActive:    false, // Mac dinh la false khi moi upload
+	}
+	if err := s.repo.CreateMap(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// GetMaps lay tat ca maps
+func (s *MapService) GetMaps() ([]schema.GridMap, error) {
+	return s.repo.GetAllMaps()
+}
+
+// SetActiveMap set map active va kiem tra simulation
+func (s *MapService) SetActiveMap(mapID uint32) error {
+	m, err := s.repo.FindMapByIDAnyStatus(mapID)
+	if err != nil {
+		return err
+	}
+	if m == nil {
+		return ErrMapNotFound
+	}
+	// Check if any simulation is currently running
+	// If simulation is running, we cannot change active map
+	if s.repo.IsSimulationRunning(m.MapID) {
+		return errors.New("cannot change active map: simulation is currently running. Please stop it first.")
+	}
+	return s.repo.SetActiveMap(mapID)
 }
