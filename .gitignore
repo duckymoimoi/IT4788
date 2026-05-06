@@ -37,3 +37,6 @@ mapf/example_problems/
 # Uploads & Audio (generated at runtime)
 uploads/
 audio/
+
+# External test suite (reference only)
+Hospital-Navigation-App/
