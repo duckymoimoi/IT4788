@@ -25,12 +25,12 @@ func NewFlowService(repo *repository.FlowRepo) *FlowService {
 // AutoStartSimulation tu dong bat dau mo phong khi server khoi dong.
 // Chay loop vo han (reset ve timestep 0 khi het makespan).
 // Goi tu RegisterFlowRoutes trong goroutine rieng.
-func (s *FlowService) AutoStartSimulation(outputFile string, tickRateMs int) error {
-	if err := s.manager.Start(outputFile, tickRateMs); err != nil {
+func (s *FlowService) AutoStartSimulation(outputFile string, tickRateMs int, mapCols int) error {
+	if err := s.manager.Start(outputFile, tickRateMs, mapCols); err != nil {
 		return fmt.Errorf("auto-start simulation failed: %w", err)
 	}
 	teamSize, makespan, _, _, _ := s.manager.GetInfo()
-	fmt.Printf("[SIM] Auto-started: %d agents, makespan=%d, tick=%dms (loop forever)\n", teamSize, makespan, tickRateMs)
+	fmt.Printf("[SIM] Auto-started: %d agents, makespan=%d, tick=%dms, cols=%d (loop forever)\n", teamSize, makespan, tickRateMs, mapCols)
 	return nil
 }
 
@@ -293,14 +293,14 @@ type SimulationInfo struct {
 
 // StartSimulation bat dau mo phong MAPF.
 // API #58 POST simulate/start
-func (s *FlowService) StartSimulation(mapID uint32, outputFile string, tickRateMs int) (*SimulationInfo, error) {
+func (s *FlowService) StartSimulation(mapID uint32, outputFile string, tickRateMs int, mapCols int) (*SimulationInfo, error) {
 	// Kiem tra da co phien dang chay chua
 	if s.manager.IsRunning() {
 		return nil, fmt.Errorf("a simulation is already running")
 	}
 
 	// Load va bat dau mo phong
-	if err := s.manager.Start(outputFile, tickRateMs); err != nil {
+	if err := s.manager.Start(outputFile, tickRateMs, mapCols); err != nil {
 		return nil, err
 	}
 

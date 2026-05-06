@@ -2,11 +2,13 @@ package handler
 
 import (
 	"log"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
 	"hospital/middleware"
+	"hospital/pkg/mapf"
 	"hospital/repository"
 	"hospital/service"
 )
@@ -21,7 +23,22 @@ func RegisterFlowRoutes(api *gin.RouterGroup, db *gorm.DB) {
 	// Auto-start MAPF simulation (loop vo han, tick 2s)
 	go func() {
 		outputFile := "data/output.json"
-		if err := svc.AutoStartSimulation(outputFile, 2000); err != nil {
+		mapPath := os.Getenv("MAP_FILE")
+		if mapPath == "" {
+			mapPath = "data/warehouse_small.map"
+		}
+
+		// Load map de lay so cot (cols) cho tinh Location
+		mapCols := 57 // default warehouse_small
+		grid, err := mapf.LoadGridMap(mapPath)
+		if err == nil {
+			mapCols = grid.Cols
+			log.Printf("[BOOT] Loaded map %s: %dx%d\n", mapPath, grid.Rows, grid.Cols)
+		} else {
+			log.Printf("[BOOT] Cannot load map %s, using default cols=%d: %v\n", mapPath, mapCols, err)
+		}
+
+		if err := svc.AutoStartSimulation(outputFile, 2000, mapCols); err != nil {
 			log.Println("[SIM]", err)
 		} else {
 			log.Println("[BOOT] Simulation auto-start OK")

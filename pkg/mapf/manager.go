@@ -41,8 +41,9 @@ func NewAgentManager() *AgentManager {
 
 // Start bat dau mo phong tu file output.json.
 // tickRateMs la thoi gian giua moi timestep (ms).
+// mapCols la so cot cua grid map (de tinh Location = Row*cols + Col).
 // Neu da running, tra loi loi.
-func (m *AgentManager) Start(outputFile string, tickRateMs int) error {
+func (m *AgentManager) Start(outputFile string, tickRateMs int, mapCols int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -54,6 +55,11 @@ func (m *AgentManager) Start(outputFile string, tickRateMs int) error {
 	result, err := ParseOutputJSON(outputFile)
 	if err != nil {
 		return fmt.Errorf("cannot parse output file: %w", err)
+	}
+
+	// Tinh Location = Row*cols + Col cho tat ca agents + tasks
+	if mapCols > 0 {
+		result.SetAllLocations(mapCols)
 	}
 
 	if tickRateMs <= 0 {

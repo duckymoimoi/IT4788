@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"os"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
 	"hospital/middleware"
 	response "hospital/pkg"
+	"hospital/pkg/mapf"
 	"hospital/service"
 )
 
@@ -349,7 +351,18 @@ func (h *FlowHandler) StartSimulation(c *gin.Context) {
 		req.TickRateMs = 1000
 	}
 
-	info, err := h.svc.StartSimulation(req.MapID, req.OutputFile, req.TickRateMs)
+	// Lay cols tu map file de tinh Location
+	mapPath := os.Getenv("MAP_FILE")
+	if mapPath == "" {
+		mapPath = "data/warehouse_small.map"
+	}
+	mapCols := 57
+	grid, err := mapf.LoadGridMap(mapPath)
+	if err == nil {
+		mapCols = grid.Cols
+	}
+
+	info, err := h.svc.StartSimulation(req.MapID, req.OutputFile, req.TickRateMs, mapCols)
 	if err != nil {
 		response.Error(c, response.CodeEngineUnavailable, err.Error())
 		return

@@ -90,18 +90,22 @@ Test cases tham chiếu: `tests/routing/route_planning.test.ts` — `route_order
 
 ---
 
-#### Phần 4: Admin — Map node/edge CRUD
+#### Phần 4: Admin — Map CRUD
 
-**Quyết định cuối cùng:**
+**Nguyên tắc:** Admin CÓ THỂ quản lý maps, nhưng **KHÔNG ĐƯỢC sửa map đang chạy simulation**.
 
 | API | Hành động |
 |-----|-----------|
-| `add_node` / `del_node` | ❌ **GIỮ BỎ** — phá vỡ grid topology |
-| `add_edge` / `del_edge` | ❌ **GIỮ BỎ** — edges auto-computed từ grid |
-| `set_weight` | ❌ **GIỮ BỎ** — edge weights = khoảng cách Euclidean trên grid |
-| `edit_node` (metadata only) | ✅ **GIỮ** — sửa tên, mô tả, giờ mở cửa, capacity |
+| `upload_map` | ✅ Upload file `.map` mới — lưu vào `data/`, không ảnh hưởng map đang active |
+| `upload_output` | ✅ Upload file `output.json` mới — MAPF paths cho map mới |
+| `set_active_map` | ✅ Chuyển sang map mới → **tự động dừng simulation** → reload grid → Dijkstra dùng map mới |
+| `get_maps` | ✅ Liệt kê tất cả map files |
+| `edit_node` (metadata) | ✅ Sửa tên, mô tả, giờ mở cửa, capacity — **KHÔNG sửa grid_row/grid_col** |
+| `add_node` / `del_node` | ❌ **BỎ** — phá vỡ grid topology, dùng upload_map thay thế |
+| `add_edge` / `del_edge` | ❌ **BỎ** — edges auto-computed từ grid adjacency |
+| `set_weight` | ❌ **BỎ** — weights = khoảng cách Euclidean trên grid |
 
-> ⚠️ Khi admin muốn thay đổi topology bản đồ → dùng `upload_map` để upload file `.map` mới hoàn toàn
+> ⚠️ **Quy tắc vàng:** Muốn thay đổi topology → upload file `.map` mới + `output.json` mới → set active → simulation tự restart
 
 **Effort Person A:** ~4-5 giờ
 
