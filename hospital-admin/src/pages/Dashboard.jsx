@@ -157,7 +157,7 @@ function AlertsPanel({ alerts, bottlenecks }) {
               dataSource={bottlenecks}
               columns={[
                 { title: 'Location', dataIndex: 'grid_location', key: 'loc' },
-                { title: 'Density', dataIndex: 'density', key: 'density' },
+                { title: 'Density', dataIndex: 'count', key: 'density' },
               ]}
               rowKey="grid_location"
               pagination={false}
