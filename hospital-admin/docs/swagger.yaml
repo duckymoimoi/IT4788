@@ -629,38 +629,6 @@ paths:
         "200":
           description: OK (Trả về file .map binary)
 
-  /api/admin/add_node:
-    post:
-      tags: [Admin-Map]
-      summary: Thêm Node mới
-      security: [{ BearerAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [id, map_id, name, type]
-              properties:
-                id: { type: string }
-                map_id: { type: integer }
-                name: { type: string }
-                type: { type: string }
-                x: { type: integer }
-                y: { type: integer }
-                ward_id: { type: integer }
-                is_landmark: { type: boolean }
-                wheelchair_accessible: { type: boolean }
-                capacity: { type: integer }
-                details: { type: string }
-                open_hours: { type: string }
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Response" }
-
   /api/admin/edit_node:
     post:
       tags: [Admin-Map]
@@ -686,94 +654,6 @@ paths:
                 details: { type: string }
                 open_hours: { type: string }
                 custom_weight: { type: number }
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Response" }
-
-  /api/admin/del_node:
-    delete:
-      tags: [Admin-Map]
-      summary: Xóa Node
-      security: [{ BearerAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [id]
-              properties:
-                id: { type: string }
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Response" }
-
-  /api/admin/add_edge:
-    post:
-      tags: [Admin-Map]
-      summary: Thêm Edge mới
-      security: [{ BearerAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [map_id, start_node, end_node, distance]
-              properties:
-                map_id: { type: integer }
-                start_node: { type: string }
-                end_node: { type: string }
-                distance: { type: number }
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Response" }
-
-  /api/admin/del_edge:
-    delete:
-      tags: [Admin-Map]
-      summary: Xóa Edge
-      security: [{ BearerAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [id]
-              properties:
-                id: { type: integer }
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Response" }
-
-  /api/admin/set_weight:
-    patch:
-      tags: [Admin-Map]
-      summary: Đặt trọng số Edge
-      security: [{ BearerAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [edge_id, weight]
-              properties:
-                edge_id: { type: integer }
-                weight: { type: number }
       responses:
         "200":
           description: OK
@@ -845,6 +725,56 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Response" }
 
+
+  /api/route/order_multi:
+    post:
+      tags: [Route]
+      summary: Đặt tuyến đường nhiều điểm
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start_location, target_locations, mode_id]
+              properties:
+                start_location: { type: integer }
+                target_locations: 
+                  type: array
+                  items: { type: integer }
+                mode_id: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/order_unordered:
+    post:
+      tags: [Route]
+      summary: Đặt tuyến đường nhiều điểm tối ưu TSP
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start_location, target_locations, mode_id]
+              properties:
+                start_location: { type: integer }
+                target_locations: 
+                  type: array
+                  items: { type: integer }
+                mode_id: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
   /api/route/get_steps:
     get:
       tags: [Route]

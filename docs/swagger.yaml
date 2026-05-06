@@ -540,18 +540,22 @@ paths:
   # ============================================================
   # ADMIN - Map Management (Admin only)
   # ============================================================
-  # NOTE: add_node, del_node, set_weight đã bị loại bỏ.
-  # Map được load từ file JSON cố định, việc thêm/xóa/sửa weight
-  # sẽ phá vỡ topology grid và gây lỗi Dijkstra/MAPF simulation.
-  # Chỉ giữ edit_node (sửa metadata) và set_capacity.
+  /api/admin/get_maps:
+    get:
+      tags: [Admin-Map]
+      summary: Lấy danh sách map
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
 
-  /api/admin/edit_node:
+  /api/admin/set_active_map:
     post:
       tags: [Admin-Map]
-      summary: Sửa metadata POI (tên, mô tả, giờ mở cửa)
-      description: |
-        Chỉ cho phép sửa metadata của POI, KHÔNG sửa vị trí grid.
-        Các trường cho phép: poi_name, poi_type, is_landmark, wheelchair_accessible, capacity, open_hours, details.
+      summary: Đổi Map Active
       security: [{ BearerAuth: [] }]
       requestBody:
         required: true
@@ -559,16 +563,97 @@ paths:
           application/json:
             schema:
               type: object
-              required: [poi_id]
+              required: [map_id]
               properties:
-                poi_id: { type: integer }
-                poi_name: { type: string }
-                poi_type: { type: string }
+                map_id: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/upload_map:
+    post:
+      tags: [Admin-Map]
+      summary: Tải lên file .map
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                map_name: { type: string }
+                rows: { type: string }
+                cols: { type: string }
+                file: { type: string, format: binary }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/upload_output:
+    post:
+      tags: [Admin-Map]
+      summary: Tải lên file output.json (MAPF)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                map_id: { type: integer }
+                file: { type: string, format: binary }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/export_map:
+    get:
+      tags: [Admin-Map]
+      summary: Xuất file .map
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: map_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK (Trả về file .map binary)
+
+  /api/admin/edit_node:
+    post:
+      tags: [Admin-Map]
+      summary: Sửa Node
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string }
+                x: { type: integer }
+                y: { type: integer }
+                name: { type: string }
+                type: { type: string }
                 is_landmark: { type: boolean }
                 wheelchair_accessible: { type: boolean }
+                is_accessible: { type: boolean }
                 capacity: { type: integer }
-                open_hours: { type: string }
                 details: { type: string }
+                open_hours: { type: string }
+                custom_weight: { type: number }
       responses:
         "200":
           description: OK
@@ -640,6 +725,56 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Response" }
 
+
+  /api/route/order_multi:
+    post:
+      tags: [Route]
+      summary: Đặt tuyến đường nhiều điểm
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start_location, target_locations, mode_id]
+              properties:
+                start_location: { type: integer }
+                target_locations: 
+                  type: array
+                  items: { type: integer }
+                mode_id: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/route/order_unordered:
+    post:
+      tags: [Route]
+      summary: Đặt tuyến đường nhiều điểm tối ưu TSP
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start_location, target_locations, mode_id]
+              properties:
+                start_location: { type: integer }
+                target_locations: 
+                  type: array
+                  items: { type: integer }
+                mode_id: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
   /api/route/get_steps:
     get:
       tags: [Route]
