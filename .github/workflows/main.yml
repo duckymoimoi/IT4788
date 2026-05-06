@@ -28,7 +28,7 @@ jobs:
         DOCKER_BUILDKIT: 1
       run: |
         docker build -t ghcr.io/duckymoimoi/it4788-admin:latest \
-          --build-arg VITE_API_URL=http://group3.it4788.sukkaito.id.vn/api \
+          --build-arg VITE_API_BASE_URL=http://group3.it4788.sukkaito.id.vn/api \
           ./hospital-admin
 
     - name: Push images

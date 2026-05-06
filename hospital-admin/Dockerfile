@@ -14,8 +14,8 @@ RUN npm ci --ignore-scripts
 COPY . .
 
 # Build arg for API URL (configurable at build time)
-ARG VITE_API_URL=http://group3.it4788.sukkaito.id.vn/api
-ENV VITE_API_URL=$VITE_API_URL
+ARG VITE_API_BASE_URL=http://group3.it4788.sukkaito.id.vn/api
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 RUN npm run build
 
