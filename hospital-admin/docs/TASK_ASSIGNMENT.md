@@ -35,18 +35,18 @@
 
 ### 👤 B — Map Editor + Engine (2 trang)
 
-**Phạm vi:** Hiển thị bản đồ grid (read) + sửa metadata POI + Engine tính toán
+**Phạm vi:** Quản lý bản đồ (Upload, CRUD) + hiển thị bản đồ grid + Engine tính toán
 
-> **Lưu ý:** Map load từ file JSON cố định. Không có add/del node, không có set_weight. Chỉ sửa metadata POI (tên, giờ mở cửa, capacity).
+> **Lưu ý:** Hỗ trợ quản lý File `.map` đa dạng, chuyển đổi Map Active, và đầy đủ CRUD cho Node/Edge (bị khóa nếu Simulation đang chạy).
 
 | # | Task | File chính | API |
 |---|------|-----------|-----|
 | B1 | GridCanvas component (Konva.js) | `src/components/GridCanvas/` | — |
-| B2 | Map Editor — render nodes/edges | `src/pages/MapEditor.jsx` | `GET /map/get_floors`, `GET /map/get_nodes`, `GET /map/get_edges` |
-| B3 | Map Editor — Edit node metadata (modal) | `src/pages/MapEditor.jsx` | `POST /admin/edit_node` |
-| B4 | Map Editor — Set capacity | `src/pages/MapEditor.jsx` | `PATCH /admin/set_capacity` |
-| B5 | Map Editor — Search POI | `src/pages/MapEditor.jsx` | `GET /map/search_location`, `GET /map/get_depts` |
-| B6 | Map Editor — Floor selector + Landmarks | `src/pages/MapEditor.jsx` | `GET /map/get_floors`, `GET /map/get_landmarks` |
+| B2 | Map Manager — Quản lý danh sách Map | `src/pages/MapManager.jsx` | `GET /admin/get_maps`, `POST /admin/upload_map`, `POST /admin/set_active_map`, `GET /admin/export_map` |
+| B3 | Map Editor — Render nodes/edges hiện tại | `src/pages/MapEditor.jsx` | `GET /map/get_floors`, `GET /map/get_nodes`, `GET /map/get_edges` |
+| B4 | Map Editor — Thêm/Sửa/Xóa Node | `src/pages/MapEditor.jsx` | `POST /admin/add_node`, `POST /admin/edit_node`, `DELETE /admin/del_node` |
+| B5 | Map Editor — Thêm/Xóa Edge & Đặt Weight | `src/pages/MapEditor.jsx` | `POST /admin/add_edge`, `DELETE /admin/del_edge`, `PATCH /admin/set_weight` |
+| B6 | Map Editor — Search POI & Filter Floor | `src/pages/MapEditor.jsx` | `GET /map/search_location`, `GET /map/get_depts`, `GET /map/get_floors` |
 | B7 | Engine — Test pathfinding | `src/pages/EnginePanel.jsx` | `POST /engine/solve` |
 | B8 | Engine — MAPF viewer (slider timestep) | `src/pages/EnginePanel.jsx` | `GET /engine/mapf_positions`, `GET /engine/mapf_info` |
 | B9 | Engine — Params + cache | `src/pages/EnginePanel.jsx` | `POST /engine/set_params`, `POST /engine/clear_cache`, `GET /engine/convergence` |

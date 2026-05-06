@@ -67,3 +67,4 @@ volumes:
   pgdata:                          # PostgreSQL data persist
   uploads:                         # User uploaded files
   audio:                           # TTS voice files cache
+  mapdata:                         # Map data

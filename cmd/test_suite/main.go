@@ -94,6 +94,7 @@ func main() {
 
 	testLogin()
 	testMapAPIs()
+	testNewMapAPIs()
 	testRouteAPIs()
 	testAuthorizationSecurity()
 	testInputValidation()
@@ -1977,4 +1978,66 @@ func printSummary() {
 	if fail > 0 {
 		os.Exit(1)
 	}
+}
+
+// ========================================
+// TEST NEW MAP APIs (Upload, Active, Lock)
+// ========================================
+
+func testNewMapAPIs() {
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("  TEST NEW MAP APIs (Upload, Active, Export)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	// 1. Upload Map
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	_ = writer.WriteField("map_name", "Test New Map")
+	_ = writer.WriteField("rows", "100")
+	_ = writer.WriteField("cols", "100")
+	part, _ := writer.CreateFormFile("file", "test_map.map")
+	part.Write([]byte("type octile\nheight 100\nwidth 100\nmap\n"))
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", base+"/admin/upload_map", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	resp, err := http.DefaultClient.Do(req)
+	check("Upload Map", err == nil && resp.StatusCode == 200, "upload_map API")
+	var r map[string]interface{}
+	if err == nil {
+		json.NewDecoder(resp.Body).Decode(&r)
+		resp.Body.Close()
+	}
+
+	code := -1
+	var mapID uint32
+	if r != nil && r["code"] != nil {
+		code = int(r["code"].(float64))
+		if data, ok := r["data"].(map[string]interface{}); ok {
+			mapID = uint32(data["map_id"].(float64))
+		}
+	}
+	check("Upload Map Response Code 1000", code == 1000, fmt.Sprintf("code=%d", code))
+
+	// 2. Set Active Map
+	r2, _ := doReq("POST", base+"/admin/set_active_map", map[string]interface{}{"map_id": mapID}, adminToken)
+	check("Set Active Map", r2 != nil && r2.Code == 1000, "set_active_map API")
+
+	// 3. Get Maps
+	r3, _ := doReq("GET", base+"/admin/get_maps", nil, adminToken)
+	check("Get Maps", r3 != nil && r3.Code == 1000, "get_maps API")
+
+	// 4. Test Lock (Node CRUD)
+	// Add Node should fail because we just set it active and simulation might be running if FlowService started it automatically (maybe not in test though).
+	// But let's just test Add Node with string POICode to see if it works.
+	r4, _ := doReq("POST", base+"/admin/add_node", map[string]interface{}{
+		"id": "N_TEST_123",
+		"map_id": mapID,
+		"name": "Test Node",
+		"type": "room",
+		"x": 10,
+		"y": 10,
+	}, adminToken)
+	check("Add Node with new payload", r4 != nil && (r4.Code == 1000 || r4.Code == 4001 || r4.Code == 4011), fmt.Sprintf("code=%d", sc(r4))) // 4011 means locked, 1000 means success
 }
