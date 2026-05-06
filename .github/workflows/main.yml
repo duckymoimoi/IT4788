@@ -17,15 +17,24 @@ jobs:
     - name: Login to GHCR
       run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-    - name: Build image
+    - name: Build API image
       env:
         DOCKER_BUILDKIT: 1
       run: |
         docker build -t ghcr.io/duckymoimoi/it4788:latest .
 
-    - name: Push image
+    - name: Build Admin Panel image
+      env:
+        DOCKER_BUILDKIT: 1
+      run: |
+        docker build -t ghcr.io/duckymoimoi/it4788-admin:latest \
+          --build-arg VITE_API_URL=http://group3.it4788.sukkaito.id.vn/api \
+          ./hospital-admin
+
+    - name: Push images
       run: |
         docker push ghcr.io/duckymoimoi/it4788:latest
+        docker push ghcr.io/duckymoimoi/it4788-admin:latest
         
   deploy:
     needs: [image-build]
@@ -70,11 +79,13 @@ jobs:
           docker ps -a --filter "name=hospital" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
           echo "=== API Container Logs (last 50 lines) ==="
           docker logs hospital-api --tail 50 2>&1 || echo "No API container found"
+          echo "=== Admin Container Logs (last 10 lines) ==="
+          docker logs hospital-admin --tail 10 2>&1 || echo "No Admin container found"
           echo "=== DB Container Logs (last 10 lines) ==="
           docker logs hospital-db --tail 10 2>&1 || echo "No DB container found"
           echo "=== Network Check ==="
           docker network ls | grep proxy
-          echo "=== Curl test from inside server ==="
+          echo "=== API Ping ==="
           curl -s -o /dev/null -w "HTTP %{http_code}" http://localhost:8080/debug/ping 2>&1 || echo "curl failed"
 
     

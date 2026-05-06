@@ -1,10 +1,8 @@
 # ==============================================================
-# HOSPITAL NAVIGATION SYSTEM - Docker Compose
-# 2 containers: Go API + PostgreSQL
+# HOSPITAL NAVIGATION SYSTEM - Docker Compose (Production CI/CD)
+# 3 containers: Go API + PostgreSQL + Admin Panel
 # ==============================================================
-# Chay:  docker compose up --build
-# Dung:  docker compose down
-# Reset: docker compose down -v  (xoa data PostgreSQL)
+# Deploy: docker compose -f docker-compose.ci.yml up -d
 # ==============================================================
 
 services:
@@ -50,6 +48,21 @@ services:
       - "traefik.http.routers.group3-api.rule=Host(`group3.it4788.sukkaito.id.vn`)"
       - "traefik.http.routers.group3-api.entrypoints=web"
       - "traefik.http.services.group3-api.loadbalancer.server.port=8080"
+    networks:
+      - proxy-net
+
+  # ---- Admin Panel (React + Nginx) ----
+  group3-admin:
+    image: ghcr.io/duckymoimoi/it4788-admin:latest
+    container_name: hospital-admin
+    restart: unless-stopped
+    depends_on:
+      - group3-api
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.group3-admin.rule=Host(`group3-admin.it4788.sukkaito.id.vn`)"
+      - "traefik.http.routers.group3-admin.entrypoints=web"
+      - "traefik.http.services.group3-admin.loadbalancer.server.port=80"
     networks:
       - proxy-net
 
