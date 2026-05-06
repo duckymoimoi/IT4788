@@ -45,6 +45,20 @@ func (r *FlowRepo) GetDensityByLocation(gridLocation int, minutes int) (int64, e
 	return count, err
 }
 
+// GetDensityByLocations dem so luong ping tai nhieu vi tri trong N phut gan nhat.
+func (r *FlowRepo) GetDensityByLocations(gridLocations []int, minutes int) (int64, error) {
+	if len(gridLocations) == 0 {
+		return 0, nil
+	}
+	var count int64
+	since := time.Now().Add(-time.Duration(minutes) * time.Minute)
+
+	err := r.db.Model(&schema.UserPing{}).
+		Where("grid_location IN ? AND created_at > ?", gridLocations, since).
+		Count(&count).Error
+	return count, err
+}
+
 // GetDensityAll dem mat do tat ca vi tri trong N phut gan nhat.
 // Tra ve danh sach [{grid_location, count}] sap xep theo count giam dan.
 func (r *FlowRepo) GetDensityAll(minutes int) ([]DensityResult, error) {
@@ -81,9 +95,9 @@ type HourlyStats struct {
 	Count int64 `json:"count"`
 }
 
-func (r *FlowRepo) GetPingsByHour(hours int) ([]HourlyStats, error) {
+func (r *FlowRepo) GetPingsByHour(hours float64) ([]HourlyStats, error) {
 	var results []HourlyStats
-	since := time.Now().Add(-time.Duration(hours) * time.Hour)
+	since := time.Now().Add(-time.Duration(hours * float64(time.Hour)))
 
 	err := r.db.Model(&schema.UserPing{}).
 		Select("EXTRACT(HOUR FROM created_at)::int as hour, COUNT(*) as count").

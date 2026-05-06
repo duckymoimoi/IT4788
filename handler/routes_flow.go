@@ -17,7 +17,8 @@ import (
 // Nguoi B implement  - 15 API.
 func RegisterFlowRoutes(api *gin.RouterGroup, db *gorm.DB) {
 	repo := repository.NewFlowRepo(db)
-	svc := service.NewFlowService(repo)
+	routeRepo := repository.NewRouteRepo(db)
+	svc := service.NewFlowService(repo, routeRepo)
 	h := NewFlowHandler(svc)
 
 	// Auto-start MAPF simulation (loop vo han, tick 2s)

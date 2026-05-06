@@ -216,7 +216,11 @@ func (s *MapService) GetEdges(mapID uint32) (interface{}, error) {
 
 	rows := len(grid)
 	if rows == 0 {
-		return []EdgeItem{}, nil
+		return map[string]interface{}{
+			"map_id": mapID,
+			"total":  0,
+			"edges":  []EdgeItem{},
+		}, nil
 	}
 	cols := len(grid[0])
 

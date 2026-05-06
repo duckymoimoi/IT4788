@@ -1,4 +1,4 @@
-﻿package handler
+package handler
 
 import (
 	"strconv"
@@ -33,6 +33,12 @@ type orderRequest struct {
 	StartLocation int    `json:"start_location" binding:"required"`
 	DestLocation  int    `json:"dest_location" binding:"required"`
 	ModeID        string `json:"mode_id" binding:"required"`
+}
+
+type orderMultiRequest struct {
+	StartLocation   int    `json:"start_location" binding:"required"`
+	TargetLocations []int  `json:"target_locations" binding:"required,min=1"`
+	ModeID          string `json:"mode_id" binding:"required"`
 }
 
 type cancelRequest struct {
@@ -116,6 +122,58 @@ func (h *RouteHandler) Order(c *gin.Context) {
 	}
 
 	route, paths, err := h.svc.OrderRoute(userID, req.StartLocation, req.DestLocation, req.ModeID)
+	if err != nil {
+		response.Error(c, response.CodePathNotFound, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"route": route,
+		"paths": paths,
+	})
+}
+
+// POST /api/route/order_multi
+func (h *RouteHandler) OrderMulti(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		response.ErrNotAuthenticated(c)
+		return
+	}
+
+	var req orderMultiRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	route, paths, err := h.svc.OrderMultiRoute(userID, req.StartLocation, req.TargetLocations, req.ModeID)
+	if err != nil {
+		response.Error(c, response.CodePathNotFound, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"route": route,
+		"paths": paths,
+	})
+}
+
+// POST /api/route/order_unordered
+func (h *RouteHandler) OrderUnordered(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		response.ErrNotAuthenticated(c)
+		return
+	}
+
+	var req orderMultiRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	route, paths, err := h.svc.OrderUnorderedRoute(userID, req.StartLocation, req.TargetLocations, req.ModeID)
 	if err != nil {
 		response.Error(c, response.CodePathNotFound, err.Error())
 		return

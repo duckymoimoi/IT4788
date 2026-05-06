@@ -1,4 +1,4 @@
-﻿package handler
+package handler
 
 import (
 	"errors"
@@ -219,6 +219,10 @@ func (h *AuthHandler) handleAuthError(c *gin.Context, err error) {
 	case errors.Is(err, service.ErrAccountBanned),
 		errors.Is(err, service.ErrAccountNotActive):
 		response.ErrNotAuthenticated(c)
+	case errors.Is(err, service.ErrInvalidPassword),
+		errors.Is(err, service.ErrInvalidPhone),
+		errors.Is(err, service.ErrInvalidFullName):
+		response.Error(c, response.CodeInvalidValue, err.Error())
 	default:
 		response.ErrUnexpected(c)
 	}

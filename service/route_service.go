@@ -132,6 +132,134 @@ func (s *RouteService) OrderRoute(userID uint64, startLoc, destLoc int, modeID s
 	return route, paths, nil
 }
 
+// OrderMultiRoute tim duong qua nhieu diem (theo thu tu).
+// API: POST order_multi
+func (s *RouteService) OrderMultiRoute(userID uint64, startLoc int, destLocs []int, modeID string) (*schema.Route, []schema.RoutePath, error) {
+	if len(destLocs) == 0 {
+		return nil, nil, fmt.Errorf("no destinations provided")
+	}
+
+	var totalDistance float64
+	var totalTime float64
+	var allSteps []StepInfo
+	
+	currentStart := startLoc
+	stepCounter := 0
+
+	for i, target := range destLocs {
+		if currentStart == target {
+			continue // skip if same
+		}
+		
+		preview, err := s.PreviewRoute(currentStart, target, modeID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot find path to target %d: %w", target, err)
+		}
+		
+		totalDistance += preview.Distance
+		totalTime += preview.EstimatedTime
+		
+		// Ghep step, bo qua step[0] neu khong phai la chang dau tien de tranh trung lap node giao
+		startStepIdx := 0
+		if i > 0 && len(allSteps) > 0 {
+			startStepIdx = 1
+		}
+		
+		for j := startStepIdx; j < len(preview.Steps); j++ {
+			step := preview.Steps[j]
+			step.StepOrder = stepCounter
+			allSteps = append(allSteps, step)
+			stepCounter++
+		}
+		
+		currentStart = target
+	}
+	
+	if len(allSteps) == 0 {
+		return nil, nil, fmt.Errorf("empty route or all destinations are same as start")
+	}
+
+	routeID := uuid.New().String()
+	route := &schema.Route{
+		RouteID:       routeID,
+		UserID:        userID,
+		ModeID:        modeID,
+		StartLocation: startLoc,
+		DestLocation:  destLocs[len(destLocs)-1],
+		RouteMode:     schema.RouteModeDijkstra,
+		TotalDistance: totalDistance,
+		EstimatedTime: totalTime,
+		Status:        schema.RouteStatusActive,
+	}
+
+	paths := make([]schema.RoutePath, len(allSteps))
+	for i, step := range allSteps {
+		paths[i] = schema.RoutePath{
+			RouteID:      routeID,
+			StepOrder:    step.StepOrder,
+			GridRow:      step.GridRow,
+			GridCol:      step.GridCol,
+			GridLocation: step.GridLocation,
+			Instruction:  generateInstruction(i, allSteps),
+			VoiceText:    getVoiceKey(i, allSteps),
+		}
+	}
+
+	if err := s.repo.CreateRouteWithPaths(route, paths); err != nil {
+		return nil, nil, fmt.Errorf("cannot create route: %w", err)
+	}
+
+	return route, paths, nil
+}
+
+// OrderUnorderedRoute tim duong qua nhieu diem (nearest-neighbor).
+// API: POST order_unordered
+func (s *RouteService) OrderUnorderedRoute(userID uint64, startLoc int, destLocs []int, modeID string) (*schema.Route, []schema.RoutePath, error) {
+	if len(destLocs) == 0 {
+		return nil, nil, fmt.Errorf("no destinations provided")
+	}
+
+	// Copy mang de khong lam hong mang goc
+	unvisited := make([]int, len(destLocs))
+	copy(unvisited, destLocs)
+
+	var orderedTargets []int
+	currentStart := startLoc
+
+	for len(unvisited) > 0 {
+		bestIdx := -1
+		bestDist := -1.0
+		// Tim diem gan nhat
+		for i, target := range unvisited {
+			if currentStart == target {
+				bestIdx = i
+				bestDist = 0
+				break
+			}
+			preview, err := s.PreviewRoute(currentStart, target, modeID)
+			if err == nil {
+				if bestIdx == -1 || preview.Distance < bestDist {
+					bestIdx = i
+					bestDist = preview.Distance
+				}
+			}
+		}
+		
+		if bestIdx == -1 {
+			return nil, nil, fmt.Errorf("cannot find path to remaining targets")
+		}
+		
+		orderedTargets = append(orderedTargets, unvisited[bestIdx])
+		currentStart = unvisited[bestIdx]
+		
+		// Remove tu unvisited
+		unvisited = append(unvisited[:bestIdx], unvisited[bestIdx+1:]...)
+	}
+
+	// Goi lai OrderMultiRoute voi danh sach da sap xep
+	return s.OrderMultiRoute(userID, startLoc, orderedTargets, modeID)
+}
+
 // GetSteps lay cac buoc di cua route.
 // API #36 GET get_steps
 func (s *RouteService) GetSteps(routeID string) ([]schema.RoutePath, error) {

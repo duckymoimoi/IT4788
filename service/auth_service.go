@@ -1,9 +1,10 @@
-﻿package service
+package service
 
 import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"regexp"
 	"time"
 
 	response "hospital/pkg"
@@ -72,6 +73,9 @@ var (
 	ErrOTPExpired        = errors.New("otp expired")
 	ErrAccountBanned     = errors.New("account banned")
 	ErrAccountNotActive  = errors.New("account not active")
+	ErrInvalidPassword   = errors.New("password must be at least 8 characters, contain 1 uppercase letter and 1 number")
+	ErrInvalidPhone      = errors.New("invalid phone number format")
+	ErrInvalidFullName   = errors.New("full name must not contain numbers and max 100 characters")
 )
 
 // ========================================
@@ -182,6 +186,17 @@ func (s *AuthService) Login(phone, password, deviceToken, platform string) (*Log
 //  3. Tao OTP 6 so va luu vao DB
 //  4. Tao setting mac dinh cho user
 func (s *AuthService) Signup(phone, password, fullName, dob string, gender *int) (*SignupResult, error) {
+	// Validation
+	if !regexp.MustCompile(`^(0|\+84)[0-9]{9,11}$`).MatchString(phone) {
+		return nil, ErrInvalidPhone
+	}
+	if len(password) < 8 || !regexp.MustCompile(`[A-Z]`).MatchString(password) || !regexp.MustCompile(`[0-9]`).MatchString(password) {
+		return nil, ErrInvalidPassword
+	}
+	if len(fullName) > 100 || regexp.MustCompile(`[0-9]`).MatchString(fullName) {
+		return nil, ErrInvalidFullName
+	}
+
 	// Kiem tra so dien thoai da ton tai chua
 	existing, err := s.repo.FindByPhone(phone)
 	if err != nil {

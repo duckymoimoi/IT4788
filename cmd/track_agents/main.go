@@ -17,7 +17,7 @@ type apiResp struct {
 }
 
 func login() string {
-	body, _ := json.Marshal(map[string]string{"phone_number": "0900000001", "password": "password123"})
+	body, _ := json.Marshal(map[string]string{"phone_number": "0900000001", "password": "Password123"})
 	resp, _ := http.Post(base+"/auth/login", "application/json", bytes.NewReader(body))
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(resp.Body)

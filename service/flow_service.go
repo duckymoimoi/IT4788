@@ -11,14 +11,16 @@ import (
 
 // FlowService xu ly logic nghiep vu cho Flow + Simulation module (Slice 5).
 type FlowService struct {
-	repo    *repository.FlowRepo
-	manager *mapf.AgentManager
+	repo      *repository.FlowRepo
+	routeRepo *repository.RouteRepo
+	manager   *mapf.AgentManager
 }
 
-func NewFlowService(repo *repository.FlowRepo) *FlowService {
+func NewFlowService(repo *repository.FlowRepo, routeRepo *repository.RouteRepo) *FlowService {
 	return &FlowService{
-		repo:    repo,
-		manager: mapf.NewAgentManager(),
+		repo:      repo,
+		routeRepo: routeRepo,
+		manager:   mapf.NewAgentManager(),
 	}
 }
 
@@ -88,6 +90,51 @@ func (s *FlowService) GetDensity(gridLocation int) (*DensityInfo, error) {
 	}, nil
 }
 
+// GetDensityByRoute lay tong mat do cua tat ca cac diem tren route.
+func (s *FlowService) GetDensityByRoute(routeID string) (*DensityInfo, error) {
+	_, err := s.routeRepo.FindRouteByID(routeID)
+	if err != nil {
+		return nil, fmt.Errorf("route not found")
+	}
+
+	paths, err := s.routeRepo.FindPathsByRouteID(routeID)
+	if err != nil {
+		return nil, err
+	}
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no paths found for route")
+	}
+
+	var totalCount int64 = 0
+	minutes := 30
+
+	if s.manager.IsRunning() {
+		windowMin := int(s.manager.GetWindowDuration().Minutes())
+		for _, p := range paths {
+			totalCount += s.manager.GetLocationFrequency(p.GridLocation)
+		}
+		return &DensityInfo{
+			Count:   totalCount,
+			Minutes: windowMin,
+		}, nil
+	}
+
+	locations := make([]int, len(paths))
+	for i, p := range paths {
+		locations[i] = p.GridLocation
+	}
+	
+	totalCount, err = s.repo.GetDensityByLocations(locations, minutes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DensityInfo{
+		Count:   totalCount,
+		Minutes: minutes,
+	}, nil
+}
+
 // HeatmapEntry 1 o tren heatmap.
 type HeatmapEntry struct {
 	GridLocation int   `json:"grid_location"`
@@ -97,17 +144,33 @@ type HeatmapEntry struct {
 // GetHeatmap lay heatmap density.
 // Neu simulation dang chay: dung tan suat tich luy (throughput) thay vi snapshot.
 // Neu khong: query user_pings 30 phut gan nhat.
+// Co the loc theo routeID neu duoc cung cap.
 // API #48 GET get_heatmap
-func (s *FlowService) GetHeatmap() ([]HeatmapEntry, error) {
+func (s *FlowService) GetHeatmap(routeID string) ([]HeatmapEntry, error) {
+	var routeLocations map[int]bool
+	if routeID != "" {
+		paths, err := s.routeRepo.FindPathsByRouteID(routeID)
+		if err != nil {
+			return nil, err
+		}
+		routeLocations = make(map[int]bool)
+		for _, p := range paths {
+			routeLocations[p.GridLocation] = true
+		}
+	}
+
 	// Neu simulation dang chay, lay tu ban do tan suat (throughput)
 	if s.manager.IsRunning() {
 		freqEntries := s.manager.GetFrequencyMap()
-		entries := make([]HeatmapEntry, len(freqEntries))
-		for i, fe := range freqEntries {
-			entries[i] = HeatmapEntry{
+		var entries []HeatmapEntry
+		for _, fe := range freqEntries {
+			if routeLocations != nil && !routeLocations[fe.Location] {
+				continue
+			}
+			entries = append(entries, HeatmapEntry{
 				GridLocation: fe.Location,
 				Density:      fe.Frequency,
-			}
+			})
 		}
 		return entries, nil
 	}
@@ -118,12 +181,15 @@ func (s *FlowService) GetHeatmap() ([]HeatmapEntry, error) {
 		return nil, err
 	}
 
-	entries := make([]HeatmapEntry, len(results))
-	for i, r := range results {
-		entries[i] = HeatmapEntry{
+	var entries []HeatmapEntry
+	for _, r := range results {
+		if routeLocations != nil && !routeLocations[r.GridLocation] {
+			continue
+		}
+		entries = append(entries, HeatmapEntry{
 			GridLocation: r.GridLocation,
 			Density:      r.Count,
-		}
+		})
 	}
 	return entries, nil
 }
@@ -184,9 +250,9 @@ func (s *FlowService) SetCapacity(poiID uint32, capacity int) error {
 
 // GetForecast du bao luu thong theo gio.
 // API #52 GET get_forecast
-func (s *FlowService) GetForecast(hours int) ([]repository.HourlyStats, error) {
+func (s *FlowService) GetForecast(hours float64) ([]repository.HourlyStats, error) {
 	if hours <= 0 {
-		hours = 24
+		hours = 24.0
 	}
 	return s.repo.GetPingsByHour(hours)
 }
@@ -234,7 +300,7 @@ func (s *FlowService) GetStatsFlow(hours int) ([]repository.HourlyStats, error) 
 	if hours <= 0 {
 		hours = 24
 	}
-	return s.repo.GetPingsByHour(hours)
+	return s.repo.GetPingsByHour(float64(hours))
 }
 
 // ResetFlow xoa tat ca flow data.

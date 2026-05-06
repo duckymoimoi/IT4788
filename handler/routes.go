@@ -110,6 +110,8 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	routePriv.Use(middleware.Auth())
 	routePriv.POST("/preview", routeH.Preview)
 	routePriv.POST("/order", routeH.Order)
+	routePriv.POST("/order_multi", routeH.OrderMulti)
+	routePriv.POST("/order_unordered", routeH.OrderUnordered)
 	routePriv.GET("/get_steps", routeH.GetSteps)
 	routePriv.POST("/get_eta", routeH.GetETA)
 	routePriv.GET("/get_active", routeH.GetActive)

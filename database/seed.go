@@ -41,8 +41,8 @@ func Seed() error {
 	log.Printf("Da tao %d wards", len(wards))
 
 	// --- BUOC 2: Tao tai khoan nguoi dung ---
-	// Dung password "password123" cho tat ca tai khoan test
-	testPassword := hashPassword("password123")
+	// Dung password "Password123" cho tat ca tai khoan test
+	testPassword := hashPassword("Password123")
 	dob := time.Date(1990, 1, 15, 0, 0, 0, 0, time.UTC)
 	genderMale := schema.GenderMale
 	genderFemale := schema.GenderFemale
@@ -181,7 +181,7 @@ func Seed() error {
 
 	log.Println("Seed du lieu demo hoan thanh")
 	log.Println("-------------------------------------------")
-	log.Println("Tai khoan test (mat khau: password123):")
+	log.Println("Tai khoan test (mat khau: Password123):")
 	log.Println("  Admin      : 0900000001")
 	log.Println("  Coordinator: 0900000002")
 	log.Println("  Staff      : 0900000003")

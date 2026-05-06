@@ -870,8 +870,10 @@ paths:
       parameters:
         - name: grid_location
           in: query
-          required: true
           schema: { type: integer }
+        - name: route_id
+          in: query
+          schema: { type: string }
       responses:
         "200":
           description: OK — `data.count` là số lượt, `data.window_minutes` là cửa sổ thời gian
@@ -883,6 +885,10 @@ paths:
     get:
       tags: [Flow]
       summary: Bản đồ nhiệt
+      parameters:
+        - name: route_id
+          in: query
+          schema: { type: string }
       description: |
         Trả về heatmap toàn bệnh viện.
         - Khi simulation đang chạy: dùng tần suất tích lũy (throughput) trong window 5 phút — ô nào agents đi qua nhiều sẽ có density cao.
@@ -921,6 +927,9 @@ paths:
         - name: hours
           in: query
           schema: { type: integer, default: 24 }
+        - name: time_offset
+          in: query
+          schema: { type: integer }
       responses:
         "200":
           description: OK
@@ -946,8 +955,10 @@ paths:
       parameters:
         - name: grid_location
           in: query
-          required: true
           schema: { type: integer }
+        - name: edge_id
+          in: query
+          schema: { type: string }
       responses:
         "200":
           description: OK
