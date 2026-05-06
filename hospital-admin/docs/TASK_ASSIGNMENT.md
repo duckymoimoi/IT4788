@@ -38,6 +38,12 @@
 **Phạm vi:** Quản lý bản đồ (Upload, CRUD) + hiển thị bản đồ grid + Engine tính toán
 
 > **Lưu ý:** Hỗ trợ quản lý File `.map` đa dạng, chuyển đổi Map Active, và đầy đủ CRUD cho Node/Edge (bị khóa nếu Simulation đang chạy).
+>
+> **Workflow chỉnh sửa cấu trúc bản đồ (.map) trên Frontend:**
+> 1. Gọi `GET /admin/export_map` để lấy chuỗi nội dung `.map` hiện tại.
+> 2. Parse chuỗi đó thành mảng 2 chiều và render lên GridCanvas (ví dụ: `.` là sàn đi lại, `@` là tường/vật cản).
+> 3. Người dùng thao tác chỉnh sửa trực quan (vẽ tường, xóa chướng ngại vật) ngay trên Canvas.
+> 4. Chuyển đổi mảng 2D trở lại thành chuẩn format text `.map`, đóng gói thành file và đẩy về server qua `POST /admin/upload_map`.
 
 | # | Task | File chính | API |
 |---|------|-----------|-----|

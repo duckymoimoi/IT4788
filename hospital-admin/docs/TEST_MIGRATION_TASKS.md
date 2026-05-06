@@ -105,7 +105,7 @@ Test cases tham chiếu: `tests/routing/route_planning.test.ts` — `route_order
 | `add_edge` / `del_edge` | ❌ **BỎ** — edges auto-computed từ grid adjacency |
 | `set_weight` | ❌ **BỎ** — weights = khoảng cách Euclidean trên grid |
 
-> ⚠️ **Quy tắc vàng:** Muốn thay đổi topology → upload file `.map` mới + `output.json` mới → set active → simulation tự restart
+> ⚠️ **Quy tắc vàng:** Muốn thay đổi topology lưới (tường, lối đi) → Dùng Frontend kéo `.map` về sửa (Export) → Upload file `.map` mới + `output.json` mới → Set active → Simulation tự restart.
 
 **Effort Person A:** ~4-5 giờ
 
