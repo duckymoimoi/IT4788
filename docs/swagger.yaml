@@ -587,8 +587,18 @@ paths:
                 map_name: { type: string }
                 rows: { type: string }
                 cols: { type: string }
-                file: { type: string, format: binary, description: "File .map từ MovingAI" }
-                image_file: { type: string, format: binary, description: "Ảnh preview của map (định dạng PNG/JPG/WEBP)" }
+                file:
+                  {
+                    type: string,
+                    format: binary,
+                    description: "File .map từ MovingAI",
+                  }
+                image_file:
+                  {
+                    type: string,
+                    format: binary,
+                    description: "Ảnh preview của map (định dạng PNG/JPG/WEBP)",
+                  }
       responses:
         "200":
           description: OK
@@ -744,8 +754,10 @@ paths:
               required: [map_id, start_node, end_node, distance]
               properties:
                 map_id: { type: integer }
-                start_node: { type: string, description: "POI code của node bắt đầu" }
-                end_node: { type: string, description: "POI code của node kết thúc" }
+                start_node:
+                  { type: string, description: "POI code của node bắt đầu" }
+                end_node:
+                  { type: string, description: "POI code của node kết thúc" }
                 distance: { type: number, minimum: 0.001, example: 5.5 }
       responses:
         "200":
@@ -876,7 +888,6 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Response" }
 
-
   /api/route/order_multi:
     post:
       tags: [Route]
@@ -891,7 +902,7 @@ paths:
               required: [start_location, target_locations, mode_id]
               properties:
                 start_location: { type: integer }
-                target_locations: 
+                target_locations:
                   type: array
                   items: { type: integer }
                 mode_id: { type: string }
@@ -916,7 +927,7 @@ paths:
               required: [start_location, target_locations, mode_id]
               properties:
                 start_location: { type: integer }
-                target_locations: 
+                target_locations:
                   type: array
                   items: { type: integer }
                 mode_id: { type: string }
@@ -1795,8 +1806,13 @@ paths:
         security: [{ BearerAuth: [] }],
         parameters:
           [
-            { name: node_id, in: query, required: true, schema: { type: string } },
-            { name: radius, in: query, schema: { type: integer } }
+            {
+              name: node_id,
+              in: query,
+              required: true,
+              schema: { type: string },
+            },
+            { name: radius, in: query, schema: { type: integer } },
           ],
         responses:
           {
@@ -1818,7 +1834,14 @@ paths:
         summary: Trạng thái thiết bị,
         security: [{ BearerAuth: [] }],
         parameters:
-          [{ name: asset_id, in: query, required: true, schema: { type: string } }],
+          [
+            {
+              name: asset_id,
+              in: query,
+              required: true,
+              schema: { type: string },
+            },
+          ],
         responses:
           {
             "200":
@@ -1839,7 +1862,14 @@ paths:
         summary: Vị trí thiết bị,
         security: [{ BearerAuth: [] }],
         parameters:
-          [{ name: asset_id, in: query, required: true, schema: { type: string } }],
+          [
+            {
+              name: asset_id,
+              in: query,
+              required: true,
+              schema: { type: string },
+            },
+          ],
         responses:
           {
             "200":
@@ -1905,7 +1935,11 @@ paths:
                       {
                         type: object,
                         required: [asset_id, station_id],
-                        properties: { asset_id: { type: string }, station_id: { type: string } },
+                        properties:
+                          {
+                            asset_id: { type: string },
+                            station_id: { type: string },
+                          },
                       },
                   },
               },
@@ -1981,7 +2015,11 @@ paths:
                         type: object,
                         required: [asset_id, node_id],
                         properties:
-                          { asset_id: { type: string }, node_id: { type: string }, note: { type: string } },
+                          {
+                            asset_id: { type: string },
+                            node_id: { type: string },
+                            note: { type: string },
+                          },
                       },
                   },
               },
@@ -2487,24 +2525,7 @@ paths:
               },
           },
       }
-  /api/sys/check_version:
-    get:
-      {
-        tags: [Util],
-        summary: Kiểm tra phiên bản (duplicate of /api/sys),
-        responses:
-          {
-            "200":
-              {
-                description: OK,
-                content:
-                  {
-                    application/json:
-                      { schema: { $ref: "#/components/schemas/Response" } },
-                  },
-              },
-          },
-      }
+
   /api/util/feedback:
     post:
       {
@@ -2828,10 +2849,7 @@ paths:
                         type: object,
                         required: [id],
                         properties:
-                          {
-                            id: { type: integer },
-                            status: { type: string },
-                          },
+                          { id: { type: integer }, status: { type: string } },
                       },
                   },
               },
@@ -2866,10 +2884,7 @@ paths:
                       {
                         type: object,
                         required: [id],
-                        properties:
-                          {
-                            id: { type: integer },
-                          },
+                        properties: { id: { type: integer } },
                       },
                   },
               },
@@ -2913,76 +2928,6 @@ paths:
                   },
               },
           },
-        responses:
-          {
-            "200":
-              {
-                description: OK,
-                content:
-                  {
-                    application/json:
-                      { schema: { $ref: "#/components/schemas/Response" } },
-                  },
-              },
-          },
-      }
-  /api/sys/get_voice_files:
-    get:
-      {
-        tags: [Sys],
-        summary: Lấy danh sách file âm thanh dẫn đường,
-        responses:
-          {
-            "200":
-              {
-                description: OK,
-                content:
-                  {
-                    application/json:
-                      { schema: { $ref: "#/components/schemas/Response" } },
-                  },
-              },
-          },
-      }
-  /api/sys/get_voice_key:
-    get:
-      {
-        tags: [Sys],
-        summary: Lấy voice API key,
-        responses:
-          {
-            "200":
-              {
-                description: OK,
-                content:
-                  {
-                    application/json:
-                      { schema: { $ref: "#/components/schemas/Response" } },
-                  },
-              },
-          },
-      }
-  /api/ws/chat:
-    get:
-      {
-        tags: [Chat],
-        summary: Kết nối WebSocket Chat,
-        parameters:
-          [{ name: token, in: query, required: true, schema: { type: string } }],
-        responses:
-          {
-            "101":
-              {
-                description: Switching Protocols,
-              },
-          },
-      }
-
-  /api/util/check_version:
-    get:
-      {
-        tags: [Util],
-        summary: Kiểm tra phiên bản (duplicate of sys),
         responses:
           {
             "200":
