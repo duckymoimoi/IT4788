@@ -457,12 +457,24 @@ func (h *MapHandler) UploadMap(c *gin.Context) {
 		return
 	}
 
+	// 2.5 Save image file if provided
+	var mapImageURL *string
+	imageFile, err := c.FormFile("image_file")
+	if err == nil && imageFile != nil {
+		imagePath := "data/" + imageFile.Filename
+		if err := c.SaveUploadedFile(imageFile, imagePath); err == nil {
+			// URL path matches the static route we defined in main.go
+			url := "/data/" + imageFile.Filename 
+			mapImageURL = &url
+		}
+	}
+
 	// 3. Save to DB
 	// We read the file content to save to DB GridData
 	// In a real app we would parse the .map file, but for now we just use a dummy grid data or the file content
 	gridData := "[]" // Placeholder for actual grid data
 
-	m, err := h.svc.UploadMap(mapName, filePath, int(rows), int(cols), gridData)
+	m, err := h.svc.UploadMap(mapName, filePath, int(rows), int(cols), gridData, mapImageURL)
 	if err != nil {
 		h.handleMapError(c, err)
 		return

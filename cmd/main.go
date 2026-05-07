@@ -76,6 +76,10 @@ func main() {
 	os.MkdirAll("uploads", 0755)
 	router.Static("/uploads", "./uploads")
 
+	// Phục vụ thư mục data (chứa map file và ảnh map)
+	os.MkdirAll("data", 0755)
+	router.Static("/data", "./data")
+
 	// Tạo voice files (TTS) và serve static
 	go func() {
 		if err := tts.GenerateAll("audio"); err != nil {

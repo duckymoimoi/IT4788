@@ -587,7 +587,8 @@ paths:
                 map_name: { type: string }
                 rows: { type: string }
                 cols: { type: string }
-                file: { type: string, format: binary }
+                file: { type: string, format: binary, description: "File .map từ MovingAI" }
+                image_file: { type: string, format: binary, description: "Ảnh preview của map (định dạng PNG/JPG/WEBP)" }
       responses:
         "200":
           description: OK

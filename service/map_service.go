@@ -565,7 +565,7 @@ func (s *MapService) SetWeight(poiID uint32, weight float32) error {
 // ========================================
 
 // UploadMap luu thong tin map moi vao DB
-func (s *MapService) UploadMap(mapName string, mapFilePath string, rows int, cols int, gridData string) (*schema.GridMap, error) {
+func (s *MapService) UploadMap(mapName string, mapFilePath string, rows int, cols int, gridData string, mapImageURL *string) (*schema.GridMap, error) {
 	if mapName == "" || mapFilePath == "" {
 		return nil, ErrMissingField
 	}
@@ -575,6 +575,7 @@ func (s *MapService) UploadMap(mapName string, mapFilePath string, rows int, col
 		Rows:        rows,
 		Cols:        cols,
 		GridData:    gridData,
+		MapImageURL: mapImageURL,
 		IsActive:    false, // Mac dinh la false khi moi upload
 	}
 	if err := s.repo.CreateMap(m); err != nil {
