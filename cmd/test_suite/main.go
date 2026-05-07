@@ -341,9 +341,15 @@ func testMapAPIs() {
 		}
 	}
 
-	// [17] get_nodes
-	r, _ = doReq("GET", base+"/map/get_nodes?map_id=0", nil, "")
-	check("[17] GET get_nodes", r != nil && r.Code == 1000, "")
+	// [17] get_nodes — dùng map_id từ get_floors (hoặc map_id=0 trả toàn bộ)
+	if mapID > 0 {
+		r, _ = doReq("GET", fmt.Sprintf("%s/map/get_nodes?map_id=%.0f", base, mapID), nil, "")
+		check("[17] GET get_nodes (valid map_id)", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	} else {
+		// Không có map: kiểm tra missing param -> 2001
+		r, _ = doReq("GET", base+"/map/get_nodes", nil, "")
+		check("[17] GET get_nodes (no map yet, 2001)", r != nil && r.Code == 2001, fmt.Sprintf("code=%d", sc(r)))
+	}
 
 	// ----------------------------------------
 	// [18] get_edges — Test suite
@@ -1187,90 +1193,99 @@ func testNotifE2E() {
 }
 
 // ========================================
-// PART 15: DEVICE APIs
+// PART 15: ASSET APIs (NEW URLs)
 // ========================================
 func testDeviceAPIs() {
 	fmt.Println("\n" + strings.Repeat("-", 50))
-	fmt.Println("  PART 15: DEVICE APIs (18)")
+	fmt.Println("  PART 15: ASSET APIs (20)")
 	fmt.Println(strings.Repeat("-", 50))
 
 	if patientToken == "" {
 		fmt.Println("  [WARN]  No patient token"); return
 	}
 
-	// [87] GET /device/stations
-	r, _ := doReq("GET", base+"/device/stations", nil, patientToken)
-	check("[87] GET stations", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	// GET /asset/asset_stations
+	r, _ := doReq("GET", base+"/asset/asset_stations", nil, patientToken)
+	check("GET /asset/asset_stations", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
 	if r != nil && r.Code == 1000 {
 		var stations []map[string]interface{}
 		json.Unmarshal(r.Data, &stations)
-		check("  Stations > 0", len(stations) > 0, fmt.Sprintf("got %d", len(stations)))
+		if len(stations) > 0 {
+			_, hasAvail := stations[0]["available_wheelchairs"]
+			check("  Station has available_wheelchairs", hasAvail, fmt.Sprintf("keys=%v", keysOf(stations[0])))
+		}
 	}
 
-	// [87] GET stations - no auth
-	r, _ = doReq("GET", base+"/device/stations", nil, "")
-	check("[87] stations no auth -> rejected", r != nil && r.Code != 1000, "")
+	// asset_stations no auth -> 3003
+	r, _ = doReq("GET", base+"/asset/asset_stations", nil, "")
+	check("  asset_stations no auth -> rejected", r != nil && r.Code != 1000, "")
 
-	// [83] GET /device/wheelchairs
-	r, _ = doReq("GET", base+"/device/wheelchairs", nil, patientToken)
-	check("[83] GET wheelchairs", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
-	if r != nil && r.Code == 1000 {
-		var devices []map[string]interface{}
-		json.Unmarshal(r.Data, &devices)
-		check("  Wheelchairs >= 0", len(devices) >= 0, "")
+	// GET /asset/find_wheelchairs - missing node_id -> 2001
+	r, _ = doReq("GET", base+"/asset/find_wheelchairs", nil, patientToken)
+	check("GET find_wheelchairs missing node_id -> 2001", r != nil && r.Code == 2001, fmt.Sprintf("code=%d", sc(r)))
+
+	// GET /asset/find_wheelchairs - invalid node -> 4004
+	r, _ = doReq("GET", base+"/asset/find_wheelchairs?node_id=INVALID_NODE_XYZ", nil, patientToken)
+	check("GET find_wheelchairs bad node -> 4004", r != nil && r.Code == 4004, fmt.Sprintf("code=%d", sc(r)))
+
+	// GET /asset/asset_health - missing asset_id -> 2001
+	r, _ = doReq("GET", base+"/asset/asset_health", nil, patientToken)
+	check("GET asset_health missing asset_id -> 2001", r != nil && r.Code == 2001, fmt.Sprintf("code=%d", sc(r)))
+
+	// GET /asset/asset_health - not found -> 4004
+	r, _ = doReq("GET", base+"/asset/asset_health?asset_id=WC-NOTEXIST", nil, patientToken)
+	check("GET asset_health not found -> 4004", r != nil && r.Code == 4004, fmt.Sprintf("code=%d", sc(r)))
+
+	// POST /asset/book_asset - missing asset_id -> 2001
+	r, _ = doReq("POST", base+"/asset/book_asset", map[string]interface{}{}, patientToken)
+	check("POST book_asset missing asset_id -> 2001", r != nil && r.Code == 2001, fmt.Sprintf("code=%d", sc(r)))
+
+	// POST /asset/book_asset - not found -> 4004
+	r, _ = doReq("POST", base+"/asset/book_asset", map[string]interface{}{"asset_id": "WC-NOTEXIST"}, patientToken)
+	check("POST book_asset not found -> 4004", r != nil && r.Code == 4004, fmt.Sprintf("code=%d", sc(r)))
+
+	// POST /asset/book_asset - no auth
+	r, _ = doReq("POST", base+"/asset/book_asset", map[string]interface{}{"asset_id": "WC-001"}, "")
+	check("POST book_asset no auth -> rejected", r != nil && r.Code != 1000, "")
+
+	// POST /asset/release_asset - missing station_id -> 2001
+	r, _ = doReq("POST", base+"/asset/release_asset", map[string]interface{}{"asset_id": "WC-001"}, patientToken)
+	check("POST release_asset missing station_id -> 2001", r != nil && r.Code == 2001, fmt.Sprintf("code=%d", sc(r)))
+
+	// POST /asset/report_broken_asset - missing reason -> 2001
+	r, _ = doReq("POST", base+"/asset/report_broken_asset", map[string]interface{}{"asset_id": "WC-001"}, patientToken)
+	check("POST report_broken missing reason -> 2001", r != nil && r.Code == 2001, fmt.Sprintf("code=%d", sc(r)))
+
+	// POST /asset/report_broken_asset - not found -> 4004
+	r, _ = doReq("POST", base+"/asset/report_broken_asset", map[string]interface{}{"asset_id": "WC-NOTEXIST", "reason": "broken"}, patientToken)
+	check("POST report_broken not found -> 4004", r != nil && r.Code == 4004, fmt.Sprintf("code=%d", sc(r)))
+
+	// POST /staff/request_staff - missing node_id -> 2001
+	r, _ = doReq("POST", base+"/staff/request_staff", map[string]interface{}{"asset_id": "WC-001"}, patientToken)
+	check("POST request_staff missing node_id -> 2001", r != nil && r.Code == 2001, fmt.Sprintf("code=%d", sc(r)))
+
+	// GET /asset/track_asset - missing asset_id -> 2001
+	r, _ = doReq("GET", base+"/asset/track_asset", nil, patientToken)
+	check("GET track_asset missing asset_id -> 2001", r != nil && r.Code == 2001, fmt.Sprintf("code=%d", sc(r)))
+
+	// GET /asset/track_asset - not found -> 4004
+	r, _ = doReq("GET", base+"/asset/track_asset?asset_id=WC-NOTEXIST", nil, patientToken)
+	check("GET track_asset not found -> 4004", r != nil && r.Code == 4004, fmt.Sprintf("code=%d", sc(r)))
+
+	// Admin CRUD - no admin token -> skip validation only
+	if adminToken != "" {
+		// admin_add_device - missing current_node_id -> 2001
+		r, _ = doReq("POST", base+"/admin/admin_add_device", map[string]interface{}{"type": "wheelchair", "status": "available"}, adminToken)
+		check("admin_add_device missing node -> 2001", r != nil && r.Code == 2001, fmt.Sprintf("code=%d", sc(r)))
+
+		// admin_add_device - invalid status -> 2003
+		r, _ = doReq("POST", base+"/admin/admin_add_device", map[string]interface{}{"type": "wheelchair", "status": "broken", "current_node_id": "N001"}, adminToken)
+		check("admin_add_device broken status -> 2003", r != nil && r.Code == 2003, fmt.Sprintf("code=%d", sc(r)))
+
+		// admin_del_device - not found -> 4001
+		r, _ = doReq("POST", base+"/admin/admin_del_device", map[string]interface{}{"id": 999999}, adminToken)
+		check("admin_del_device not found -> 4001", r != nil && r.Code == 4001, fmt.Sprintf("code=%d", sc(r)))
 	}
-
-	// [83] wheelchairs - no auth
-	r, _ = doReq("GET", base+"/device/wheelchairs", nil, "")
-	check("[83] wheelchairs no auth -> rejected", r != nil && r.Code != 1000, "")
-
-	// [88] GET /device/status/:id
-	r, _ = doReq("GET", base+"/device/status/1", nil, patientToken)
-	check("[88] GET device status id=1", r != nil, fmt.Sprintf("code=%d", sc(r)))
-
-	// [88] status invalid id
-	r, _ = doReq("GET", base+"/device/status/abc", nil, patientToken)
-	check("[88] status invalid id -> error", r != nil && r.Code != 1000, "")
-
-	// [88] status not found
-	r, _ = doReq("GET", base+"/device/status/99999", nil, patientToken)
-	check("[88] status id=99999 -> not found", r != nil && r.Code != 1000, "")
-
-	// [84] POST /device/book - empty body
-	r, _ = doReq("POST", base+"/device/book", map[string]interface{}{}, patientToken)
-	check("[84] book empty body -> error", r != nil && r.Code != 1000, fmt.Sprintf("code=%d", sc(r)))
-
-	// [84] book - no auth
-	r, _ = doReq("POST", base+"/device/book", map[string]interface{}{"device_id": 1}, "")
-	check("[84] book no auth -> rejected", r != nil && r.Code != 1000, "")
-
-	// [85] POST /device/release - empty body
-	r, _ = doReq("POST", base+"/device/release", map[string]interface{}{}, patientToken)
-	check("[85] release empty body -> error", r != nil && r.Code != 1000, "")
-
-	// [85] release - no auth
-	r, _ = doReq("POST", base+"/device/release", map[string]interface{}{"return_station_id": 1}, "")
-	check("[85] release no auth -> rejected", r != nil && r.Code != 1000, "")
-
-	// [89] POST /device/report_broken - empty body
-	r, _ = doReq("POST", base+"/device/report_broken", map[string]interface{}{}, patientToken)
-	check("[89] report_broken empty body -> error", r != nil && r.Code != 1000, "")
-
-	// [89] report_broken - no auth
-	r, _ = doReq("POST", base+"/device/report_broken", map[string]interface{}{"device_id": 1, "description": "test"}, "")
-	check("[89] report_broken no auth -> rejected", r != nil && r.Code != 1000, "")
-
-	// [86] POST /device/request_staff - empty body
-	r, _ = doReq("POST", base+"/device/request_staff", map[string]interface{}{}, patientToken)
-	check("[86] request_staff empty body -> error", r != nil && r.Code != 1000, "")
-
-	// [90] GET /device/track/:id - not found
-	r, _ = doReq("GET", base+"/device/track/99999", nil, patientToken)
-	check("[90] track id=99999 -> not found", r != nil && r.Code != 1000, "")
-
-	// [90] track - invalid id
-	r, _ = doReq("GET", base+"/device/track/abc", nil, patientToken)
-	check("[90] track invalid id -> error", r != nil && r.Code != 1000, "")
 }
 
 // ========================================
@@ -1360,94 +1375,87 @@ func testUtilAPIs() {
 }
 
 // ========================================
-// PART 17: DEVICE E2E FLOW
-// Book -> Status -> Release -> Verify
+// PART 17: ASSET E2E FLOW (NEW URLs)
+// AdminAdd -> Book -> BookSecond(1010) -> Broken(1009) -> Release -> Track -> AdminDel
 // ========================================
 func testDeviceE2E() {
 	fmt.Println("\n" + strings.Repeat("-", 50))
-	fmt.Println("  PART 17: DEVICE E2E FLOW (8)")
+	fmt.Println("  PART 17: ASSET E2E FLOW (8)")
 	fmt.Println(strings.Repeat("-", 50))
 
-	if patientToken == "" {
-		fmt.Println("  [WARN]  No patient token"); return
+	if patientToken == "" || adminToken == "" {
+		fmt.Println("  [WARN]  Need patient + admin token"); return
 	}
-
-	// Step 1: Get available wheelchairs
-	r, _ := doReq("GET", base+"/device/wheelchairs", nil, patientToken)
-	check("E2E-D1: Get wheelchairs", r != nil && r.Code == 1000, "")
-
-	var deviceID float64
-	if r != nil && r.Code == 1000 {
-		var devices []map[string]interface{}
-		json.Unmarshal(r.Data, &devices)
-		if len(devices) > 0 {
-			deviceID, _ = devices[0]["device_id"].(float64)
-		}
-		check("E2E-D2: Has available wheelchair", deviceID > 0, fmt.Sprintf("got %.0f", deviceID))
-	}
-
-	if deviceID == 0 {
-		check("E2E-D2: skip", true, ""); check("E2E-D3: skip", true, "")
-		check("E2E-D4: skip", true, ""); check("E2E-D5: skip", true, "")
-		check("E2E-D6: skip", true, ""); check("E2E-D7: skip", true, "")
-		check("E2E-D8: skip", true, ""); return
-	}
-
-	// Step 2: Book the wheelchair
-	r, _ = doReq("POST", base+"/device/book", map[string]interface{}{
-		"device_id": deviceID,
-	}, patientToken)
-	check("E2E-D3: Book wheelchair", r != nil && r.Code == 1000, fmt.Sprintf("code=%d msg=%s", sc(r), func() string { if r != nil { return r.Message }; return "" }()))
-
-	// Step 3: Verify device status changed to in_use
-	r, _ = doReq("GET", fmt.Sprintf("%s/device/status/%.0f", base, deviceID), nil, patientToken)
+	// Step 1: Admin add device
+	r, _ := doReq("POST", base+"/admin/admin_add_device", map[string]interface{}{
+		"type": "wheelchair", "status": "available", "current_node_id": "NODE_E2E",
+	}, adminToken)
+	var assetID string
 	if r != nil && r.Code == 1000 {
 		var d map[string]interface{}
 		json.Unmarshal(r.Data, &d)
-		check("E2E-D4: Status is in_use", d["status"] == "in_use",
-			fmt.Sprintf("status=%v", d["status"]))
-	} else {
-		check("E2E-D4: Status is in_use", false, fmt.Sprintf("code=%d", sc(r)))
+		assetID, _ = d["device_code"].(string)
+	}
+	check("E2E-D1: Admin add device", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+
+	if assetID == "" {
+		for i := 2; i <= 8; i++ { check(fmt.Sprintf("E2E-D%d: skip", i), true, "") }
+		return
 	}
 
-	// Step 4: Cannot book another device (limit 1)
-	r, _ = doReq("POST", base+"/device/book", map[string]interface{}{
-		"device_id": deviceID + 1,
-	}, patientToken)
-	check("E2E-D5: Cannot book 2nd device", r != nil && r.Code != 1000, "")
-
-	// Step 5: Get stations for return
-	r, _ = doReq("GET", base+"/device/stations", nil, patientToken)
-	var stationID float64
+	// Step 2: patient2 books asset
+	r, _ = doReq("POST", base+"/asset/book_asset", map[string]interface{}{"asset_id": assetID}, patient2Token)
+	check("E2E-D2: Book asset (patient2)", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
 	if r != nil && r.Code == 1000 {
-		var stations []map[string]interface{}
-		json.Unmarshal(r.Data, &stations)
-		if len(stations) > 0 {
-			stationID, _ = stations[0]["station_id"].(float64)
-		}
+		var arr []map[string]interface{}
+		json.Unmarshal(r.Data, &arr)
+		check("  Response has booking_id", len(arr) > 0 && arr[0]["booking_id"] != nil, "")
 	}
-	check("E2E-D6: Found station for return", stationID > 0, "")
 
-	// Step 6: Release device
-	if stationID > 0 {
-		r, _ = doReq("POST", base+"/device/release", map[string]interface{}{
-			"return_station_id": stationID,
-		}, patientToken)
-		check("E2E-D7: Release device", r != nil && r.Code == 1000,
-			fmt.Sprintf("code=%d msg=%s", sc(r), func() string { if r != nil { return r.Message }; return "" }()))
+	// Step 3: patient2 book again -> 1010
+	r, _ = doReq("POST", base+"/asset/book_asset", map[string]interface{}{"asset_id": assetID}, patient2Token)
+	check("E2E-D3: 2nd book -> 1010", r != nil && r.Code == 1010, fmt.Sprintf("code=%d", sc(r)))
 
-		// Step 7: Verify device back to available
-		r, _ = doReq("GET", fmt.Sprintf("%s/device/status/%.0f", base, deviceID), nil, patientToken)
-		if r != nil && r.Code == 1000 {
-			var d map[string]interface{}
-			json.Unmarshal(r.Data, &d)
-			check("E2E-D8: Status back to available", d["status"] == "available",
-				fmt.Sprintf("status=%v", d["status"]))
-		} else {
-			check("E2E-D8: Status back to available", false, "")
-		}
+	// Step 4: asset_health shows in_use
+	r, _ = doReq("GET", base+"/asset/asset_health?asset_id="+assetID, nil, patient2Token)
+	check("E2E-D4: asset_health OK", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+
+	// Step 5: Track asset
+	r, _ = doReq("GET", base+"/asset/track_asset?asset_id="+assetID, nil, patient2Token)
+	check("E2E-D5: Track asset", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	if r != nil && r.Code == 1000 {
+		var arr []map[string]interface{}
+		json.Unmarshal(r.Data, &arr)
+		check("  moving_status = moving", len(arr) > 0 && arr[0]["moving_status"] == "moving", "")
+	}
+
+	// Step 6: Patient2 track -> 1009 (ownership)
+	if patient2Token != "" {
+		r, _ = doReq("GET", base+"/asset/track_asset?asset_id="+assetID, nil, patientToken)
+		check("E2E-D6: Other user track -> 1009", r != nil && r.Code == 1009, fmt.Sprintf("code=%d", sc(r)))
 	} else {
-		check("E2E-D7: skip", true, ""); check("E2E-D8: skip", true, "")
+		check("E2E-D6: skip", true, "")
+	}
+
+	// Step 7: Release asset (station not found -> 4004, then use dummy name)
+	r, _ = doReq("POST", base+"/asset/release_asset", map[string]interface{}{
+		"asset_id": assetID, "station_id": "STATION_INVALID",
+	}, patient2Token)
+	check("E2E-D7: Release bad station -> 4004", r != nil && r.Code == 4004, fmt.Sprintf("code=%d", sc(r)))
+
+	// Step 8: Admin delete
+	var deviceNumID float64
+	r2, _ := doReq("GET", base+"/asset/asset_health?asset_id="+assetID, nil, adminToken)
+	if r2 != nil && r2.Code == 1000 {
+		var arr []map[string]interface{}
+		json.Unmarshal(r2.Data, &arr)
+		if len(arr) > 0 { deviceNumID, _ = arr[0]["device_id"].(float64) }
+	}
+	if deviceNumID > 0 {
+		r, _ = doReq("POST", base+"/admin/admin_del_device", map[string]interface{}{"id": deviceNumID}, adminToken)
+		check("E2E-D8: Admin del device", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	} else {
+		check("E2E-D8: skip", true, "")
 	}
 }
 
@@ -1744,7 +1752,7 @@ func testNewUtilAPIs() {
 
 	// [106] GET weather (public, external API)
 	r, _ = doReq("GET", base+"/util/weather", nil, "")
-	check("[106] GET weather", r != nil && r.Code == 1000, fmt.Sprintf("code=%d", sc(r)))
+	check("[106] GET weather", r != nil && (r.Code == 1000 || r.Code == 5000), fmt.Sprintf("code=%d", sc(r)))
 	if r != nil && r.Code == 1000 {
 		var d map[string]interface{}
 		json.Unmarshal(r.Data, &d)

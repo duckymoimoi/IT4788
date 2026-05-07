@@ -252,3 +252,35 @@ func (r *MapRepo) UpdatePOIWeight(poiID uint32, weight float32) error {
 		Where("poi_id = ?", poiID).
 		Update("custom_weight", weight).Error
 }
+
+// ========================================
+// MAP STEPS  - Manual edges (CRUD)
+// ========================================
+
+// CreateEdge tạo manual edge và trả về ID.
+func (r *MapRepo) CreateEdge(mapID uint32, startNode, endNode string, distance float32) (uint32, error) {
+	step := &schema.MapStep{
+		MapID:       mapID,
+		StartNodeID: startNode,
+		EndNodeID:   endNode,
+		Distance:    distance,
+	}
+	if err := r.db.Create(step).Error; err != nil {
+		return 0, err
+	}
+	return step.StepID, nil
+}
+
+// EdgeExists kiểm tra edge có tồn tại không.
+func (r *MapRepo) EdgeExists(stepID uint32) (bool, error) {
+	var count int64
+	err := r.db.Model(&schema.MapStep{}).
+		Where("step_id = ?", stepID).
+		Count(&count).Error
+	return count > 0, err
+}
+
+// DeleteEdge xóa manual edge.
+func (r *MapRepo) DeleteEdge(stepID uint32) error {
+	return r.db.Delete(&schema.MapStep{}, "step_id = ?", stepID).Error
+}

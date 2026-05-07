@@ -13,6 +13,7 @@ import (
 var (
 	ErrMapNotFound   = errors.New("map not found")
 	ErrNodeNotFound  = errors.New("poi not found")
+	ErrEdgeNotFound  = errors.New("edge not found")
 	ErrNodeCodeExist = errors.New("poi code already exists")
 	ErrMissingField  = errors.New("missing required field")
 	ErrCellNotFree   = errors.New("grid cell is not walkable")
@@ -485,14 +486,53 @@ func (s *MapService) DelNode(poiCode string) error {
 	return s.repo.DeactivatePOI(poi.POIID)
 }
 
-// [28] AddEdge - grid-based: không hỗ trợ thêm edge thủ công.
-func (s *MapService) AddEdge() error {
-	return nil // trả code 2003
+// MapExists kiểm tra map có tồn tại không (dùng trong handler validation).
+func (s *MapService) MapExists(mapID uint32) (bool, error) {
+	m, err := s.repo.FindMapByID(mapID)
+	if err != nil {
+		return false, err
+	}
+	return m != nil, nil
 }
 
-// [29] DelEdge - grid-based: không hỗ trợ xóa edge thủ công.
-func (s *MapService) DelEdge() error {
-	return nil // trả code 2003
+// [28] AddEdge thêm edge thủ công vào bảng map_steps.
+func (s *MapService) AddEdge(mapID uint32, startNode, endNode string, distance float32) (uint32, error) {
+	if mapID == 0 || startNode == "" || endNode == "" {
+		return 0, ErrMissingField
+	}
+	if distance <= 0 {
+		return 0, errors.New("distance must be positive")
+	}
+
+	// Kiểm tra map tồn tại
+	m, err := s.repo.FindMapByID(mapID)
+	if err != nil {
+		return 0, err
+	}
+	if m == nil {
+		return 0, ErrMapNotFound
+	}
+
+	edgeID, err := s.repo.CreateEdge(mapID, startNode, endNode, distance)
+	if err != nil {
+		return 0, err
+	}
+	return edgeID, nil
+}
+
+// [29] DelEdge xóa edge thủ công.
+func (s *MapService) DelEdge(edgeID uint32) error {
+	if edgeID == 0 {
+		return ErrMissingField
+	}
+	exists, err := s.repo.EdgeExists(edgeID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrEdgeNotFound
+	}
+	return s.repo.DeleteEdge(edgeID)
 }
 
 // [30] SetWeight cập nhật custom_weight của POI.

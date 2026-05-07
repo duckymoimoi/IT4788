@@ -1,12 +1,16 @@
 package handler
 
 import (
-	"hospital/middleware"
-	response "hospital/pkg" // Package quy thuan cua Leader
-	"hospital/service"
+	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"hospital/middleware"
+	response "hospital/pkg"
+	"hospital/schema"
+	"hospital/service"
 )
 
 type DeviceHandler struct {
@@ -18,158 +22,351 @@ func NewDeviceHandler(svc *service.DeviceService) *DeviceHandler {
 }
 
 // ========================================
-// REQUEST STRUCTS (Chứa dữ liệu Client gửi lên)
+// REQUEST STRUCTS
 // ========================================
-type bookRequest struct {
-	DeviceID uint32 `json:"device_id" binding:"required"`
+
+type bookAssetRequest struct {
+	AssetID string `json:"asset_id"`
 }
 
-type releaseRequest struct {
-	ReturnStationID uint32 `json:"return_station_id" binding:"required"`
+type releaseAssetRequest struct {
+	AssetID   string `json:"asset_id"`
+	StationID string `json:"station_id"`
 }
 
 type reportBrokenRequest struct {
-	DeviceID    uint32 `json:"device_id" binding:"required"`
-	Description string `json:"description" binding:"required"`
-	ImageURL    string `json:"image_url"`
+	AssetID  string `json:"asset_id"`
+	Reason   string `json:"reason"`
+	ImageURL string `json:"image_url"`
 }
 
 type requestStaffRequest struct {
-	PoiID uint32 `json:"poi_id" binding:"required"`
-	Note  string `json:"note"`
+	AssetID string `json:"asset_id"`
+	NodeID  string `json:"node_id"`
+	Note    string `json:"note"`
+}
+
+// Admin CRUD structs
+type addDeviceRequest struct {
+	Type          string `json:"type"`
+	Status        string `json:"status"`
+	CurrentNodeID string `json:"current_node_id"`
+}
+
+type editDeviceRequest struct {
+	ID     uint32 `json:"id"`
+	Status string `json:"status"`
+}
+
+type delDeviceRequest struct {
+	ID uint32 `json:"id"`
 }
 
 // ========================================
-// API HANDLERS
+// VALID STATUS ENUMS (admin context)
+// ========================================
+var validAdminDeviceStatuses = map[string]bool{
+	"available":   true,
+	"maintenance": true,
+}
+
+// ========================================
+// PUBLIC ASSET APIs
 // ========================================
 
-// [87] GET /api/device/stations
+// GET /api/asset/asset_stations
 func (h *DeviceHandler) GetStations(c *gin.Context) {
 	stations, err := h.svc.GetStations()
 	if err != nil {
-		response.Error(c, 5000, err.Error()) // Lỗi chung
+		response.ErrUnexpected(c)
 		return
 	}
 	response.Success(c, stations)
 }
 
-// [83] GET /api/device/wheelchairs
+// GET /api/asset/find_wheelchairs?node_id=&radius=
 func (h *DeviceHandler) GetWheelchairs(c *gin.Context) {
-	devices, err := h.svc.GetAvailableWheelchairs()
+	nodeID := c.Query("node_id")
+	if nodeID == "" {
+		response.ErrMissingParam(c)
+		return
+	}
+
+	// radius optional, default 200
+	radius := 200
+	if rStr := c.Query("radius"); rStr != "" {
+		if r, err := strconv.Atoi(rStr); err == nil && r > 0 {
+			radius = r
+		}
+	}
+
+	devices, err := h.svc.FindNearbyWheelchairs(nodeID, radius)
 	if err != nil {
-		response.Error(c, 5000, err.Error())
+		h.handleDeviceError(c, err)
 		return
 	}
 	response.Success(c, devices)
 }
 
-// [88] GET /api/device/status/:id
+// GET /api/asset/asset_health?asset_id=
 func (h *DeviceHandler) GetDeviceStatus(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
-	if err != nil {
-		response.Error(c, 2003, "ID thiết bị không hợp lệ") // Invalid parameter
+	assetID := c.Query("asset_id")
+	if assetID == "" {
+		response.ErrMissingParam(c)
 		return
 	}
 
-	device, err := h.svc.GetDeviceStatus(uint32(id))
+	result, err := h.svc.GetDeviceHealth(assetID)
 	if err != nil {
-		response.Error(c, 8001, "Không tìm thấy thiết bị") // Asset not found
+		h.handleDeviceError(c, err)
 		return
 	}
-	response.Success(c, device)
+	response.Success(c, []interface{}{result})
 }
 
-// [84] POST /api/device/book
+// POST /api/asset/book_asset
 func (h *DeviceHandler) BookDevice(c *gin.Context) {
-	var req bookRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.ErrBodyInvalid(c) // Lỗi 2005
-		return
-	}
-
-	userID := middleware.GetUserID(c) // Lấy ID người dùng đang đăng nhập (Rule 5)
-
-	err := h.svc.BookDevice(userID, req.DeviceID)
-	if err != nil {
-		response.Error(c, 1010, err.Error()) // Lỗi logic nghiệp vụ (Limit exceeded hoặc Asset bận)
-		return
-	}
-
-	response.Success(c, map[string]string{"message": "Mượn thiết bị thành công"})
-}
-
-// [85] POST /api/device/release
-func (h *DeviceHandler) ReleaseDevice(c *gin.Context) {
-	var req releaseRequest
+	var req bookAssetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrBodyInvalid(c)
+		return
+	}
+	if req.AssetID == "" {
+		response.ErrMissingParam(c)
 		return
 	}
 
 	userID := middleware.GetUserID(c)
 
-	err := h.svc.ReleaseDevice(userID, req.ReturnStationID)
+	booking, err := h.svc.BookAsset(userID, req.AssetID)
 	if err != nil {
-		response.Error(c, 4000, err.Error())
+		h.handleDeviceError(c, err)
+		return
+	}
+	response.Success(c, []interface{}{map[string]interface{}{
+		"booking_id": booking.BookingID,
+		"asset_id":   req.AssetID,
+		"status":     booking.Status,
+	}})
+}
+
+// POST /api/asset/release_asset
+func (h *DeviceHandler) ReleaseDevice(c *gin.Context) {
+	var req releaseAssetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+	if req.AssetID == "" || req.StationID == "" {
+		response.ErrMissingParam(c)
 		return
 	}
 
-	response.Success(c, map[string]string{"message": "Trả thiết bị thành công"})
+	userID := middleware.GetUserID(c)
+
+	if err := h.svc.ReleaseAsset(userID, req.AssetID, req.StationID); err != nil {
+		h.handleDeviceError(c, err)
+		return
+	}
+	response.Success(c, nil)
 }
 
-// [89] POST /api/device/report_broken
+// POST /api/asset/report_broken_asset
 func (h *DeviceHandler) ReportBroken(c *gin.Context) {
 	var req reportBrokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrBodyInvalid(c)
 		return
 	}
-
-	userID := middleware.GetUserID(c)
-
-	err := h.svc.ReportBrokenDevice(userID, req.DeviceID, req.Description, req.ImageURL)
-	if err != nil {
-		response.Error(c, 5000, "Không thể tạo báo cáo lỗi lúc này")
+	if req.AssetID == "" {
+		response.ErrMissingParam(c)
+		return
+	}
+	if req.Reason == "" {
+		response.ErrMissingParam(c)
 		return
 	}
 
-	response.Success(c, map[string]string{"message": "Đã ghi nhận thiết bị hỏng"})
+	userID := middleware.GetUserID(c)
+
+	reportID, msg, err := h.svc.ReportBrokenAsset(userID, req.AssetID, req.Reason, req.ImageURL)
+	if err != nil {
+		h.handleDeviceError(c, err)
+		return
+	}
+	c.JSON(200, map[string]interface{}{
+		"code":    1000,
+		"message": msg,
+		"data":    []interface{}{map[string]interface{}{"report_id": reportID}},
+	})
 }
 
-// [86] POST /api/device/request_staff
+// POST /api/staff/request_staff
 func (h *DeviceHandler) RequestStaff(c *gin.Context) {
 	var req requestStaffRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrBodyInvalid(c)
 		return
 	}
+	if req.NodeID == "" {
+		response.ErrMissingParam(c)
+		return
+	}
 
 	userID := middleware.GetUserID(c)
 
-	err := h.svc.RequestStaffSupport(userID, req.PoiID, req.Note)
+	requestID, err := h.svc.RequestStaff(userID, req.AssetID, req.NodeID, req.Note)
 	if err != nil {
-		response.Error(c, 5000, err.Error())
+		h.handleDeviceError(c, err)
 		return
 	}
-
-	response.Success(c, map[string]string{"message": "Đã gửi yêu cầu nhân viên hỗ trợ"})
+	c.JSON(200, map[string]interface{}{
+		"code":    1000,
+		"message": "Đã điều phối nhân viên hỗ trợ bạn",
+		"data":    []interface{}{map[string]interface{}{"request_id": requestID}},
+	})
 }
 
-// [90] GET /api/device/track/:id
+// GET /api/asset/track_asset?asset_id=
 func (h *DeviceHandler) TrackDevice(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
-	if err != nil {
-		response.Error(c, 2003, "ID thiết bị không hợp lệ")
+	assetID := c.Query("asset_id")
+	if assetID == "" {
+		response.ErrMissingParam(c)
 		return
 	}
 
-	poi, err := h.svc.TrackDeviceLocation(uint32(id))
+	userID := middleware.GetUserID(c)
+
+	result, err := h.svc.TrackAsset(userID, assetID)
 	if err != nil {
-		response.Error(c, 8001, err.Error())
+		h.handleDeviceError(c, err)
+		return
+	}
+	response.Success(c, []interface{}{result})
+}
+
+// ========================================
+// ADMIN DEVICE APIS
+// ========================================
+
+// POST /api/admin/admin_add_device
+func (h *DeviceHandler) AdminAddDevice(c *gin.Context) {
+	var req addDeviceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
 		return
 	}
 
-	response.Success(c, poi)
+	// Validate required
+	if req.Type == "" {
+		response.ErrMissingParam(c)
+		return
+	}
+	if req.Status == "" {
+		response.ErrMissingParam(c)
+		return
+	}
+	if req.CurrentNodeID == "" {
+		response.ErrMissingParam(c)
+		return
+	}
+
+	// Validate status enum: admin chỉ được set available hoặc maintenance
+	if !validAdminDeviceStatuses[strings.ToLower(req.Status)] {
+		response.ErrInvalidValue(c)
+		return
+	}
+
+	device, err := h.svc.AdminAddDevice(req.Type, req.Status, req.CurrentNodeID)
+	if err != nil {
+		h.handleDeviceError(c, err)
+		return
+	}
+	response.Success(c, map[string]interface{}{"id": device.DeviceID, "device_code": device.DeviceCode})
+}
+
+// POST /api/admin/admin_edit_device
+func (h *DeviceHandler) AdminEditDevice(c *gin.Context) {
+	var req editDeviceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+	if req.ID == 0 {
+		response.ErrMissingParam(c)
+		return
+	}
+
+	// Validate status enum if provided
+	if req.Status != "" && !validAdminDeviceStatuses[strings.ToLower(req.Status)] {
+		response.ErrInvalidValue(c)
+		return
+	}
+
+	if err := h.svc.AdminEditDevice(req.ID, req.Status); err != nil {
+		h.handleDeviceError(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+// POST /api/admin/admin_del_device
+func (h *DeviceHandler) AdminDelDevice(c *gin.Context) {
+	var req delDeviceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+	if req.ID == 0 {
+		response.ErrMissingParam(c)
+		return
+	}
+
+	if err := h.svc.AdminDelDevice(req.ID); err != nil {
+		h.handleDeviceError(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+// ========================================
+// ERROR HANDLER
+// ========================================
+
+func (h *DeviceHandler) handleDeviceError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, service.ErrDeviceNotFound):
+		response.SuccessWithCode(c, 4004, nil)
+	case errors.Is(err, service.ErrStationNotFound):
+		response.SuccessWithCode(c, 4004, nil)
+	case errors.Is(err, service.ErrNodeNotFoundDev):
+		response.SuccessWithCode(c, 4004, nil)
+	case errors.Is(err, service.ErrDeviceUnavailable):
+		response.SuccessWithCode(c, 1009, nil) // Xe không khả dụng (hỏng, đang dùng)
+	case errors.Is(err, service.ErrDeviceLimitExceeded):
+		response.SuccessWithCode(c, 1010, nil) // Đang mượn xe khác
+	case errors.Is(err, service.ErrDeviceOwnership):
+		response.SuccessWithCode(c, 1009, nil) // Không phải xe của bạn
+	case errors.Is(err, service.ErrDeviceAlreadyDeleted):
+		response.SuccessWithCode(c, 4001, nil)
+	default:
+		response.ErrUnexpected(c)
+	}
+}
+
+// ========================================
+// HELPER — parse DeviceType from string
+// ========================================
+
+func toDeviceType(s string) schema.DeviceType {
+	switch strings.ToLower(s) {
+	case "wheelchair":
+		return schema.DeviceTypeWheelchair
+	case "stretcher":
+		return schema.DeviceTypeStretcher
+	case "hospital_cart":
+		return schema.DeviceTypeHospitalCart
+	default:
+		return schema.DeviceType(s)
+	}
 }

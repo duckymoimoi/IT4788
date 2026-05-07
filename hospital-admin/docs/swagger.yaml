@@ -629,6 +629,38 @@ paths:
         "200":
           description: OK (Trả về file .map binary)
 
+  /api/admin/add_node:
+    post:
+      tags: [Admin-Map]
+      summary: Thêm Node mới
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, map_id, name, type]
+              properties:
+                id: { type: string }
+                map_id: { type: integer }
+                name: { type: string }
+                type: { type: string }
+                x: { type: integer }
+                y: { type: integer }
+                ward_id: { type: integer }
+                is_landmark: { type: boolean }
+                wheelchair_accessible: { type: boolean }
+                capacity: { type: integer }
+                details: { type: string }
+                open_hours: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
   /api/admin/edit_node:
     post:
       tags: [Admin-Map]
@@ -654,6 +686,49 @@ paths:
                 details: { type: string }
                 open_hours: { type: string }
                 custom_weight: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/del_node:
+    delete:
+      tags: [Admin-Map]
+      summary: Xóa Node (Soft delete)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/set_weight:
+    patch:
+      tags: [Admin-Map]
+      summary: Đặt trọng số cho Node (POI)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [edge_id, weight]
+              properties:
+                edge_id: { type: integer, description: "Trong Grid Map, edge_id chính là POI_ID của node" }
+                weight: { type: number }
       responses:
         "200":
           description: OK

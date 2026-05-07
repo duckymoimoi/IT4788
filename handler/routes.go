@@ -100,6 +100,9 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	admin.GET("/get_maps", mapH.GetMaps)
 	admin.GET("/export_map", mapH.ExportMap)
 
+	// Device Admin APIs
+	RegisterAdminDeviceRoutes(admin, db)
+
 	// =============================================
 	// ROUTE  - Public + Private (shared routeH)
 	// =============================================

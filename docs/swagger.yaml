@@ -621,13 +621,51 @@ paths:
       summary: Xuất file .map
       security: [{ BearerAuth: [] }]
       parameters:
-        - name: map_id
+        - name: filename
           in: query
           required: true
-          schema: { type: integer }
+          schema: { type: string, example: "warehouse_small.map" }
+          description: Tên file .map cần xuất (lấy từ trường map_file_path của map)
       responses:
         "200":
           description: OK (Trả về file .map binary)
+
+  /api/admin/add_node:
+    post:
+      tags: [Admin-Map]
+      summary: Thêm Node mới (POI)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, map_id, name, type]
+              properties:
+                id: { type: string, description: "POI code (unique)" }
+                map_id: { type: integer }
+                name: { type: string }
+                type: { type: string, example: "hallway" }
+                x: { type: integer, description: "Grid column" }
+                y: { type: integer, description: "Grid row" }
+                ward_id: { type: integer }
+                is_landmark: { type: boolean }
+                wheelchair_accessible: { type: boolean }
+                capacity: { type: integer }
+                details: { type: string }
+                open_hours: { type: string }
+      responses:
+        "200":
+          description: |
+            1000 — Thêm thành công, data là POI vừa tạo.
+            2001 — Thiếu field bắt buộc (id, map_id, name, type).
+            2002 — Sai kiểu dữ liệu (ví dụ id phải là string).
+            4001 — map_id không tồn tại.
+            4009 — POI code đã tồn tại.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
 
   /api/admin/edit_node:
     post:
@@ -656,7 +694,119 @@ paths:
                 custom_weight: { type: number }
       responses:
         "200":
-          description: OK
+          description: |
+            1000 — Cập nhật thành công.
+            2001 — Thiếu id.
+            4001 — Node không tồn tại.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/del_node:
+    delete:
+      tags: [Admin-Map]
+      summary: Xóa Node (soft delete)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string, description: "POI code" }
+      responses:
+        "200":
+          description: |
+            1000 — Xóa thành công.
+            2001 — Thiếu id.
+            4001 — Node không tồn tại.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/add_edge:
+    post:
+      tags: [Admin-Map]
+      summary: Thêm Edge thủ công giữa 2 node
+      description: |
+        Trong grid-map, edges thường được tính tự động từ grid adjacency.
+        API này cho phép thêm edge thủ công (manual override) vào bảng map_steps.
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [map_id, start_node, end_node, distance]
+              properties:
+                map_id: { type: integer }
+                start_node: { type: string, description: "POI code của node bắt đầu" }
+                end_node: { type: string, description: "POI code của node kết thúc" }
+                distance: { type: number, minimum: 0.001, example: 5.5 }
+      responses:
+        "200":
+          description: |
+            1000 — Tạo thành công, data.id là edge id.
+            2001 — Thiếu map_id, start_node, end_node hoặc distance.
+            2003 — distance <= 0.
+            4001 — map_id không tồn tại.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/del_edge:
+    delete:
+      tags: [Admin-Map]
+      summary: Xóa Edge thủ công
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: integer, description: "Edge ID" }
+      responses:
+        "200":
+          description: |
+            1000 — Xóa thành công.
+            2001 — Thiếu id.
+            4001 — Edge không tồn tại.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+
+  /api/admin/set_weight:
+    patch:
+      tags: [Admin-Map]
+      summary: Đặt trọng số tùy chỉnh cho Edge (qua edge_id)
+      description: |
+        Cập nhật trọng số (custom_weight) dùng trong thuật toán pathfinding.
+        edge_id tương ứng với poi_id của POI (node) trên grid.
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [edge_id, weight]
+              properties:
+                edge_id: { type: integer }
+                weight: { type: number, minimum: 0.001, example: 2.5 }
+      responses:
+        "200":
+          description: |
+            1000 — Cập nhật thành công.
+            2001 — Thiếu edge_id hoặc weight.
+            2002 — Sai kiểu dữ liệu weight.
+            2003 — weight <= 0.
+            4001 — edge_id không tồn tại.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Response" }
@@ -1219,7 +1369,10 @@ paths:
   /api/flow/resolve_obstacle:
     post:
       tags: [Flow]
-      summary: Xử lý chướng ngại (Staff only)
+      summary: Xử lý chướng ngại vật (Staff/Admin only)
+      description: |
+        Chỉ Staff hoặc Admin mới có quyền gọi API này (middleware RequireStaff).
+        Người dùng thường sẽ nhận lỗi 403.
       security: [{ BearerAuth: [] }]
       requestBody:
         required: true
