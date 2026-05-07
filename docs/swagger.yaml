@@ -1768,7 +1768,7 @@ paths:
   # ============================================================
   # DEVICE (Auth required)
   # ============================================================
-  /api/device/stations:
+  /api/asset/asset_stations:
     get:
       {
         tags: [Device],
@@ -1787,12 +1787,17 @@ paths:
               },
           },
       }
-  /api/device/wheelchairs:
+  /api/asset/find_wheelchairs:
     get:
       {
         tags: [Device],
         summary: Xe lăn còn trống,
         security: [{ BearerAuth: [] }],
+        parameters:
+          [
+            { name: node_id, in: query, required: true, schema: { type: string } },
+            { name: radius, in: query, schema: { type: integer } }
+          ],
         responses:
           {
             "200":
@@ -1806,14 +1811,14 @@ paths:
               },
           },
       }
-  "/api/device/status/{id}":
+  /api/asset/asset_health:
     get:
       {
         tags: [Device],
         summary: Trạng thái thiết bị,
         security: [{ BearerAuth: [] }],
         parameters:
-          [{ name: id, in: path, required: true, schema: { type: integer } }],
+          [{ name: asset_id, in: query, required: true, schema: { type: string } }],
         responses:
           {
             "200":
@@ -1827,14 +1832,14 @@ paths:
               },
           },
       }
-  "/api/device/track/{id}":
+  /api/asset/track_asset:
     get:
       {
         tags: [Device],
         summary: Vị trí thiết bị,
         security: [{ BearerAuth: [] }],
         parameters:
-          [{ name: id, in: path, required: true, schema: { type: integer } }],
+          [{ name: asset_id, in: query, required: true, schema: { type: string } }],
         responses:
           {
             "200":
@@ -1848,7 +1853,7 @@ paths:
               },
           },
       }
-  /api/device/book:
+  /api/asset/book_asset:
     post:
       {
         tags: [Device],
@@ -1864,8 +1869,8 @@ paths:
                     schema:
                       {
                         type: object,
-                        required: [device_id],
-                        properties: { device_id: { type: integer } },
+                        required: [asset_id],
+                        properties: { asset_id: { type: string } },
                       },
                   },
               },
@@ -1883,7 +1888,7 @@ paths:
               },
           },
       }
-  /api/device/release:
+  /api/asset/release_asset:
     post:
       {
         tags: [Device],
@@ -1899,8 +1904,8 @@ paths:
                     schema:
                       {
                         type: object,
-                        required: [return_station_id],
-                        properties: { return_station_id: { type: integer } },
+                        required: [asset_id, station_id],
+                        properties: { asset_id: { type: string }, station_id: { type: string } },
                       },
                   },
               },
@@ -1918,7 +1923,7 @@ paths:
               },
           },
       }
-  /api/device/report_broken:
+  /api/asset/report_broken_asset:
     post:
       {
         tags: [Device],
@@ -1934,11 +1939,11 @@ paths:
                     schema:
                       {
                         type: object,
-                        required: [device_id, description],
+                        required: [asset_id, reason],
                         properties:
                           {
-                            device_id: { type: integer },
-                            description: { type: string },
+                            asset_id: { type: string },
+                            reason: { type: string },
                             image_url: { type: string },
                           },
                       },
@@ -1958,7 +1963,7 @@ paths:
               },
           },
       }
-  /api/device/request_staff:
+  /api/staff/request_staff:
     post:
       {
         tags: [Device],
@@ -1974,9 +1979,9 @@ paths:
                     schema:
                       {
                         type: object,
-                        required: [poi_id],
+                        required: [asset_id, node_id],
                         properties:
-                          { poi_id: { type: integer }, note: { type: string } },
+                          { asset_id: { type: string }, node_id: { type: string }, note: { type: string } },
                       },
                   },
               },
@@ -2482,7 +2487,7 @@ paths:
               },
           },
       }
-  /api/util/check_version:
+  /api/sys/check_version:
     get:
       {
         tags: [Util],
@@ -2748,6 +2753,236 @@ paths:
         tags: [Engine],
         summary: MAPF metadata,
         security: [{ BearerAuth: [] }],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+
+  # ============================================================
+  # MISSING APIS (Appended automatically)
+  # ============================================================
+  /api/admin/admin_add_device:
+    post:
+      {
+        tags: [Admin],
+        summary: Thêm thiết bị mới (Admin),
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [type, status, current_node_id],
+                        properties:
+                          {
+                            type: { type: string },
+                            status: { type: string },
+                            current_node_id: { type: string },
+                          },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/admin/admin_edit_device:
+    post:
+      {
+        tags: [Admin],
+        summary: Chỉnh sửa thiết bị (Admin),
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [id],
+                        properties:
+                          {
+                            id: { type: integer },
+                            status: { type: string },
+                          },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/admin/admin_del_device:
+    post:
+      {
+        tags: [Admin],
+        summary: Xóa thiết bị (Admin),
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [id],
+                        properties:
+                          {
+                            id: { type: integer },
+                          },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/engine/update_cost:
+    post:
+      {
+        tags: [Engine],
+        summary: Cập nhật trọng số POI,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [poi_id, weight],
+                        properties:
+                          {
+                            poi_id: { type: integer },
+                            weight: { type: number, format: float },
+                          },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/sys/get_voice_files:
+    get:
+      {
+        tags: [Sys],
+        summary: Lấy danh sách file âm thanh dẫn đường,
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/sys/get_voice_key:
+    get:
+      {
+        tags: [Sys],
+        summary: Lấy voice API key,
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/ws/chat:
+    get:
+      {
+        tags: [Chat],
+        summary: Kết nối WebSocket Chat,
+        parameters:
+          [{ name: token, in: query, required: true, schema: { type: string } }],
+        responses:
+          {
+            "101":
+              {
+                description: Switching Protocols,
+              },
+          },
+      }
+
+  /api/util/check_version:
+    get:
+      {
+        tags: [Util],
+        summary: Kiểm tra phiên bản (duplicate of sys),
         responses:
           {
             "200":
