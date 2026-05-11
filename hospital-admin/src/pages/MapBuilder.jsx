@@ -211,9 +211,12 @@ export default function MapBuilder() {
       for (const p of newPois) {
         try {
           await api.post('/admin/add_node', {
+            id: p.code,
             map_id: editingMapId || 1,
-            poi_code: p.code, poi_name: p.name, poi_type: p.type,
-            grid_row: p.row, grid_col: p.col,
+            name: p.name,
+            type: p.type,
+            x: p.col,
+            y: p.row,
             is_landmark: p.is_landmark,
           });
         } catch (e) {

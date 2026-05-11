@@ -220,7 +220,7 @@ function CapacityModal({ open, node, onClose }) {
       title={`Set Capacity — ${node?.poi_name || ''}`}
       open={open}
       onCancel={onClose}
-      onOk={() => mutation.mutate({ poi_id: node.poi_id, capacity: value })}
+      onOk={() => mutation.mutate({ poi_id: node.poi_id, poi_code: node.poi_code, capacity: value })}
       confirmLoading={mutation.isPending}
       okText="Lưu"
       cancelText="Hủy"
