@@ -1,6 +1,6 @@
 import api from './client';
 
-// Public — Map data (read-only)
+// ─── Public — Map data (read-only) ───────────────────────────
 export const fetchFloors = () =>
   api.get('/map/get_floors').then((r) => r.data.data);
 
@@ -22,7 +22,35 @@ export const searchLocation = (keyword, map_id) =>
 export const fetchLandmarks = (map_id) =>
   api.get('/map/get_landmarks', { params: { map_id } }).then((r) => r.data.data);
 
-// Admin — chỉ sửa metadata POI, không thêm/xóa node, không sửa weight
+export const fetchSyncFull = (map_id) =>
+  api.get('/map/sync_full', { params: { map_id } }).then((r) => r.data.data);
+
+// ─── Admin — Map management ──────────────────────────────────
+export const fetchMaps = () =>
+  api.get('/admin/get_maps').then((r) => r.data.data);
+
+export const setActiveMap = (map_id) =>
+  api.post('/admin/set_active_map', { map_id }).then((r) => r.data);
+
+export const uploadMap = (formData) =>
+  api.post('/admin/upload_map', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60000,
+  }).then((r) => r.data);
+
+export const uploadOutput = (formData) =>
+  api.post('/admin/upload_output', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60000,
+  }).then((r) => r.data);
+
+export const exportMap = (map_id) =>
+  api.get('/admin/export_map', {
+    params: { map_id },
+    responseType: 'blob',
+  });
+
+// Admin — POI metadata (only metadata, NOT position)
 export const editNode = (data) =>
   api.post('/admin/edit_node', data).then((r) => r.data);
 

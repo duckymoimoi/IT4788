@@ -531,7 +531,48 @@ func (h *MapHandler) GetMaps(c *gin.Context) {
 	response.Success(c, maps)
 }
 
+<<<<<<< Updated upstream
 // [35] GET /api/admin/export_map?filename=
+=======
+// [35] GET /api/admin/export_map
+// POST /api/admin/update_grid
+func (h *MapHandler) UpdateGrid(c *gin.Context) {
+	var req struct {
+		MapID    uint32 `json:"map_id"`
+		GridData string `json:"grid_data"`
+		MapName  string `json:"map_name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.MapID == 0 || req.GridData == "" {
+		response.ErrBodyInvalid(c)
+		return
+	}
+	err := h.svc.UpdateGrid(req.MapID, req.GridData, req.MapName)
+	if err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+// POST /api/admin/edit_map
+func (h *MapHandler) EditMap(c *gin.Context) {
+	var req struct {
+		MapID   uint32 `json:"map_id"`
+		MapName string `json:"map_name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.MapID == 0 {
+		response.ErrBodyInvalid(c)
+		return
+	}
+	err := h.svc.EditMap(req.MapID, req.MapName)
+	if err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+>>>>>>> Stashed changes
 func (h *MapHandler) ExportMap(c *gin.Context) {
 	filename := c.Query("filename")
 	if filename == "" {

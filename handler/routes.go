@@ -98,6 +98,8 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	admin.POST("/upload_output", mapH.UploadOutput)
 	admin.POST("/set_active_map", mapH.SetActiveMap)
 	admin.GET("/get_maps", mapH.GetMaps)
+	admin.POST("/edit_map", mapH.EditMap)
+	admin.POST("/update_grid", mapH.UpdateGrid)
 	admin.GET("/export_map", mapH.ExportMap)
 
 	// Device Admin APIs

@@ -253,6 +253,7 @@ func (r *MapRepo) UpdatePOIWeight(poiID uint32, weight float32) error {
 		Update("custom_weight", weight).Error
 }
 
+<<<<<<< Updated upstream
 // ========================================
 // MAP STEPS  - Manual edges (CRUD)
 // ========================================
@@ -283,4 +284,18 @@ func (r *MapRepo) EdgeExists(stepID uint32) (bool, error) {
 // DeleteEdge xóa manual edge.
 func (r *MapRepo) DeleteEdge(stepID uint32) error {
 	return r.db.Delete(&schema.MapStep{}, "step_id = ?", stepID).Error
+=======
+// UpdateMapName cap nhat ten ban do.
+func (r *MapRepo) UpdateMapName(mapID uint32, name string) error {
+	return r.db.Model(&schema.GridMap{}).
+		Where("map_id = ?", mapID).
+		Update("map_name", name).Error
+}
+
+// UpdateMap cap nhat nhieu truong cua ban do.
+func (r *MapRepo) UpdateMap(mapID uint32, updates map[string]interface{}) error {
+	return r.db.Model(&schema.GridMap{}).
+		Where("map_id = ?", mapID).
+		Updates(updates).Error
+>>>>>>> Stashed changes
 }
