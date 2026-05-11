@@ -14,6 +14,8 @@ import {
   ToolOutlined,
   UserOutlined,
   LogoutOutlined,
+  FileOutlined,
+  EditOutlined,
 } from '@ant-design/icons';
 import useAuthStore from '../../stores/authStore';
 
@@ -22,7 +24,16 @@ const { Text } = Typography;
 
 const menuItems = [
   { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
-  { key: '/map', icon: <EnvironmentOutlined />, label: 'Map Editor' },
+  {
+    key: 'map-group',
+    icon: <EnvironmentOutlined />,
+    label: 'Bản đồ',
+    children: [
+      { key: '/map', label: 'Map Editor' },
+      { key: '/map-builder', icon: <EditOutlined />, label: 'Map Builder' },
+      { key: '/map-manager', icon: <FileOutlined />, label: 'Map Manager' },
+    ],
+  },
   { key: '/flow', icon: <HeatMapOutlined />, label: 'Flow Monitor' },
   { key: '/sim', icon: <PlayCircleOutlined />, label: 'Simulation' },
   { key: '/medical', icon: <MedicineBoxOutlined />, label: 'Medical' },
@@ -69,11 +80,24 @@ export default function AdminLayout() {
     },
   ];
 
-  // Determine which sidebar key is active
-  const selectedKey = menuItems.find((item) => {
-    if (item.key === '/') return location.pathname === '/';
-    return location.pathname.startsWith(item.key);
-  })?.key || '/';
+  // Determine which sidebar key is active (handles nested children)
+  const selectedKey = (() => {
+    const path = location.pathname;
+    for (const item of menuItems) {
+      if (item.children) {
+        const child = item.children.find((c) => path.startsWith(c.key));
+        if (child) return child.key;
+      } else {
+        if (item.key === '/') { if (path === '/') return '/'; }
+        else if (path.startsWith(item.key)) return item.key;
+      }
+    }
+    return '/';
+  })();
+
+  const openKeys = menuItems
+    .filter((item) => item.children?.some((c) => location.pathname.startsWith(c.key)))
+    .map((item) => item.key);
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -102,6 +126,7 @@ export default function AdminLayout() {
         <Menu
           theme="dark"
           selectedKeys={[selectedKey]}
+          defaultOpenKeys={openKeys}
           mode="inline"
           items={menuItems}
           onClick={({ key }) => navigate(key)}

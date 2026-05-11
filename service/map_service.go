@@ -605,3 +605,55 @@ func (s *MapService) SetActiveMap(mapID uint32) error {
 	}
 	return s.repo.SetActiveMap(mapID)
 }
+
+// EditMap cap nhat ten ban do.
+func (s *MapService) EditMap(mapID uint32, mapName string) error {
+	if mapID == 0 {
+		return ErrMissingField
+	}
+	mapName = strings.TrimSpace(mapName)
+	if mapName == "" {
+		return ErrMissingField
+	}
+	m, err := s.repo.FindMapByIDAnyStatus(mapID)
+	if err != nil {
+		return err
+	}
+	if m == nil {
+		return ErrMapNotFound
+	}
+	return s.repo.UpdateMapName(mapID, mapName)
+}
+
+// UpdateGrid cap nhat grid_data va ten cua ban do tu web editor.
+func (s *MapService) UpdateGrid(mapID uint32, gridData string, mapName string) error {
+	if mapID == 0 || gridData == "" {
+		return ErrMissingField
+	}
+	m, err := s.repo.FindMapByIDAnyStatus(mapID)
+	if err != nil {
+		return err
+	}
+	if m == nil {
+		return ErrMapNotFound
+	}
+	// Parse gridData to update rows/cols
+	var grid [][]int
+	if err := json.Unmarshal([]byte(gridData), &grid); err != nil {
+		return ErrMissingField
+	}
+	rows := len(grid)
+	cols := 0
+	if rows > 0 {
+		cols = len(grid[0])
+	}
+	updates := map[string]interface{}{
+		"grid_data": gridData,
+		"rows":      rows,
+		"cols":      cols,
+	}
+	if mapName = strings.TrimSpace(mapName); mapName != "" {
+		updates["map_name"] = mapName
+	}
+	return s.repo.UpdateMap(mapID, updates)
+}

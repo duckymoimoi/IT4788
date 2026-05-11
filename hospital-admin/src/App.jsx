@@ -8,6 +8,8 @@ import Dashboard from './pages/Dashboard';
 
 // B — Map & Engine
 import MapEditor from './pages/MapEditor';
+import MapManager from './pages/MapManager';
+import MapBuilder from './pages/MapBuilder';
 import EnginePanel from './pages/EnginePanel';
 
 // C — Flow & Simulation
@@ -40,6 +42,8 @@ function App() {
       >
         <Route index element={<Dashboard />} />
         <Route path="map" element={<MapEditor />} />
+        <Route path="map-manager" element={<MapManager />} />
+        <Route path="map-builder" element={<MapBuilder />} />
         <Route path="flow" element={<FlowMonitor />} />
         <Route path="sim" element={<SimControl />} />
         <Route path="medical" element={<MedicalDash />} />
