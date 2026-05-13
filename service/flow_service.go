@@ -27,11 +27,29 @@ func NewFlowService(repo *repository.FlowRepo, routeRepo *repository.RouteRepo) 
 // AutoStartSimulation tu dong bat dau mo phong khi server khoi dong.
 // Chay loop vo han (reset ve timestep 0 khi het makespan).
 // Goi tu RegisterFlowRoutes trong goroutine rieng.
-func (s *FlowService) AutoStartSimulation(outputFile string, tickRateMs int, mapCols int) error {
+func (s *FlowService) AutoStartSimulation(mapID uint32, outputFile string, tickRateMs int, mapCols int) error {
+	if err := s.repo.StopRunningSimulations(); err != nil {
+		return fmt.Errorf("cannot stop stale simulation runs: %w", err)
+	}
 	if err := s.manager.Start(outputFile, tickRateMs, mapCols); err != nil {
 		return fmt.Errorf("auto-start simulation failed: %w", err)
 	}
 	teamSize, makespan, _, _, _ := s.manager.GetInfo()
+
+	run := &schema.SimulationRun{
+		MapID:      mapID,
+		OutputFile: outputFile,
+		TeamSize:   teamSize,
+		Makespan:   makespan,
+		TickRateMs: tickRateMs,
+		Status:     schema.SimulationRunning,
+		StartedAt:  time.Now(),
+	}
+	if err := s.repo.CreateSimulationRun(run); err != nil {
+		s.manager.Stop()
+		return fmt.Errorf("cannot save auto-start simulation run: %w", err)
+	}
+
 	fmt.Printf("[SIM] Auto-started: %d agents, makespan=%d, tick=%dms, cols=%d (loop forever)\n", teamSize, makespan, tickRateMs, mapCols)
 	return nil
 }
@@ -123,7 +141,7 @@ func (s *FlowService) GetDensityByRoute(routeID string) (*DensityInfo, error) {
 	for i, p := range paths {
 		locations[i] = p.GridLocation
 	}
-	
+
 	totalCount, err = s.repo.GetDensityByLocations(locations, minutes)
 	if err != nil {
 		return nil, err
@@ -347,14 +365,14 @@ func (s *FlowService) ExpirePriority(priorityID uint64) error {
 
 // SimulationInfo thong tin phien mo phong.
 type SimulationInfo struct {
-	RunID       uint64                `json:"run_id,omitempty"`
-	Running     bool                  `json:"running"`
-	TeamSize    int                   `json:"team_size"`
-	Makespan    int                   `json:"makespan"`
-	CurrentTS   int                   `json:"current_timestep"`
-	TickRateMs  int                   `json:"tick_rate_ms"`
-	OutputFile  string                `json:"output_file"`
-	Positions   []mapf.AgentState     `json:"positions,omitempty"`
+	RunID      uint64            `json:"run_id,omitempty"`
+	Running    bool              `json:"running"`
+	TeamSize   int               `json:"team_size"`
+	Makespan   int               `json:"makespan"`
+	CurrentTS  int               `json:"current_timestep"`
+	TickRateMs int               `json:"tick_rate_ms"`
+	OutputFile string            `json:"output_file"`
+	Positions  []mapf.AgentState `json:"positions,omitempty"`
 }
 
 // StartSimulation bat dau mo phong MAPF.

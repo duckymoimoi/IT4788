@@ -13,6 +13,12 @@ import (
 // Chi chay khi database rong (kiem tra bang users truoc).
 // Du lieu nay dung de test API va demo san pham.
 func Seed() error {
+	// Always repair the canonical map on boot. Deploy databases are persistent,
+	// so a normal seed skip must not leave another uploaded/test map active.
+	if err := SeedMap(DB); err != nil {
+		log.Printf("CANH BAO: Khong repair duoc map data: %v", err)
+	}
+
 	var count int64
 	DB.Model(&schema.User{}).Count(&count)
 	if count > 0 {
@@ -252,4 +258,3 @@ func dobPtr(year, month, day int) *time.Time {
 	t := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
 	return &t
 }
-

@@ -244,6 +244,18 @@ func (r *FlowRepo) GetRunningSimulation() (*schema.SimulationRun, error) {
 	return &run, nil
 }
 
+// StopRunningSimulations marks stale running rows as stopped before a new
+// runtime AgentManager starts. Docker restarts keep DB rows but lose memory.
+func (r *FlowRepo) StopRunningSimulations() error {
+	now := time.Now()
+	return r.db.Model(&schema.SimulationRun{}).
+		Where("status = ?", schema.SimulationRunning).
+		Updates(map[string]interface{}{
+			"status":   schema.SimulationStopped,
+			"ended_at": &now,
+		}).Error
+}
+
 // UpdateSimulationStatus cap nhat trang thai phien mo phong.
 func (r *FlowRepo) UpdateSimulationStatus(runID uint64, status schema.SimulationStatus) error {
 	updates := map[string]interface{}{

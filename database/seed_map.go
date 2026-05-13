@@ -15,13 +15,6 @@ import (
 // Parse file -> INSERT grid_maps + seed POIs mẫu.
 func SeedMap(db *gorm.DB) error {
 	// Kiểm tra đã có dữ liệu chưa
-	var count int64
-	db.Model(&schema.GridMap{}).Count(&count)
-	if count > 0 {
-		log.Println("seed_map: grid_maps da co du lieu, bo qua")
-		return nil
-	}
-
 	// Parse file .map
 	mapFilePath := "data/warehouse_small.map"
 	grid, err := mapf.LoadGridMap(mapFilePath)
@@ -37,6 +30,7 @@ func SeedMap(db *gorm.DB) error {
 
 	// INSERT grid_maps
 	gridMap := &schema.GridMap{
+		MapID:       1,
 		MapName:     "Hospital Main Floor",
 		MapFilePath: mapFilePath,
 		Rows:        grid.Rows,
@@ -45,11 +39,35 @@ func SeedMap(db *gorm.DB) error {
 		IsActive:    true,
 	}
 
-	if err := db.Omit(clause.Associations).Create(gridMap).Error; err != nil {
-		return fmt.Errorf("seed_map: insert grid_maps loi: %w", err)
+	err = db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&schema.GridMap{}).Where("1 = 1").Update("is_active", false).Error; err != nil {
+			return err
+		}
+		if err := tx.Omit(clause.Associations).Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "map_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"map_name",
+				"map_file_path",
+				"rows",
+				"cols",
+				"grid_data",
+				"is_active",
+			}),
+		}).Create(gridMap).Error; err != nil {
+			return err
+		}
+		return tx.Exec(`
+			SELECT setval(
+				pg_get_serial_sequence('grid_maps', 'map_id'),
+				GREATEST((SELECT COALESCE(MAX(map_id), 1) FROM grid_maps), 1)
+			)
+		`).Error
+	})
+	if err != nil {
+		return fmt.Errorf("seed_map: upsert grid_maps loi: %w", err)
 	}
 
-	log.Printf("seed_map: Inserted grid_map ID=%d (%s)", gridMap.MapID, gridMap.MapName)
+	log.Printf("seed_map: Upserted canonical grid_map ID=%d (%s)", gridMap.MapID, gridMap.MapName)
 
 	// Seed POIs mẫu
 	if err := seedSamplePOIs(db, gridMap, grid); err != nil {
@@ -110,7 +128,21 @@ func seedSamplePOIs(db *gorm.DB, gridMap *schema.GridMap, grid *mapf.GridMap) er
 			IsActive:     true,
 		}
 
-		if err := db.Omit(clause.Associations).Create(poi).Error; err != nil {
+		if err := db.Omit(clause.Associations).Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "poi_code"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"map_id",
+				"poi_name",
+				"poi_type",
+				"grid_row",
+				"grid_col",
+				"grid_location",
+				"is_landmark",
+				"is_accessible",
+				"custom_weight",
+				"is_active",
+			}),
+		}).Create(poi).Error; err != nil {
 			return fmt.Errorf("seed_map: insert POI %s loi: %w", s.Code, err)
 		}
 	}

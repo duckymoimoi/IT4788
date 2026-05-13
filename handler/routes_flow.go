@@ -3,6 +3,7 @@ package handler
 import (
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -24,6 +25,12 @@ func RegisterFlowRoutes(api *gin.RouterGroup, db *gorm.DB) {
 	// Auto-start MAPF simulation (loop vo han, tick 2s)
 	go func() {
 		outputFile := "data/output.json"
+		mapID := uint32(1)
+		if rawMapID := os.Getenv("SIM_MAP_ID"); rawMapID != "" {
+			if parsed, err := strconv.ParseUint(rawMapID, 10, 32); err == nil && parsed > 0 {
+				mapID = uint32(parsed)
+			}
+		}
 		mapPath := os.Getenv("MAP_FILE")
 		if mapPath == "" {
 			mapPath = "data/warehouse_small.map"
@@ -39,7 +46,7 @@ func RegisterFlowRoutes(api *gin.RouterGroup, db *gorm.DB) {
 			log.Printf("[BOOT] Cannot load map %s, using default cols=%d: %v\n", mapPath, mapCols, err)
 		}
 
-		if err := svc.AutoStartSimulation(outputFile, 2000, mapCols); err != nil {
+		if err := svc.AutoStartSimulation(mapID, outputFile, 2000, mapCols); err != nil {
 			log.Println("[SIM]", err)
 		} else {
 			log.Println("[BOOT] Simulation auto-start OK")
@@ -50,23 +57,23 @@ func RegisterFlowRoutes(api *gin.RouterGroup, db *gorm.DB) {
 	// FLOW  - Public (khong can auth)
 	// =============================================
 	flow := api.Group("/flow")
-	flow.GET("/get_density", h.GetDensity)           // #47
-	flow.GET("/get_heatmap", h.GetHeatmap)            // #48
-	flow.GET("/get_bottlenecks", h.GetBottlenecks)    // #49
-	flow.GET("/get_forecast", h.GetForecast)           // #52
-	flow.GET("/get_alerts", h.GetAlerts)               // #54
-	flow.GET("/edge_status", h.EdgeStatus)             // #55
+	flow.GET("/get_density", h.GetDensity)         // #47
+	flow.GET("/get_heatmap", h.GetHeatmap)         // #48
+	flow.GET("/get_bottlenecks", h.GetBottlenecks) // #49
+	flow.GET("/get_forecast", h.GetForecast)       // #52
+	flow.GET("/get_alerts", h.GetAlerts)           // #54
+	flow.GET("/edge_status", h.EdgeStatus)         // #55
 
 	// =============================================
 	// FLOW  - Private (can auth benh nhan/staff)
 	// =============================================
 	flowPriv := api.Group("/flow")
 	flowPriv.Use(middleware.Auth())
-	flowPriv.POST("/ping_location", h.PingLocation)       // #46
-	flowPriv.POST("/report_obstacle", h.ReportObstacle)   // #50
-	flowPriv.GET("/get_obstacles", h.GetObstacles)         // danh sach bao cao
-	flowPriv.POST("/set_priority", h.SetPriority)          // #53
-	flowPriv.POST("/expire_priority", h.ExpirePriority)    // het han priority
+	flowPriv.POST("/ping_location", h.PingLocation)     // #46
+	flowPriv.POST("/report_obstacle", h.ReportObstacle) // #50
+	flowPriv.GET("/get_obstacles", h.GetObstacles)      // danh sach bao cao
+	flowPriv.POST("/set_priority", h.SetPriority)       // #53
+	flowPriv.POST("/expire_priority", h.ExpirePriority) // het han priority
 
 	// =============================================
 	// FLOW  - Staff only (can staff/coordinator/admin)
@@ -80,16 +87,16 @@ func RegisterFlowRoutes(api *gin.RouterGroup, db *gorm.DB) {
 	// =============================================
 	admin := api.Group("/admin")
 	admin.Use(middleware.Auth(), middleware.RequireAdmin())
-	admin.PATCH("/set_capacity", h.SetCapacity)   // #51
-	admin.GET("/stats_flow", h.StatsFlow)          // #56
-	admin.POST("/reset_flow", h.ResetFlow)         // #57
+	admin.PATCH("/set_capacity", h.SetCapacity) // #51
+	admin.GET("/stats_flow", h.StatsFlow)       // #56
+	admin.POST("/reset_flow", h.ResetFlow)      // #57
 
 	// =============================================
 	// SIMULATE  - Admin only
 	// =============================================
 	sim := api.Group("/simulate")
 	sim.Use(middleware.Auth(), middleware.RequireAdmin())
-	sim.POST("/start", h.StartSimulation)    // #58
-	sim.POST("/stop", h.StopSimulation)       // #59
-	sim.GET("/status", h.SimulationStatus)    // #60
+	sim.POST("/start", h.StartSimulation)  // #58
+	sim.POST("/stop", h.StopSimulation)    // #59
+	sim.GET("/status", h.SimulationStatus) // #60
 }
