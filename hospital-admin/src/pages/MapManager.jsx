@@ -6,9 +6,10 @@ import {
 import {
   UploadOutlined, PlayCircleOutlined, DownloadOutlined,
   FileOutlined, CheckCircleOutlined, CloudUploadOutlined, EditOutlined,
+  DeleteOutlined, StopOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchMaps, uploadMap, setActiveMap, exportMap, uploadOutput } from '../api/map';
+import { fetchMaps, uploadMap, setActiveMap, exportMap, uploadOutput, deleteMap, deactivateMap } from '../api/map';
 
 const { Title, Text } = Typography;
 
@@ -58,6 +59,25 @@ export default function MapManager() {
       setUploadOutputModalOpen(false);
     },
     onError: (err) => message.error('Upload thất bại: ' + (err.response?.data?.message || err.message)),
+  });
+
+  const deleteMapMutation = useMutation({
+    mutationFn: (map_id) => deleteMap(map_id),
+    onSuccess: () => {
+      message.success('Đã xóa map!');
+      queryClient.invalidateQueries({ queryKey: ['admin-maps'] });
+    },
+    onError: (err) => message.error('Lỗi xóa: ' + (err.response?.data?.message || err.message)),
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: (map_id) => deactivateMap(map_id),
+    onSuccess: () => {
+      message.success('Đã tắt trạng thái Active!');
+      queryClient.invalidateQueries({ queryKey: ['admin-maps'] });
+      queryClient.invalidateQueries({ queryKey: ['floors'] });
+    },
+    onError: (err) => message.error('Lỗi: ' + (err.response?.data?.message || err.message)),
   });
 
   // ─── Handlers ──────────────────────────────────────────────
@@ -196,9 +216,9 @@ export default function MapManager() {
     {
       title: 'Hành động',
       key: 'action',
-      width: 220,
+      width: 340,
       render: (_, record) => (
-        <Space size="small">
+        <Space size="small" wrap>
           <Button
             size="small"
             icon={<EditOutlined />}
@@ -226,6 +246,21 @@ export default function MapManager() {
               </Button>
             </Popconfirm>
           )}
+          {record.is_active && (
+            <Popconfirm
+              title="Tắt trạng thái Active?"
+              description="Map sẽ không còn được sử dụng bởi hệ thống."
+              onConfirm={() => deactivateMutation.mutate(record.map_id)}
+            >
+              <Button
+                size="small"
+                icon={<StopOutlined />}
+                loading={deactivateMutation.isPending}
+              >
+                Deactivate
+              </Button>
+            </Popconfirm>
+          )}
           <Button
             size="small"
             icon={<DownloadOutlined />}
@@ -233,6 +268,24 @@ export default function MapManager() {
           >
             Export
           </Button>
+          {!record.is_active && (
+            <Popconfirm
+              title="Xóa vĩnh viễn map này?"
+              description="Thao tác không thể hoàn tác. Toàn bộ POI và edge liên quan sẽ bị xóa."
+              onConfirm={() => deleteMapMutation.mutate(record.map_id)}
+              okText="Xóa"
+              okType="danger"
+            >
+              <Button
+                danger
+                size="small"
+                icon={<DeleteOutlined />}
+                loading={deleteMapMutation.isPending}
+              >
+                Xóa
+              </Button>
+            </Popconfirm>
+          )}
         </Space>
       ),
     },

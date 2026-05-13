@@ -50,6 +50,12 @@ export const exportMap = (filename) =>
     responseType: 'blob',
   });
 
+export const deleteMap = (map_id) =>
+  api.delete('/admin/delete_map', { data: { map_id } }).then((r) => r.data);
+
+export const deactivateMap = (map_id) =>
+  api.post('/admin/deactivate_map', { map_id }).then((r) => r.data);
+
 // Admin — POI metadata (only metadata, NOT position)
 export const editNode = (data) =>
   api.post('/admin/edit_node', data).then((r) => r.data);
