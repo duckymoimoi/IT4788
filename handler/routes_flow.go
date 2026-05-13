@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"hospital/middleware"
+	"hospital/pkg/datafiles"
 	"hospital/pkg/mapf"
 	"hospital/repository"
 	"hospital/service"
@@ -24,7 +25,11 @@ func RegisterFlowRoutes(api *gin.RouterGroup, db *gorm.DB) {
 
 	// Auto-start MAPF simulation (loop vo han, tick 2s)
 	go func() {
-		outputFile := "data/output.json"
+		outputFile, err := datafiles.EnsureDefaultDataFile("output.json")
+		if err != nil {
+			log.Println("[SIM] cannot repair output.json:", err)
+			outputFile = "data/output.json"
+		}
 		mapID := uint32(1)
 		if rawMapID := os.Getenv("SIM_MAP_ID"); rawMapID != "" {
 			if parsed, err := strconv.ParseUint(rawMapID, 10, 32); err == nil && parsed > 0 {
@@ -33,7 +38,12 @@ func RegisterFlowRoutes(api *gin.RouterGroup, db *gorm.DB) {
 		}
 		mapPath := os.Getenv("MAP_FILE")
 		if mapPath == "" {
-			mapPath = "data/warehouse_small.map"
+			if repairedMapPath, err := datafiles.EnsureDefaultDataFile("warehouse_small.map"); err == nil {
+				mapPath = repairedMapPath
+			} else {
+				log.Println("[SIM] cannot repair warehouse_small.map:", err)
+				mapPath = "data/warehouse_small.map"
+			}
 		}
 
 		// Load map de lay so cot (cols) cho tinh Location

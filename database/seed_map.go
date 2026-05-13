@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"hospital/pkg/datafiles"
 	"hospital/pkg/mapf"
 	"hospital/schema"
 
@@ -16,7 +17,10 @@ import (
 func SeedMap(db *gorm.DB) error {
 	// Kiểm tra đã có dữ liệu chưa
 	// Parse file .map
-	mapFilePath := "data/warehouse_small.map"
+	mapFilePath, err := datafiles.EnsureDefaultDataFile("warehouse_small.map")
+	if err != nil {
+		return fmt.Errorf("seed_map: repair map file loi: %w", err)
+	}
 	grid, err := mapf.LoadGridMap(mapFilePath)
 	if err != nil {
 		return fmt.Errorf("seed_map: parse map file loi: %w", err)

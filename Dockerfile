@@ -28,8 +28,10 @@ WORKDIR /app
 # Copy binary tu builder
 COPY --from=builder /hospital .
 
-# Copy data files (map, output.json)
+# Copy data files (map, output.json). /app/data may be shadowed by a
+# persistent Docker volume, so keep a second immutable copy for boot repair.
 COPY data/ ./data/
+COPY data/ ./seed_data/
 
 # Tao thu muc cho uploads va audio
 RUN mkdir -p uploads audio
