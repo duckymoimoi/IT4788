@@ -35,9 +35,11 @@ function getPOIColor(poiType) {
 // Instead of creating 70K Konva.Rect, we paint once on a canvas.
 function buildGridImage(rows, cols, cellSize, heatmapData, pathCells, gridDataStr) {
   const canvas = document.createElement('canvas');
-  canvas.width = cols * cellSize;
-  canvas.height = rows * cellSize;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cols * cellSize * dpr;
+  canvas.height = rows * cellSize * dpr;
   const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
 
   // Base grid
   ctx.fillStyle = '#f0f0f0';
@@ -368,7 +370,7 @@ export default function GridCanvas({
       >
         {/* Layer 1: Pre-rendered grid background (single canvas image) */}
         <Layer listening={false}>
-          <KonvaImage image={gridImage} x={0} y={0} />
+          <KonvaImage image={gridImage} width={cols * cellSize} height={rows * cellSize} x={0} y={0} />
         </Layer>
 
         {/* Layer 2: Interactive POI markers + labels */}
