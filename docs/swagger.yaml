@@ -90,6 +90,12 @@ paths:
               required: [phone_number, password]
               properties:
                 phone_number: { type: string, example: "0900000001" }
+                phone:
+                  {
+                    type: string,
+                    example: "0900000001",
+                    description: "Alias tương thích test; ưu tiên dùng phone_number.",
+                  }
                 password: { type: string, example: "password123" }
                 device_token: { type: string }
                 platform: { type: string, enum: [android, ios] }
@@ -110,6 +116,16 @@ paths:
                       full_name: { type: string }
                       phone_number: { type: string }
                       token: { type: string }
+                      accessToken:
+                        {
+                          type: string,
+                          description: "Alias tương thích test, cùng giá trị với token.",
+                        }
+                      refreshToken:
+                        {
+                          type: string,
+                          description: "Alias tương thích test.",
+                        }
                       role: { type: string }
 
   /api/auth/signup:
@@ -125,6 +141,11 @@ paths:
               required: [phone_number, password, full_name]
               properties:
                 phone_number: { type: string }
+                phone:
+                  {
+                    type: string,
+                    description: "Alias tương thích test; ưu tiên dùng phone_number.",
+                  }
                 password: { type: string, minLength: 6 }
                 full_name: { type: string }
                 dob: { type: string, example: "2000-01-01" }
@@ -149,7 +170,17 @@ paths:
               required: [phone_number, otp]
               properties:
                 phone_number: { type: string }
+                phone:
+                  {
+                    type: string,
+                    description: "Alias tương thích test; ưu tiên dùng phone_number.",
+                  }
                 otp: { type: string }
+                otp_code:
+                  {
+                    type: string,
+                    description: "Alias tương thích test; ưu tiên dùng otp.",
+                  }
                 otp_type:
                   {
                     type: string,
@@ -176,6 +207,11 @@ paths:
               required: [phone_number]
               properties:
                 phone_number: { type: string }
+                phone:
+                  {
+                    type: string,
+                    description: "Alias tương thích test; ưu tiên dùng phone_number.",
+                  }
       responses:
         "200":
           description: OK
@@ -196,7 +232,17 @@ paths:
               required: [phone_number, otp, new_password]
               properties:
                 phone_number: { type: string }
+                phone:
+                  {
+                    type: string,
+                    description: "Alias tương thích test; ưu tiên dùng phone_number.",
+                  }
                 otp: { type: string }
+                otp_code:
+                  {
+                    type: string,
+                    description: "Alias tương thích test; ưu tiên dùng otp.",
+                  }
                 new_password: { type: string, minLength: 6 }
       responses:
         "200":
@@ -536,6 +582,77 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Response" }
+
+  # Legacy aliases used by external Jest test suite.
+  /api/map/floors:
+    get:
+      tags: [Map]
+      summary: Alias của /api/map/get_floors
+      responses:
+        "200": { description: OK }
+
+  /api/map/nodes:
+    get:
+      tags: [Map]
+      summary: Alias của /api/map/get_nodes
+      parameters:
+        - name: floor_id
+          in: query
+          schema: { type: integer }
+          description: "Alias của map_id."
+      responses:
+        "200": { description: OK }
+
+  /api/map/edges:
+    get:
+      tags: [Map]
+      summary: Alias của /api/map/get_edges
+      parameters:
+        - name: floor_id
+          in: query
+          schema: { type: integer }
+          description: "Alias của map_id."
+      responses:
+        "200": { description: OK }
+
+  /api/map/meta:
+    get:
+      tags: [Map]
+      summary: Alias của /api/map/get_meta
+      parameters:
+        - name: floor_id
+          in: query
+          schema: { type: integer }
+          description: "Alias của map_id."
+      responses:
+        "200": { description: OK }
+
+  /api/map/search:
+    get:
+      tags: [Map]
+      summary: Alias của /api/map/search_location
+      parameters:
+        - name: keyword
+          in: query
+          schema: { type: string }
+        - name: floor_id
+          in: query
+          schema: { type: integer }
+          description: "Alias của map_id."
+      responses:
+        "200": { description: OK }
+
+  /api/map/landmarks:
+    get:
+      tags: [Map]
+      summary: Alias của /api/map/get_landmarks
+      parameters:
+        - name: floor_id
+          in: query
+          schema: { type: integer }
+          description: "Alias của map_id."
+      responses:
+        "200": { description: OK }
 
   # ============================================================
   # ADMIN - Map Management (Admin only)
@@ -1194,6 +1311,177 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Response" }
+
+  # Legacy aliases used by external Jest test suite.
+  /api/routing/get_modes:
+    get:
+      tags: [Route]
+      summary: Alias của /api/route/get_modes
+      responses:
+        "200": { description: OK }
+
+  /api/routing/route_ordered:
+    post:
+      tags: [Route]
+      summary: Alias của /api/route/order_multi
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                start_node: { type: string, example: "node_001" }
+                target_nodes:
+                  type: array
+                  items: { type: string }
+                transport_mode: { type: string, example: wheelchair }
+      responses:
+        "200": { description: OK }
+
+  /api/routing/route_unordered:
+    post:
+      tags: [Route]
+      summary: Alias của /api/route/order_unordered
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                start_node: { type: string }
+                target_nodes:
+                  type: array
+                  items: { type: string }
+                transport_mode: { type: string }
+      responses:
+        "200": { description: OK }
+
+  /api/routing/re_calculate:
+    post:
+      tags: [Route]
+      summary: Alias của /api/route/recalculate
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                route_id: { type: string }
+                current_node:
+                  {
+                    type: string,
+                    description: "Alias của current_location; nếu có số trong chuỗi sẽ lấy phần số.",
+                  }
+      responses:
+        "200": { description: OK }
+
+  /api/routing/get_active:
+    get:
+      tags: [Route]
+      summary: Alias của /api/route/get_active
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200": { description: OK }
+
+  /api/routing/cancel_route:
+    post:
+      tags: [Route]
+      summary: Alias của /api/route/cancel
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200": { description: OK }
+
+  /api/routing/share_route:
+    post:
+      tags: [Route]
+      summary: Alias của /api/route/share
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                route_id: { type: string }
+                recipient_phone: { type: string, description: "Alias của receiver_phone." }
+      responses:
+        "200": { description: OK }
+
+  /api/routing/rate_path:
+    post:
+      tags: [Route]
+      summary: Alias của /api/route/rate
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200": { description: OK }
+
+  /api/routing/get_history:
+    get:
+      tags: [Route]
+      summary: Alias của /api/route/get_history
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200": { description: OK }
+
+  /api/routing/clear_history:
+    delete:
+      tags: [Route]
+      summary: Alias của /api/route/clear_history
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200": { description: OK }
+
+  /api/routing/get_steps:
+    get:
+      tags: [Route]
+      summary: Alias của /api/route/get_steps
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200": { description: OK }
+
+  /api/routing/preview_path:
+    post:
+      tags: [Route]
+      summary: Alias của /api/route/preview
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200": { description: OK }
+
+  /api/routing/get_eta:
+    post:
+      tags: [Route]
+      summary: Alias của /api/route/get_eta
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200": { description: OK }
+
+  /api/routing/pass_node:
+    post:
+      tags: [Route]
+      summary: Alias của /api/route/pass_node
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                route_id: { type: string }
+                node_id:
+                  {
+                    type: string,
+                    description: "Alias của grid_location; nếu có số trong chuỗi sẽ lấy phần số.",
+                  }
+      responses:
+        "200": { description: OK }
 
   # ============================================================
   # FLOW - Public
@@ -2140,6 +2428,71 @@ paths:
               },
           },
       }
+
+  # Legacy aliases used by external Jest test suite.
+  /api/notif/get_notification:
+    get:
+      tags: [Notification]
+      summary: Alias legacy lấy danh sách thông báo
+      parameters:
+        - name: token
+          in: header
+          schema: { type: string }
+        - name: user_id
+          in: query
+          schema: { type: integer }
+        - name: index
+          in: query
+          required: true
+          schema: { type: integer, minimum: 0 }
+        - name: count
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200": { description: OK }
+
+  /api/notif/read_notification:
+    post:
+      tags: [Notification]
+      summary: Alias legacy đánh dấu đã đọc
+      parameters:
+        - name: token
+          in: header
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [notif_id]
+              properties:
+                notif_id: { type: integer }
+                user_id: { type: integer }
+      responses:
+        "200": { description: OK }
+
+  /api/notif/del_notification:
+    post:
+      tags: [Notification]
+      summary: Alias legacy xóa thông báo
+      parameters:
+        - name: token
+          in: header
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [notif_id]
+              properties:
+                notif_id: { type: integer }
+                user_id: { type: integer }
+      responses:
+        "200": { description: OK }
 
   # ============================================================
   # SOS

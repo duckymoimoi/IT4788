@@ -66,7 +66,7 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	// =============================================
 	api.GET("/sys/check_version", sysH.CheckVersion)
 	api.GET("/sys/get_voice_key", sysH.GetVoiceKey)     // #79
-	api.GET("/sys/get_voice_files", sysH.GetVoiceFiles)  // #80
+	api.GET("/sys/get_voice_files", sysH.GetVoiceFiles) // #80
 
 	// =============================================
 	// MAP  - Public (API 16-22, 24)
@@ -80,6 +80,13 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	mapG.GET("/search_location", mapH.SearchLocation)
 	mapG.GET("/get_landmarks", mapH.GetLandmarks)
 	mapG.GET("/sync_full", mapH.SyncFull)
+	// Legacy aliases used by the external Jest test suite.
+	mapG.GET("/floors", mapH.GetFloors)
+	mapG.GET("/nodes", mapH.GetNodes)
+	mapG.GET("/edges", mapH.GetEdges)
+	mapG.GET("/meta", mapH.GetMeta)
+	mapG.GET("/search", mapH.SearchLocation)
+	mapG.GET("/landmarks", mapH.GetLandmarks)
 
 	// =============================================
 	// ADMIN  - Private (admin only)
@@ -92,7 +99,7 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	admin.POST("/add_edge", mapH.AddEdge)
 	admin.DELETE("/del_edge", mapH.DelEdge)
 	admin.PATCH("/set_weight", mapH.SetWeight)
-	
+
 	// Map File APIs
 	admin.POST("/upload_map", mapH.UploadMap)
 	admin.POST("/upload_output", mapH.UploadOutput)
@@ -131,6 +138,27 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	routePriv.POST("/share", routeH.Share)
 	routePriv.POST("/rate", routeH.Rate)
 
+	// Legacy /api/routing aliases used by the external Jest test suite.
+	routing := api.Group("/routing")
+	routing.GET("/get_modes", routeH.GetModes)
+
+	routingPriv := api.Group("/routing")
+	routingPriv.Use(middleware.AuthCompat())
+	routingPriv.POST("/route_ordered", routeH.OrderMulti)
+	routingPriv.POST("/route_unordered", routeH.OrderUnordered)
+	routingPriv.POST("/re_calculate", routeH.Recalculate)
+	routingPriv.GET("/get_active", routeH.GetActive)
+	routingPriv.POST("/cancel_route", routeH.Cancel)
+	routingPriv.POST("/share_route", routeH.Share)
+	routingPriv.POST("/rate_path", routeH.Rate)
+	routingPriv.GET("/get_history", routeH.GetHistory)
+	routingPriv.DELETE("/clear_history", routeH.ClearHistory)
+	routingPriv.GET("/get_steps", routeH.GetSteps)
+	routingPriv.POST("/preview_path", routeH.Preview)
+	routingPriv.GET("/preview_path", routeH.Preview)
+	routingPriv.POST("/get_eta", routeH.GetETA)
+	routingPriv.POST("/pass_node", routeH.PassNode)
+
 	// =============================================
 	// ENGINE  - Admin only (shared engineH)
 	// =============================================
@@ -147,10 +175,10 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	engine.GET("/mapf_info", engineH.GetMAPFInfo)
 
 	// MODULE STUBS
-	RegisterFlowRoutes(api, db)       
-	RegisterMedicalRoutes(api, db)    
-	RegisterNotifRoutes(api, db)      
-	RegisterDeviceRoutes(api, db)     
-	RegisterUtilRoutes(api, db)       
-	RegisterSupportRoutes(api, db)    
+	RegisterFlowRoutes(api, db)
+	RegisterMedicalRoutes(api, db)
+	RegisterNotifRoutes(api, db)
+	RegisterDeviceRoutes(api, db)
+	RegisterUtilRoutes(api, db)
+	RegisterSupportRoutes(api, db)
 }

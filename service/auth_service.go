@@ -38,13 +38,15 @@ func NewAuthService(repo *repository.UserRepo) *AuthService {
 // LoginResult chua thong tin tra ve sau khi dang nhap thanh cong.
 // Cac truong tra ve khop voi dac ta API trong slide.
 type LoginResult struct {
-	UserID      uint64  `json:"user_id"`
-	FullName    string  `json:"full_name"`
-	PhoneNumber string  `json:"phone_number"`
-	Token       string  `json:"token"`
-	Avatar      *string `json:"avatar"`
-	Active      int     `json:"active"` // 1: active, 0: inactive
-	Role        string  `json:"role"`
+	UserID       uint64  `json:"user_id"`
+	FullName     string  `json:"full_name"`
+	PhoneNumber  string  `json:"phone_number"`
+	Token        string  `json:"token"`
+	AccessToken  string  `json:"accessToken,omitempty"`
+	RefreshToken string  `json:"refreshToken,omitempty"`
+	Avatar       *string `json:"avatar"`
+	Active       int     `json:"active"` // 1: active, 0: inactive
+	Role         string  `json:"role"`
 }
 
 // SignupResult chua thong tin tra ve sau khi dang ky.
@@ -163,13 +165,15 @@ func (s *AuthService) Login(phone, password, deviceToken, platform string) (*Log
 	}
 
 	return &LoginResult{
-		UserID:      user.UserID,
-		FullName:    user.FullName,
-		PhoneNumber: user.PhoneNumber,
-		Token:       token,
-		Avatar:      user.AvatarURL,
-		Active:      active,
-		Role:        role,
+		UserID:       user.UserID,
+		FullName:     user.FullName,
+		PhoneNumber:  user.PhoneNumber,
+		Token:        token,
+		AccessToken:  token,
+		RefreshToken: token,
+		Avatar:       user.AvatarURL,
+		Active:       active,
+		Role:         role,
 	}, nil
 }
 
