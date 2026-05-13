@@ -321,3 +321,10 @@ func (r *MapRepo) DeleteMap(mapID uint32) error {
 		return nil
 	})
 }
+
+// DeactivateMap set is_active = false cho 1 map cụ thể.
+func (r *MapRepo) DeactivateMap(mapID uint32) error {
+	return r.db.Model(&schema.GridMap{}).
+		Where("map_id = ?", mapID).
+		Update("is_active", false).Error
+}

@@ -44,9 +44,9 @@ export const uploadOutput = (formData) =>
     timeout: 60000,
   }).then((r) => r.data);
 
-export const exportMap = (map_id) =>
+export const exportMap = (filename) =>
   api.get('/admin/export_map', {
-    params: { map_id },
+    params: { filename },
     responseType: 'blob',
   });
 

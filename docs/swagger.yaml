@@ -662,6 +662,27 @@ paths:
             application/json:
               { schema: { $ref: "#/components/schemas/Response" } }
 
+  /api/admin/deactivate_map:
+    post:
+      tags: [Admin-Map]
+      summary: Tắt trạng thái active của map (set is_active = false)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [map_id]
+              properties:
+                map_id: { type: integer, description: "ID của map cần deactivate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              { schema: { $ref: "#/components/schemas/Response" } }
+
   /api/admin/add_node:
     post:
       tags: [Admin-Map]

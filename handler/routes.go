@@ -102,6 +102,7 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	admin.POST("/update_grid", mapH.UpdateGrid)
 	admin.GET("/export_map", mapH.ExportMap)
 	admin.DELETE("/delete_map", mapH.DeleteMap)
+	admin.POST("/deactivate_map", mapH.DeactivateMap)
 
 	// Device Admin APIs
 	RegisterAdminDeviceRoutes(admin, db)
@@ -145,13 +146,11 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	engine.GET("/mapf_positions", engineH.GetMAPFPositions)
 	engine.GET("/mapf_info", engineH.GetMAPFInfo)
 
-	// =============================================
-	// MODULE STUBS - Team khac implement
-	// =============================================
-	RegisterFlowRoutes(api, db)       // Person B
-	RegisterMedicalRoutes(api, db)    // Person C
-	RegisterNotifRoutes(api, db)      // Person C
-	RegisterDeviceRoutes(api, db)     // Person D
-	RegisterUtilRoutes(api, db)       // Person D
+	// MODULE STUBS
+	RegisterFlowRoutes(api, db)       
+	RegisterMedicalRoutes(api, db)    
+	RegisterNotifRoutes(api, db)      
+	RegisterDeviceRoutes(api, db)     
+	RegisterUtilRoutes(api, db)       
 	RegisterSupportRoutes(api, db)    
 }

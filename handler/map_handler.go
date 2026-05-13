@@ -595,6 +595,23 @@ func (h *MapHandler) DeleteMap(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+// POST /api/admin/deactivate_map
+func (h *MapHandler) DeactivateMap(c *gin.Context) {
+	var req struct {
+		MapID uint32 `json:"map_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	if err := h.svc.DeactivateMap(req.MapID); err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
 // ========================================
 // HELPERS
 // ========================================

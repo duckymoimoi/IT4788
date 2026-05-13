@@ -77,14 +77,16 @@ export default function MapManager() {
     }
   };
 
-  const handleExport = async (map_id, map_name) => {
+  const handleExport = async (map_file_path, map_name) => {
     try {
-      const response = await exportMap(map_id);
+      // Extract filename from path like "data/warehouse_small.map" → "warehouse_small.map"
+      const filename = map_file_path?.split('/').pop() || `${map_name}.map`;
+      const response = await exportMap(filename);
       const blob = new Blob([response.data], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${map_name || 'map'}.map`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
       message.success('Đã tải file .map');
@@ -227,7 +229,7 @@ export default function MapManager() {
           <Button
             size="small"
             icon={<DownloadOutlined />}
-            onClick={() => handleExport(record.map_id, record.map_name)}
+            onClick={() => handleExport(record.map_file_path, record.map_name)}
           >
             Export
           </Button>

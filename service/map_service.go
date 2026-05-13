@@ -678,3 +678,21 @@ func (s *MapService) DeleteMap(mapID uint32) error {
 	}
 	return s.repo.DeleteMap(mapID)
 }
+
+// DeactivateMap set is_active = false cho map (không cần map thay thế).
+func (s *MapService) DeactivateMap(mapID uint32) error {
+	if mapID == 0 {
+		return ErrMissingField
+	}
+	m, err := s.repo.FindMapByIDAnyStatus(mapID)
+	if err != nil {
+		return err
+	}
+	if m == nil {
+		return ErrMapNotFound
+	}
+	if s.repo.IsSimulationRunning(mapID) {
+		return errors.New("cannot deactivate map: simulation is currently running")
+	}
+	return s.repo.DeactivateMap(mapID)
+}
