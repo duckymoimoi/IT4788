@@ -657,3 +657,24 @@ func (s *MapService) UpdateGrid(mapID uint32, gridData string, mapName string) e
 	}
 	return s.repo.UpdateMap(mapID, updates)
 }
+
+// DeleteMap xóa map theo ID (hard delete). Không cho phép xóa map đang active.
+func (s *MapService) DeleteMap(mapID uint32) error {
+	if mapID == 0 {
+		return ErrMissingField
+	}
+	m, err := s.repo.FindMapByIDAnyStatus(mapID)
+	if err != nil {
+		return err
+	}
+	if m == nil {
+		return ErrMapNotFound
+	}
+	if m.IsActive {
+		return errors.New("cannot delete active map; deactivate it first")
+	}
+	if s.repo.IsSimulationRunning(mapID) {
+		return errors.New("cannot delete map: simulation is currently running")
+	}
+	return s.repo.DeleteMap(mapID)
+}

@@ -302,3 +302,22 @@ func (r *MapRepo) UpdateMap(mapID uint32, updates map[string]interface{}) error 
 		Where("map_id = ?", mapID).
 		Updates(updates).Error
 }
+
+// DeleteMap xóa map theo ID (hard delete), kèm xóa POIs và steps liên quan.
+func (r *MapRepo) DeleteMap(mapID uint32) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// Xóa map_steps liên quan
+		if err := tx.Where("map_id = ?", mapID).Delete(&schema.MapStep{}).Error; err != nil {
+			return err
+		}
+		// Xóa POIs liên quan
+		if err := tx.Where("map_id = ?", mapID).Delete(&schema.GridPOI{}).Error; err != nil {
+			return err
+		}
+		// Xóa map
+		if err := tx.Delete(&schema.GridMap{}, "map_id = ?", mapID).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}

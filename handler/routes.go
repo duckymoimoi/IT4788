@@ -101,6 +101,7 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	admin.POST("/edit_map", mapH.EditMap)
 	admin.POST("/update_grid", mapH.UpdateGrid)
 	admin.GET("/export_map", mapH.ExportMap)
+	admin.DELETE("/delete_map", mapH.DeleteMap)
 
 	// Device Admin APIs
 	RegisterAdminDeviceRoutes(admin, db)
@@ -152,5 +153,5 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	RegisterNotifRoutes(api, db)      // Person C
 	RegisterDeviceRoutes(api, db)     // Person D
 	RegisterUtilRoutes(api, db)       // Person D
-	RegisterSupportRoutes(api, db)    // Person E
+	RegisterSupportRoutes(api, db)    
 }

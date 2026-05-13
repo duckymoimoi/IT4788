@@ -578,6 +578,23 @@ func (h *MapHandler) ExportMap(c *gin.Context) {
 	c.FileAttachment("data/"+filename, filename)
 }
 
+// DELETE /api/admin/delete_map
+func (h *MapHandler) DeleteMap(c *gin.Context) {
+	var req struct {
+		MapID uint32 `json:"map_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	if err := h.svc.DeleteMap(req.MapID); err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
 // ========================================
 // HELPERS
 // ========================================
