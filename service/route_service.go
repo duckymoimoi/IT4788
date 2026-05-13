@@ -19,6 +19,7 @@ type RouteService struct {
 	mapRepo   *repository.MapRepo
 	gridOnce  sync.Once
 	gridCache *mapf.GridMap
+	gridPath  string
 	gridErr   error
 	mu        sync.RWMutex
 }
@@ -107,7 +108,7 @@ func (s *RouteService) OrderRoute(userID uint64, startLoc, destLoc int, modeID s
 		StartLocation: startLoc,
 		DestLocation:  destLoc,
 		RouteMode:     schema.RouteModeDijkstra,
-		TotalDistance:  preview.Distance,
+		TotalDistance: preview.Distance,
 		EstimatedTime: preview.EstimatedTime,
 		Status:        schema.RouteStatusActive,
 	}
@@ -142,7 +143,7 @@ func (s *RouteService) OrderMultiRoute(userID uint64, startLoc int, destLocs []i
 	var totalDistance float64
 	var totalTime float64
 	var allSteps []StepInfo
-	
+
 	currentStart := startLoc
 	stepCounter := 0
 
@@ -150,31 +151,31 @@ func (s *RouteService) OrderMultiRoute(userID uint64, startLoc int, destLocs []i
 		if currentStart == target {
 			continue // skip if same
 		}
-		
+
 		preview, err := s.PreviewRoute(currentStart, target, modeID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot find path to target %d: %w", target, err)
 		}
-		
+
 		totalDistance += preview.Distance
 		totalTime += preview.EstimatedTime
-		
+
 		// Ghep step, bo qua step[0] neu khong phai la chang dau tien de tranh trung lap node giao
 		startStepIdx := 0
 		if i > 0 && len(allSteps) > 0 {
 			startStepIdx = 1
 		}
-		
+
 		for j := startStepIdx; j < len(preview.Steps); j++ {
 			step := preview.Steps[j]
 			step.StepOrder = stepCounter
 			allSteps = append(allSteps, step)
 			stepCounter++
 		}
-		
+
 		currentStart = target
 	}
-	
+
 	if len(allSteps) == 0 {
 		return nil, nil, fmt.Errorf("empty route or all destinations are same as start")
 	}
@@ -244,14 +245,14 @@ func (s *RouteService) OrderUnorderedRoute(userID uint64, startLoc int, destLocs
 				}
 			}
 		}
-		
+
 		if bestIdx == -1 {
 			return nil, nil, fmt.Errorf("cannot find path to remaining targets")
 		}
-		
+
 		orderedTargets = append(orderedTargets, unvisited[bestIdx])
 		currentStart = unvisited[bestIdx]
-		
+
 		// Remove tu unvisited
 		unvisited = append(unvisited[:bestIdx], unvisited[bestIdx+1:]...)
 	}
@@ -288,12 +289,12 @@ func (s *RouteService) GetETA(routeID string, currentStep int) (*ETAResult, erro
 	eta := remainingDist / mode.SpeedFactor
 
 	return &ETAResult{
-		RouteID:         routeID,
-		CurrentStep:     currentStep,
-		RemainingSteps:  len(remaining),
-		RemainingDist:   remainingDist,
-		EstimatedTime:   eta,
-		SpeedFactor:     mode.SpeedFactor,
+		RouteID:        routeID,
+		CurrentStep:    currentStep,
+		RemainingSteps: len(remaining),
+		RemainingDist:  remainingDist,
+		EstimatedTime:  eta,
+		SpeedFactor:    mode.SpeedFactor,
 	}, nil
 }
 
@@ -470,8 +471,9 @@ func (s *RouteService) RatePath(routeID string, rating int, comment string, isAc
 
 // getGrid load va cache grid map (thread-safe voi sync.Once).
 func (s *RouteService) getGrid() (*mapf.GridMap, error) {
+	mapPath := s.gridMapPath()
 	s.mu.RLock()
-	if s.gridCache != nil {
+	if s.gridCache != nil && s.gridPath == mapPath {
 		defer s.mu.RUnlock()
 		return s.gridCache, nil
 	}
@@ -480,14 +482,8 @@ func (s *RouteService) getGrid() (*mapf.GridMap, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// Double check
-	if s.gridCache != nil {
+	if s.gridCache != nil && s.gridPath == mapPath {
 		return s.gridCache, nil
-	}
-
-	// Doc path tu env, mac dinh data/warehouse_small.map
-	mapPath := os.Getenv("GRID_MAP_PATH")
-	if mapPath == "" {
-		mapPath = "data/warehouse_small.map"
 	}
 
 	grid, err := mapf.LoadGridMap(mapPath)
@@ -495,6 +491,7 @@ func (s *RouteService) getGrid() (*mapf.GridMap, error) {
 		return nil, fmt.Errorf("cannot load grid from %s: %w", mapPath, err)
 	}
 	s.gridCache = grid
+	s.gridPath = mapPath
 	return grid, nil
 }
 
@@ -502,7 +499,25 @@ func (s *RouteService) getGrid() (*mapf.GridMap, error) {
 func (s *RouteService) ClearGridCache() {
 	s.mu.Lock()
 	s.gridCache = nil
+	s.gridPath = ""
 	s.mu.Unlock()
+}
+
+func (s *RouteService) gridMapPath() string {
+	if mapPath := os.Getenv("GRID_MAP_PATH"); mapPath != "" {
+		return mapPath
+	}
+	maps, err := s.mapRepo.FindAllMaps()
+	if err == nil && len(maps) > 0 {
+		// FindAllMaps is ascending by map_id; if old data has multiple active maps,
+		// prefer the latest active map instead of silently using the seed map.
+		for i := len(maps) - 1; i >= 0; i-- {
+			if maps[i].MapFilePath != "" {
+				return maps[i].MapFilePath
+			}
+		}
+	}
+	return "data/warehouse_small.map"
 }
 
 // generateInstruction tao chi dan don gian cho moi buoc.
@@ -595,10 +610,10 @@ type PreviewResult struct {
 
 // StepInfo thong tin 1 buoc di.
 type StepInfo struct {
-	StepOrder    int    `json:"step_order"`
-	GridRow      int    `json:"grid_row"`
-	GridCol      int    `json:"grid_col"`
-	GridLocation int    `json:"grid_location"`
+	StepOrder    int `json:"step_order"`
+	GridRow      int `json:"grid_row"`
+	GridCol      int `json:"grid_col"`
+	GridLocation int `json:"grid_location"`
 }
 
 // ETAResult ket qua tinh ETA.

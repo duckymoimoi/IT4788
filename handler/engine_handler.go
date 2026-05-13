@@ -1,4 +1,4 @@
-﻿package handler
+package handler
 
 import (
 	"strconv"
@@ -25,7 +25,7 @@ func NewEngineHandler(svc *service.EngineService) *EngineHandler {
 type solveMCMFRequest struct {
 	StartLocation int    `json:"start_location" binding:"required"`
 	DestLocation  int    `json:"dest_location" binding:"required"`
-	ModeID        string `json:"mode_id" binding:"required"`
+	ModeID        string `json:"mode_id"`
 }
 
 type updateCostRequest struct {
@@ -53,6 +53,9 @@ func (h *EngineHandler) Solve(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrBodyInvalid(c)
 		return
+	}
+	if req.ModeID == "" {
+		req.ModeID = "walking"
 	}
 
 	result, err := h.svc.SolveMCMF(req.StartLocation, req.DestLocation, req.ModeID)

@@ -1,4 +1,4 @@
-﻿package service
+package service
 
 import (
 	"fmt"
@@ -11,8 +11,8 @@ import (
 // EngineService xu ly logic Engine Admin (Slice 11).
 // Quan ly Dijkstra cache, engine params, MAPF replay.
 type EngineService struct {
-	mapRepo     *repository.MapRepo
-	routeSvc    *RouteService
+	mapRepo  *repository.MapRepo
+	routeSvc *RouteService
 
 	mu          sync.RWMutex
 	params      EngineParams
@@ -29,9 +29,9 @@ type EngineParams struct {
 
 // ConvergenceInfo thong tin hoi tu (trả từ RAM).
 type ConvergenceInfo struct {
-	Iteration  int     `json:"iteration"`
-	Cost       float64 `json:"cost"`
-	Converged  bool    `json:"converged"`
+	Iteration int     `json:"iteration"`
+	Cost      float64 `json:"cost"`
+	Converged bool    `json:"converged"`
 }
 
 // HealthInfo ket qua health check.
@@ -131,7 +131,7 @@ func (s *EngineService) HealthCheck() *HealthInfo {
 	info.DBConnected = s.mapRepo.Ping()
 
 	// Check grid cache
-	if s.routeSvc.gridCache != nil {
+	if _, err := s.routeSvc.getGrid(); err == nil {
 		info.GridLoaded = true
 	}
 
@@ -195,10 +195,10 @@ func (s *EngineService) GetMAPFInfo() map[string]interface{} {
 		return map[string]interface{}{"loaded": false}
 	}
 	return map[string]interface{}{
-		"loaded":           true,
-		"team_size":        s.mapfResult.TeamSize,
-		"makespan":         s.mapfResult.Makespan,
+		"loaded":            true,
+		"team_size":         s.mapfResult.TeamSize,
+		"makespan":          s.mapfResult.Makespan,
 		"num_task_finished": s.mapfResult.NumTaskFinished,
-		"total_tasks":      len(s.mapfResult.Tasks),
+		"total_tasks":       len(s.mapfResult.Tasks),
 	}
 }

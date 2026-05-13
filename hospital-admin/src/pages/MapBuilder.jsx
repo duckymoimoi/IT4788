@@ -184,6 +184,7 @@ export default function MapBuilder() {
     if (!mapName.trim()) { message.warning('Nhập tên bản đồ'); return; }
     setSaving(true);
     try {
+      let targetMapId = editingMapId;
       if (editingMapId) {
         // Update existing map grid_data
         await api.post('/admin/update_grid', {
@@ -200,9 +201,14 @@ export default function MapBuilder() {
         const fd = new FormData();
         fd.append('file', file);
         fd.append('map_name', mapName.trim());
+        fd.append('rows', String(rows));
+        fd.append('cols', String(cols));
         const result = await uploadMap(fd);
         const newMapId = result?.data?.map_id;
-        if (newMapId) setEditingMapId(newMapId);
+        if (newMapId) {
+          targetMapId = newMapId;
+          setEditingMapId(newMapId);
+        }
         message.success('Tạo map mới thành công!');
       }
 
@@ -212,7 +218,7 @@ export default function MapBuilder() {
         try {
           await api.post('/admin/add_node', {
             id: p.code,
-            map_id: editingMapId || 1,
+            map_id: targetMapId,
             name: p.name,
             type: p.type,
             x: p.col,
