@@ -24,45 +24,58 @@ func NewRouteHandler(svc *service.RouteService) *RouteHandler {
 // ========================================
 
 type previewRequest struct {
-	StartLocation int    `json:"start_location" binding:"required"`
-	DestLocation  int    `json:"dest_location" binding:"required"`
-	ModeID        string `json:"mode_id" binding:"required"`
+	StartLocation int    `json:"start_location"`
+	DestLocation  int    `json:"dest_location"`
+	ModeID        string `json:"mode_id"`
+	StartNode     string `json:"start_node"`
+	TargetNode    string `json:"target_node"`
+	TransportMode string `json:"transport_mode"`
 }
 
 type orderRequest struct {
-	StartLocation int    `json:"start_location" binding:"required"`
-	DestLocation  int    `json:"dest_location" binding:"required"`
-	ModeID        string `json:"mode_id" binding:"required"`
+	StartLocation int    `json:"start_location"`
+	DestLocation  int    `json:"dest_location"`
+	ModeID        string `json:"mode_id"`
+	StartNode     string `json:"start_node"`
+	TargetNode    string `json:"target_node"`
+	TransportMode string `json:"transport_mode"`
 }
 
 type orderMultiRequest struct {
-	StartLocation   int    `json:"start_location" binding:"required"`
-	TargetLocations []int  `json:"target_locations" binding:"required,min=1"`
-	ModeID          string `json:"mode_id" binding:"required"`
+	StartLocation   int      `json:"start_location"`
+	TargetLocations []int    `json:"target_locations"`
+	ModeID          string   `json:"mode_id"`
+	StartNode       string   `json:"start_node"`
+	TargetNodes     []string `json:"target_nodes"`
+	TransportMode   string   `json:"transport_mode"`
 }
 
 type cancelRequest struct {
-	RouteID string `json:"route_id" binding:"required"`
+	RouteID string `json:"route_id"`
 }
 
 type recalcRequest struct {
-	RouteID         string `json:"route_id" binding:"required"`
-	CurrentLocation int    `json:"current_location" binding:"required"`
+	RouteID         string `json:"route_id"`
+	CurrentLocation int    `json:"current_location"`
+	CurrentNode     string `json:"current_node"`
 }
 
 type etaRequest struct {
-	RouteID     string `json:"route_id" binding:"required"`
+	RouteID     string `json:"route_id"`
 	CurrentStep int    `json:"current_step"`
+	CurrentNode string `json:"current_node"`
 }
 
 type passNodeRequest struct {
-	RouteID      string `json:"route_id" binding:"required"`
-	GridLocation int    `json:"grid_location" binding:"required"`
+	RouteID      string `json:"route_id"`
+	GridLocation int    `json:"grid_location"`
+	NodeID       string `json:"node_id"`
 }
 
 type shareRequest struct {
-	RouteID       string `json:"route_id" binding:"required"`
-	ReceiverPhone string `json:"receiver_phone"`
+	RouteID        string `json:"route_id"`
+	ReceiverPhone  string `json:"receiver_phone"`
+	RecipientPhone string `json:"recipient_phone"`
 }
 
 type rateRequest struct {
@@ -97,6 +110,12 @@ func (h *RouteHandler) Preview(c *gin.Context) {
 		response.ErrBodyInvalid(c)
 		return
 	}
+	normalizeRoutePoints(&req.StartLocation, &req.DestLocation, req.StartNode, req.TargetNode)
+	normalizeMode(&req.ModeID, req.TransportMode)
+	if req.StartLocation == 0 || req.DestLocation == 0 || req.ModeID == "" {
+		response.ErrMissingParam(c)
+		return
+	}
 
 	result, err := h.svc.PreviewRoute(req.StartLocation, req.DestLocation, req.ModeID)
 	if err != nil {
@@ -112,6 +131,12 @@ func (h *RouteHandler) Order(c *gin.Context) {
 	var req orderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrBodyInvalid(c)
+		return
+	}
+	normalizeRoutePoints(&req.StartLocation, &req.DestLocation, req.StartNode, req.TargetNode)
+	normalizeMode(&req.ModeID, req.TransportMode)
+	if req.StartLocation == 0 || req.DestLocation == 0 || req.ModeID == "" {
+		response.ErrMissingParam(c)
 		return
 	}
 
@@ -146,6 +171,11 @@ func (h *RouteHandler) OrderMulti(c *gin.Context) {
 		response.ErrBodyInvalid(c)
 		return
 	}
+	normalizeMultiRoute(&req)
+	if req.StartLocation == 0 || len(req.TargetLocations) == 0 || req.ModeID == "" {
+		response.ErrMissingParam(c)
+		return
+	}
 
 	route, paths, err := h.svc.OrderMultiRoute(userID, req.StartLocation, req.TargetLocations, req.ModeID)
 	if err != nil {
@@ -170,6 +200,11 @@ func (h *RouteHandler) OrderUnordered(c *gin.Context) {
 	var req orderMultiRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrBodyInvalid(c)
+		return
+	}
+	normalizeMultiRoute(&req)
+	if req.StartLocation == 0 || len(req.TargetLocations) == 0 || req.ModeID == "" {
+		response.ErrMissingParam(c)
 		return
 	}
 
@@ -213,6 +248,10 @@ func (h *RouteHandler) GetETA(c *gin.Context) {
 	var req etaRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrBodyInvalid(c)
+		return
+	}
+	if req.RouteID == "" {
+		response.ErrMissingParam(c)
 		return
 	}
 
@@ -262,6 +301,10 @@ func (h *RouteHandler) Cancel(c *gin.Context) {
 		response.ErrBodyInvalid(c)
 		return
 	}
+	if req.RouteID == "" {
+		response.ErrMissingParam(c)
+		return
+	}
 
 	userID := middleware.GetUserID(c)
 	if err := h.svc.CancelRoute(req.RouteID, userID); err != nil {
@@ -277,6 +320,13 @@ func (h *RouteHandler) Recalculate(c *gin.Context) {
 	var req recalcRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrBodyInvalid(c)
+		return
+	}
+	if req.CurrentLocation == 0 {
+		req.CurrentLocation = parseLegacyLocation(req.CurrentNode)
+	}
+	if req.RouteID == "" || req.CurrentLocation == 0 {
+		response.ErrMissingParam(c)
 		return
 	}
 
@@ -298,6 +348,13 @@ func (h *RouteHandler) PassNode(c *gin.Context) {
 	var req passNodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrBodyInvalid(c)
+		return
+	}
+	if req.GridLocation == 0 {
+		req.GridLocation = parseLegacyLocation(req.NodeID)
+	}
+	if req.RouteID == "" || req.GridLocation == 0 {
+		response.ErrMissingParam(c)
 		return
 	}
 
@@ -389,6 +446,13 @@ func (h *RouteHandler) Share(c *gin.Context) {
 		response.ErrBodyInvalid(c)
 		return
 	}
+	if req.ReceiverPhone == "" {
+		req.ReceiverPhone = req.RecipientPhone
+	}
+	if req.RouteID == "" || req.ReceiverPhone == "" {
+		response.ErrMissingParam(c)
+		return
+	}
 
 	userID := middleware.GetUserID(c)
 	if err := h.svc.VerifyRouteOwner(req.RouteID, userID); err != nil {
@@ -430,4 +494,53 @@ func (h *RouteHandler) Rate(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"rated": true})
+}
+
+func normalizeRoutePoints(start *int, dest *int, startAlias string, destAlias string) {
+	if *start == 0 {
+		*start = parseLegacyLocation(startAlias)
+	}
+	if *dest == 0 {
+		*dest = parseLegacyLocation(destAlias)
+	}
+}
+
+func normalizeMode(mode *string, alias string) {
+	if *mode == "" {
+		*mode = alias
+	}
+}
+
+func normalizeMultiRoute(req *orderMultiRequest) {
+	if req.StartLocation == 0 {
+		req.StartLocation = parseLegacyLocation(req.StartNode)
+	}
+	if len(req.TargetLocations) == 0 && len(req.TargetNodes) > 0 {
+		for _, node := range req.TargetNodes {
+			if loc := parseLegacyLocation(node); loc > 0 {
+				req.TargetLocations = append(req.TargetLocations, loc)
+			}
+		}
+	}
+	normalizeMode(&req.ModeID, req.TransportMode)
+}
+
+func parseLegacyLocation(value string) int {
+	if value == "" {
+		return 0
+	}
+	if n, err := strconv.Atoi(value); err == nil {
+		return n
+	}
+	digits := ""
+	for _, ch := range value {
+		if ch >= '0' && ch <= '9' {
+			digits += string(ch)
+		}
+	}
+	if digits == "" {
+		return 0
+	}
+	n, _ := strconv.Atoi(digits)
+	return n
 }

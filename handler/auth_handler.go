@@ -16,34 +16,41 @@ import (
 // ==========================================================
 
 type LoginRequest struct {
-	PhoneNumber string `json:"phone_number" binding:"required"`
-	Password    string `json:"password" binding:"required"`
+	PhoneNumber string `json:"phone_number"`
+	Phone       string `json:"phone"`
+	Password    string `json:"password"`
 	DeviceToken string `json:"device_token"`
 	Platform    string `json:"platform"`
 }
 
 type SignupRequest struct {
-	PhoneNumber string `json:"phone_number" binding:"required"`
-	Password    string `json:"password" binding:"required,min=6"`
-	FullName    string `json:"full_name" binding:"required"`
+	PhoneNumber string `json:"phone_number"`
+	Phone       string `json:"phone"`
+	Password    string `json:"password"`
+	FullName    string `json:"full_name"`
 	DOB         string `json:"dob"`
 	Gender      *int   `json:"gender"`
 }
 
 type VerifyOTPRequest struct {
-	PhoneNumber string         `json:"phone_number" binding:"required"`
-	OTP         string         `json:"otp" binding:"required"`
+	PhoneNumber string         `json:"phone_number"`
+	Phone       string         `json:"phone"`
+	OTP         string         `json:"otp"`
+	OTPCode     string         `json:"otp_code"`
 	OTPType     schema.OTPType `json:"otp_type"`
 }
 
 type ForgotPasswordRequest struct {
-	PhoneNumber string `json:"phone_number" binding:"required"`
+	PhoneNumber string `json:"phone_number"`
+	Phone       string `json:"phone"`
 }
 
 type ResetPasswordRequest struct {
-	PhoneNumber string `json:"phone_number" binding:"required"`
-	OTP         string `json:"otp" binding:"required"`
-	NewPassword string `json:"new_password" binding:"required,min=6"`
+	PhoneNumber string `json:"phone_number"`
+	Phone       string `json:"phone"`
+	OTP         string `json:"otp"`
+	OTPCode     string `json:"otp_code"`
+	NewPassword string `json:"new_password"`
 }
 
 type ChangePasswordRequest struct {
@@ -74,6 +81,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		response.ErrBodyInvalid(c)
 		return
 	}
+	normalizePhone(&req.PhoneNumber, req.Phone)
+	if req.PhoneNumber == "" || req.Password == "" {
+		response.ErrMissingParam(c)
+		return
+	}
 
 	result, err := h.svc.Login(req.PhoneNumber, req.Password, req.DeviceToken, req.Platform)
 	if err != nil {
@@ -91,6 +103,11 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 		response.ErrBodyInvalid(c)
 		return
 	}
+	normalizePhone(&req.PhoneNumber, req.Phone)
+	if req.PhoneNumber == "" || req.Password == "" || req.FullName == "" {
+		response.ErrMissingParam(c)
+		return
+	}
 
 	result, err := h.svc.Signup(req.PhoneNumber, req.Password, req.FullName, req.DOB, req.Gender)
 	if err != nil {
@@ -106,6 +123,14 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 	var req VerifyOTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrBodyInvalid(c)
+		return
+	}
+	normalizePhone(&req.PhoneNumber, req.Phone)
+	if req.OTP == "" {
+		req.OTP = req.OTPCode
+	}
+	if req.PhoneNumber == "" || req.OTP == "" {
+		response.ErrMissingParam(c)
 		return
 	}
 
@@ -130,6 +155,11 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 		response.ErrBodyInvalid(c)
 		return
 	}
+	normalizePhone(&req.PhoneNumber, req.Phone)
+	if req.PhoneNumber == "" {
+		response.ErrMissingParam(c)
+		return
+	}
 
 	result, err := h.svc.ForgotPassword(req.PhoneNumber)
 	if err != nil {
@@ -145,6 +175,14 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	var req ResetPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrBodyInvalid(c)
+		return
+	}
+	normalizePhone(&req.PhoneNumber, req.Phone)
+	if req.OTP == "" {
+		req.OTP = req.OTPCode
+	}
+	if req.PhoneNumber == "" || req.OTP == "" || req.NewPassword == "" {
+		response.ErrMissingParam(c)
 		return
 	}
 
@@ -225,5 +263,11 @@ func (h *AuthHandler) handleAuthError(c *gin.Context, err error) {
 		response.Error(c, response.CodeInvalidValue, err.Error())
 	default:
 		response.ErrUnexpected(c)
+	}
+}
+
+func normalizePhone(primary *string, alias string) {
+	if *primary == "" {
+		*primary = alias
 	}
 }

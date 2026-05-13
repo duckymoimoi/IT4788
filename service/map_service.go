@@ -3,8 +3,10 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 
+	"hospital/pkg/mapf"
 	"hospital/repository"
 	"hospital/schema"
 )
@@ -47,6 +49,7 @@ type MapMetaResult struct {
 	MapName     string  `json:"map_name"`
 	Rows        int     `json:"rows"`
 	Cols        int     `json:"cols"`
+	GridData    string  `json:"grid_data"`
 	MapImageURL *string `json:"map_image_url"`
 }
 
@@ -257,9 +260,9 @@ func (s *MapService) GetEdges(mapID uint32) (interface{}, error) {
 	}
 
 	return map[string]interface{}{
-		"map_id":     mapID,
-		"total":      len(edges),
-		"edges":      edges,
+		"map_id": mapID,
+		"total":  len(edges),
+		"edges":  edges,
 	}, nil
 }
 
@@ -280,6 +283,7 @@ func (s *MapService) GetMeta(mapID uint32) (*MapMetaResult, error) {
 		MapName:     m.MapName,
 		Rows:        m.Rows,
 		Cols:        m.Cols,
+		GridData:    m.GridData,
 		MapImageURL: m.MapImageURL,
 	}, nil
 }
@@ -569,6 +573,7 @@ func (s *MapService) UploadMap(mapName string, mapFilePath string, rows int, col
 	if mapName == "" || mapFilePath == "" {
 		return nil, ErrMissingField
 	}
+	rows, cols, gridData = normalizeMapFileData(mapFilePath, rows, cols, gridData)
 	m := &schema.GridMap{
 		MapName:     mapName,
 		MapFilePath: mapFilePath,
@@ -586,7 +591,30 @@ func (s *MapService) UploadMap(mapName string, mapFilePath string, rows int, col
 
 // GetMaps lay tat ca maps
 func (s *MapService) GetMaps() ([]schema.GridMap, error) {
-	return s.repo.GetAllMaps()
+	maps, err := s.repo.GetAllMaps()
+	if err != nil {
+		return nil, err
+	}
+	for i := range maps {
+		if maps[i].Rows > 0 && maps[i].Cols > 0 && maps[i].GridData != "" && maps[i].GridData != "[]" {
+			continue
+		}
+		rows, cols, gridData := normalizeMapFileData(maps[i].MapFilePath, maps[i].Rows, maps[i].Cols, maps[i].GridData)
+		if rows == maps[i].Rows && cols == maps[i].Cols && gridData == maps[i].GridData {
+			continue
+		}
+		updates := map[string]interface{}{
+			"rows":      rows,
+			"cols":      cols,
+			"grid_data": gridData,
+		}
+		if err := s.repo.UpdateMap(maps[i].MapID, updates); err == nil {
+			maps[i].Rows = rows
+			maps[i].Cols = cols
+			maps[i].GridData = gridData
+		}
+	}
+	return maps, nil
 }
 
 // SetActiveMap set map active va kiem tra simulation
@@ -656,6 +684,29 @@ func (s *MapService) UpdateGrid(mapID uint32, gridData string, mapName string) e
 		updates["map_name"] = mapName
 	}
 	return s.repo.UpdateMap(mapID, updates)
+}
+
+func normalizeMapFileData(mapFilePath string, rows int, cols int, gridData string) (int, int, string) {
+	if rows > 0 && cols > 0 && gridData != "" && gridData != "[]" {
+		return rows, cols, gridData
+	}
+	if _, err := os.Stat(mapFilePath); err != nil {
+		return rows, cols, gridData
+	}
+	grid, err := mapf.LoadGridMap(mapFilePath)
+	if err != nil {
+		return rows, cols, gridData
+	}
+	if rows <= 0 {
+		rows = grid.Rows
+	}
+	if cols <= 0 {
+		cols = grid.Cols
+	}
+	if gridData == "" || gridData == "[]" {
+		gridData = grid.GridDataToJSON()
+	}
+	return rows, cols, gridData
 }
 
 // DeleteMap xóa map theo ID (hard delete). Không cho phép xóa map đang active.

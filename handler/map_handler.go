@@ -94,7 +94,7 @@ func (h *MapHandler) GetFloors(c *gin.Context) {
 
 // [17] GET /api/map/get_nodes?map_id=
 func (h *MapHandler) GetNodes(c *gin.Context) {
-	mapIDStr := c.Query("map_id")
+	mapIDStr := firstQuery(c, "map_id", "floor_id")
 	if mapIDStr == "" {
 		response.ErrMissingParam(c)
 		return
@@ -129,7 +129,7 @@ func (h *MapHandler) GetNodes(c *gin.Context) {
 
 // [18] GET /api/map/get_edges?map_id=
 func (h *MapHandler) GetEdges(c *gin.Context) {
-	mapIDStr := c.Query("map_id")
+	mapIDStr := firstQuery(c, "map_id", "floor_id")
 	if mapIDStr == "" {
 		response.ErrMissingParam(c)
 		return
@@ -155,7 +155,7 @@ func (h *MapHandler) GetEdges(c *gin.Context) {
 
 // [19] GET /api/map/get_meta?map_id=
 func (h *MapHandler) GetMeta(c *gin.Context) {
-	mapID := parseUint32(c.Query("map_id"))
+	mapID := parseUint32(firstQuery(c, "map_id", "floor_id"))
 	meta, err := h.svc.GetMeta(mapID)
 	if err != nil {
 		h.handleMapError(c, err)
@@ -179,7 +179,7 @@ func (h *MapHandler) GetDepartments(c *gin.Context) {
 // [21] GET /api/map/search_location?keyword=&map_id=
 func (h *MapHandler) SearchLocation(c *gin.Context) {
 	keyword := c.Query("keyword")
-	mapID := parseUint32(c.Query("map_id"))
+	mapID := parseUint32(firstQuery(c, "map_id", "floor_id"))
 	items, err := h.svc.SearchLocation(keyword, mapID)
 	if err != nil {
 		response.ErrUnexpected(c)
@@ -190,7 +190,7 @@ func (h *MapHandler) SearchLocation(c *gin.Context) {
 
 // [22] GET /api/map/get_landmarks?map_id=
 func (h *MapHandler) GetLandmarks(c *gin.Context) {
-	mapID := parseUint32(c.Query("map_id"))
+	mapID := parseUint32(firstQuery(c, "map_id", "floor_id"))
 	items, err := h.svc.GetLandmarks(mapID)
 	if err != nil {
 		response.ErrUnexpected(c)
@@ -201,7 +201,7 @@ func (h *MapHandler) GetLandmarks(c *gin.Context) {
 
 // [24] GET /api/map/sync_full?map_id=
 func (h *MapHandler) SyncFull(c *gin.Context) {
-	mapID := parseUint32(c.Query("map_id"))
+	mapID := parseUint32(firstQuery(c, "map_id", "floor_id"))
 	result, err := h.svc.SyncFull(mapID)
 	if err != nil {
 		response.ErrUnexpected(c)
@@ -464,7 +464,7 @@ func (h *MapHandler) UploadMap(c *gin.Context) {
 		imagePath := "data/" + imageFile.Filename
 		if err := c.SaveUploadedFile(imageFile, imagePath); err == nil {
 			// URL path matches the static route we defined in main.go
-			url := "/data/" + imageFile.Filename 
+			url := "/data/" + imageFile.Filename
 			mapImageURL = &url
 		}
 	}
@@ -619,6 +619,15 @@ func (h *MapHandler) DeactivateMap(c *gin.Context) {
 func parseUint32(s string) uint32 {
 	v, _ := strconv.ParseUint(s, 10, 32)
 	return uint32(v)
+}
+
+func firstQuery(c *gin.Context, keys ...string) string {
+	for _, key := range keys {
+		if value := c.Query(key); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (h *MapHandler) handleMapError(c *gin.Context, err error) {

@@ -63,6 +63,7 @@ function PathfindingSection({ nodes, meta }) {
     solveMutation.mutate({
       start_location: startLoc,
       dest_location: destLoc,
+      mode_id: 'walking',
     });
   };
 
