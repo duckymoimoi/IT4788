@@ -641,6 +641,27 @@ paths:
         "200":
           description: OK (Trả về file .map binary)
 
+  /api/admin/delete_map:
+    delete:
+      tags: [Admin-Map]
+      summary: Xóa map theo ID (không cho xóa map đang active)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [map_id]
+              properties:
+                map_id: { type: integer, description: "ID của map cần xóa" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              { schema: { $ref: "#/components/schemas/Response" } }
+
   /api/admin/add_node:
     post:
       tags: [Admin-Map]
