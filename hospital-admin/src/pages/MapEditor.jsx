@@ -273,11 +273,48 @@ function MapManagementPanel({ activeFloor, onFloorChange }) {
     }
     setUploading(true);
     try {
+      // Read file to parse height/width from octile header
+      const text = await file.text();
+      const headerLines = text.split(/\r?\n/);
+      let parsedRows = 0, parsedCols = 0;
+      let mapStartIdx = -1;
+      for (let i = 0; i < headerLines.length; i++) {
+        const trimmed = headerLines[i].trim();
+        if (trimmed.startsWith('height ')) parsedRows = parseInt(trimmed.split(' ')[1], 10);
+        if (trimmed.startsWith('width ')) parsedCols = parseInt(trimmed.split(' ')[1], 10);
+        if (trimmed === 'map') { mapStartIdx = i + 1; break; }
+      }
+
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('map_name', mapName.trim());
+      const finalName = mapName.trim() || file.name.replace(/\.map$/i, '');
+      fd.append('map_name', finalName);
+      if (parsedRows > 0) fd.append('rows', String(parsedRows));
+      if (parsedCols > 0) fd.append('cols', String(parsedCols));
+
+      // Parse grid to generate PNG and JSON grid_data
+      if (parsedRows > 0 && parsedCols > 0 && mapStartIdx >= 0) {
+        const grid = [];
+        for (let r = 0; r < parsedRows; r++) {
+          const row = [];
+          const rawLine = headerLines[mapStartIdx + r] || '';
+          for (let c = 0; c < parsedCols; c++) {
+            const ch = rawLine[c] || '.';
+            row.push((ch === '@' || ch === 'T') ? 1 : 0);
+          }
+          grid.push(row);
+        }
+        
+        fd.append('grid_data', JSON.stringify(grid));
+        
+        const pngBlob = await renderGridToPNG(parsedRows, parsedCols, grid);
+        const safeName = finalName.replace(/\s+/g, '_');
+        const pngFile = new File([pngBlob], `${safeName}.png`, { type: 'image/png' });
+        fd.append('image_file', pngFile);
+      }
+
       await uploadMap(fd);
-      message.success('Upload map thành công!');
+      message.success(`Upload thành công! ${parsedRows ? `(${parsedRows}×${parsedCols})` : ''}`);
       setUploadModalOpen(false);
       setMapName('');
       queryClient.invalidateQueries({ queryKey: ['admin-maps'] });

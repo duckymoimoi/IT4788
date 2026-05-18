@@ -1,12 +1,12 @@
 import { useState, useMemo, useCallback } from 'react';
 import {
   Typography, Row, Col, Card, Button, Space, Tag, Input, InputNumber,
-  Modal, Form, Select, Switch, message, Spin, Empty, Divider, Radio, Tooltip,
+  Modal, Form, Select, Switch, message, Spin, Empty, Divider, Radio, Tooltip, Upload,
 } from 'antd';
 import {
   BorderOutlined, EditOutlined, DeleteOutlined, PlusOutlined,
   SaveOutlined, ArrowLeftOutlined, EnvironmentOutlined,
-  DragOutlined, ClearOutlined, AimOutlined,
+  DragOutlined, ClearOutlined, AimOutlined, UploadOutlined,
 } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -42,6 +42,67 @@ function gridToMapFile(rows, cols, grid) {
     lines.push(line);
   }
   return lines.join('\n');
+}
+
+// ─── Helper: parse .map file (octile format) ─────────────────
+function parseMapFile(text) {
+  const lines = text.split(/\r?\n/);
+  let height = 0, width = 0;
+  let mapStartIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('height ')) height = parseInt(line.split(' ')[1], 10);
+    if (line.startsWith('width '))  width  = parseInt(line.split(' ')[1], 10);
+    if (line === 'map') { mapStartIdx = i + 1; break; }
+  }
+  if (!height || !width || mapStartIdx < 0) return null;
+  const grid = [];
+  for (let r = 0; r < height; r++) {
+    const row = [];
+    const rawLine = lines[mapStartIdx + r] || '';
+    for (let c = 0; c < width; c++) {
+      const ch = rawLine[c] || '.';
+      // '@' and 'T' are walls/obstacles, everything else is walkable
+      row.push((ch === '@' || ch === 'T') ? 1 : 0);
+    }
+    grid.push(row);
+  }
+  return { height, width, grid };
+}
+
+// ─── Helper: render grid as PNG blob (offscreen) ──────────────
+function renderGridToPNG(rows, cols, grid) {
+  // Use a larger fixed cell size for high-quality export
+  const cellSize = 16;
+  const dpr = window.devicePixelRatio || 2; // scale up for retina/sharpness
+  const canvas = document.createElement('canvas');
+  canvas.width = cols * cellSize * dpr;
+  canvas.height = rows * cellSize * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.imageSmoothingEnabled = false;
+  // Background (walkable)
+  ctx.fillStyle = '#f0f0f0';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Walls
+  ctx.fillStyle = '#595959';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (grid[r]?.[c] === 1) {
+        ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+      }
+    }
+  }
+  // Grid lines
+  ctx.strokeStyle = '#e8e8e8';
+  ctx.lineWidth = 0.5;
+  for (let r = 0; r <= rows; r++) {
+    ctx.beginPath(); ctx.moveTo(0, r * cellSize); ctx.lineTo(cols * cellSize, r * cellSize); ctx.stroke();
+  }
+  for (let c = 0; c <= cols; c++) {
+    ctx.beginPath(); ctx.moveTo(c * cellSize, 0); ctx.lineTo(c * cellSize, rows * cellSize); ctx.stroke();
+  }
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 }
 
 // ─── Main Component ──────────────────────────────────────────
@@ -185,26 +246,30 @@ export default function MapBuilder() {
     setSaving(true);
     try {
       let targetMapId = editingMapId;
+
+      // Always generate .map file + PNG image
+      const mapContent = gridToMapFile(rows, cols, grid);
+      const mapBlob = new Blob([mapContent], { type: 'text/plain' });
+      const safeName = mapName.trim().replace(/\s+/g, '_');
+      const mapFile = new File([mapBlob], `${safeName}.map`);
+      const pngBlob = await renderGridToPNG(rows, cols, grid);
+      const pngFile = new File([pngBlob], `${safeName}.png`, { type: 'image/png' });
+
+      const fd = new FormData();
+      fd.append('file', mapFile);
+      fd.append('image_file', pngFile);
+      fd.append('map_name', mapName.trim());
+      fd.append('rows', String(rows));
+      fd.append('cols', String(cols));
+      fd.append('grid_data', JSON.stringify(grid)); // Gửi thẳng grid lên backend
+
       if (editingMapId) {
-        // Update existing map grid_data
-        await api.post('/admin/update_grid', {
-          map_id: editingMapId,
-          grid_data: JSON.stringify(grid),
-          map_name: mapName.trim(),
-        });
+        fd.append('map_id', String(editingMapId));
+        await uploadMap(fd);
         message.success('Cập nhật map thành công!');
       } else {
-        // Generate .map file and upload
-        const content = gridToMapFile(rows, cols, grid);
-        const blob = new Blob([content], { type: 'text/plain' });
-        const file = new File([blob], `${mapName.trim().replace(/\s+/g, '_')}.map`);
-        const fd = new FormData();
-        fd.append('file', file);
-        fd.append('map_name', mapName.trim());
-        fd.append('rows', String(rows));
-        fd.append('cols', String(cols));
         const result = await uploadMap(fd);
-        const newMapId = result?.data?.map_id;
+        const newMapId = result?.map_id || result?.data?.map_id;
         if (newMapId) {
           targetMapId = newMapId;
           setEditingMapId(newMapId);
@@ -276,8 +341,42 @@ export default function MapBuilder() {
                 </Row>
                 <Text type="secondary">Grid: {rows}×{cols} = {rows * cols} ô</Text>
                 <Button type="primary" block style={{ marginTop: 16 }} icon={<PlusOutlined />} onClick={handleCreateNew}>
-                  Tạo Map
+                  Tạo Map trống
                 </Button>
+                <Divider style={{ margin: '12px 0' }}>hoặc</Divider>
+                <Upload.Dragger
+                  accept=".map"
+                  maxCount={1}
+                  showUploadList={false}
+                  beforeUpload={(file) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                      const parsed = parseMapFile(e.target.result);
+                      if (!parsed) {
+                        message.error('Không đọc được file .map (cần format octile)');
+                        return;
+                      }
+                      setRows(parsed.height);
+                      setCols(parsed.width);
+                      setGrid(parsed.grid);
+                      setLocalPois([]);
+                      setEditingMapId(null);
+                      if (!mapName.trim()) {
+                        setMapName(file.name.replace(/\.map$/i, ''));
+                      }
+                      message.success(`Đã nạp: ${parsed.height}×${parsed.width} từ ${file.name}`);
+                      setMode('editor');
+                    };
+                    reader.readAsText(file);
+                    return false;
+                  }}
+                >
+                  <p className="ant-upload-drag-icon">
+                    <UploadOutlined style={{ fontSize: 24, color: '#1677ff' }} />
+                  </p>
+                  <p className="ant-upload-text" style={{ fontSize: 13 }}>Kéo file .map vào đây</p>
+                  <p className="ant-upload-hint" style={{ fontSize: 11 }}>Tự đọc height/width từ header octile</p>
+                </Upload.Dragger>
               </Form>
             </Card>
           </Col>

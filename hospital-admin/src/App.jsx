@@ -41,7 +41,7 @@ function App() {
         }
       >
         <Route index element={<Dashboard />} />
-        <Route path="map" element={<MapEditor />} />
+        <Route path="map-editor" element={<MapEditor />} />
         <Route path="map-manager" element={<MapManager />} />
         <Route path="map-builder" element={<MapBuilder />} />
         <Route path="flow" element={<FlowMonitor />} />

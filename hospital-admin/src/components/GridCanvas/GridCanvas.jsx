@@ -39,11 +39,12 @@ function buildGridImage(rows, cols, cellSize, heatmapData, pathCells, gridDataSt
   canvas.width = cols * cellSize * dpr;
   canvas.height = rows * cellSize * dpr;
   const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
   ctx.scale(dpr, dpr);
 
   // Base grid
   ctx.fillStyle = '#f0f0f0';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, cols * cellSize, rows * cellSize);
 
   // Grid lines (subtle)
   ctx.strokeStyle = '#e8e8e8';
@@ -369,8 +370,27 @@ export default function GridCanvas({
         onMouseLeave={handlePaintEnd}
       >
         {/* Layer 1: Pre-rendered grid background (single canvas image) */}
-        <Layer listening={false}>
-          <KonvaImage image={gridImage} width={cols * cellSize} height={rows * cellSize} x={0} y={0} />
+        <Layer
+          listening={false}
+          imageSmoothingEnabled={false}
+          ref={(layer) => {
+            if (layer) {
+              const canvas = layer.getCanvas();
+              if (canvas) {
+                const ctx = canvas.getContext();
+                if (ctx) ctx.imageSmoothingEnabled = false;
+              }
+            }
+          }}
+        >
+          <KonvaImage
+            image={gridImage}
+            width={cols * cellSize}
+            height={rows * cellSize}
+            x={0}
+            y={0}
+            imageSmoothingEnabled={false}
+          />
         </Layer>
 
         {/* Layer 2: Interactive POI markers + labels */}

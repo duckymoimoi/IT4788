@@ -686,6 +686,36 @@ func (s *MapService) UpdateGrid(mapID uint32, gridData string, mapName string) e
 	return s.repo.UpdateMap(mapID, updates)
 }
 
+// UpdateMapFiles cap nhat file .map, anh, va grid_data cho map da ton tai.
+func (s *MapService) UpdateMapFiles(mapID uint32, mapName string, mapFilePath string, rows int, cols int, gridData string, mapImageURL *string) error {
+	if mapID == 0 {
+		return ErrMissingField
+	}
+	m, err := s.repo.FindMapByIDAnyStatus(mapID)
+	if err != nil {
+		return err
+	}
+	if m == nil {
+		return ErrMapNotFound
+	}
+
+	rows, cols, gridData = normalizeMapFileData(mapFilePath, rows, cols, gridData)
+
+	updates := map[string]interface{}{
+		"map_file_path": mapFilePath,
+		"rows":          rows,
+		"cols":          cols,
+		"grid_data":     gridData,
+	}
+	if strings.TrimSpace(mapName) != "" {
+		updates["map_name"] = strings.TrimSpace(mapName)
+	}
+	if mapImageURL != nil {
+		updates["map_image_url"] = *mapImageURL
+	}
+	return s.repo.UpdateMap(mapID, updates)
+}
+
 func normalizeMapFileData(mapFilePath string, rows int, cols int, gridData string) (int, int, string) {
 	if rows > 0 && cols > 0 && gridData != "" && gridData != "[]" {
 		return rows, cols, gridData

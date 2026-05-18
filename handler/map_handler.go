@@ -450,30 +450,43 @@ func (h *MapHandler) UploadMap(c *gin.Context) {
 	rows := parseUint32(c.PostForm("rows"))
 	cols := parseUint32(c.PostForm("cols"))
 
-	// 2. Save file
+	// 2. Save .map file
 	filePath := "data/" + file.Filename
 	if err := c.SaveUploadedFile(file, filePath); err != nil {
 		response.ErrInternalError(c)
 		return
 	}
 
-	// 2.5 Save image file if provided
+	// 3. Save image file if provided
 	var mapImageURL *string
 	imageFile, err := c.FormFile("image_file")
 	if err == nil && imageFile != nil {
 		imagePath := "data/" + imageFile.Filename
 		if err := c.SaveUploadedFile(imageFile, imagePath); err == nil {
-			// URL path matches the static route we defined in main.go
 			url := "/data/" + imageFile.Filename
 			mapImageURL = &url
 		}
 	}
 
-	// 3. Save to DB
-	// We read the file content to save to DB GridData
-	// In a real app we would parse the .map file, but for now we just use a dummy grid data or the file content
-	gridData := "[]" // Placeholder for actual grid data
+	// 4. Get GridData if frontend sends it
+	gridData := c.PostForm("grid_data")
+	if gridData == "" {
+		gridData = "[]" // fallback
+	}
 
+	// 5. Check if updating existing map (map_id provided)
+	mapIDStr := c.PostForm("map_id")
+	if mapIDStr != "" && mapIDStr != "0" {
+		mapID := parseUint32(mapIDStr)
+		if err := h.svc.UpdateMapFiles(mapID, mapName, filePath, int(rows), int(cols), gridData, mapImageURL); err != nil {
+			h.handleMapError(c, err)
+			return
+		}
+		response.Success(c, map[string]interface{}{"map_id": mapID, "updated": true})
+		return
+	}
+
+	// 6. Create new map
 	m, err := h.svc.UploadMap(mapName, filePath, int(rows), int(cols), gridData, mapImageURL)
 	if err != nil {
 		h.handleMapError(c, err)

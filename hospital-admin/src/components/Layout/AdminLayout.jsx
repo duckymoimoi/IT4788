@@ -29,7 +29,7 @@ const menuItems = [
     icon: <EnvironmentOutlined />,
     label: 'Bản đồ',
     children: [
-      { key: '/map', label: 'Map Editor' },
+      { key: '/map-editor', label: 'Map Editor' },
       { key: '/map-builder', icon: <EditOutlined />, label: 'Map Builder' },
       { key: '/map-manager', icon: <FileOutlined />, label: 'Map Manager' },
     ],
@@ -83,16 +83,23 @@ export default function AdminLayout() {
   // Determine which sidebar key is active (handles nested children)
   const selectedKey = (() => {
     const path = location.pathname;
+    let bestMatch = '/';
+    let bestLen = 0;
     for (const item of menuItems) {
       if (item.children) {
-        const child = item.children.find((c) => path.startsWith(c.key));
-        if (child) return child.key;
+        for (const c of item.children) {
+          if (path === c.key || path.startsWith(c.key + '/')) {
+            if (c.key.length > bestLen) { bestMatch = c.key; bestLen = c.key.length; }
+          }
+        }
       } else {
-        if (item.key === '/') { if (path === '/') return '/'; }
-        else if (path.startsWith(item.key)) return item.key;
+        if (item.key === '/') { if (path === '/') { bestMatch = '/'; bestLen = 999; } }
+        else if ((path === item.key || path.startsWith(item.key + '/')) && item.key.length > bestLen) {
+          bestMatch = item.key; bestLen = item.key.length;
+        }
       }
     }
-    return '/';
+    return bestMatch;
   })();
 
   const openKeys = menuItems
