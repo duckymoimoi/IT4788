@@ -1,6 +1,6 @@
 # API Responses from Production Server
 
-Generated from `http://group3.it4788.sukkaito.id.vn/api` to provide sample data for the Admin Panel.
+Generated from `https://group3.it4788.sukkaito.id.vn/api` to provide sample data for the Admin Panel.
 
 > **Auth:** Admin account `0900000001` / `password123`
 

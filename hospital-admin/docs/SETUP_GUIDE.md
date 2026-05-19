@@ -24,7 +24,7 @@ cp .env.example .env
 
 Điền tài khoản admin (xin từ leader):
 ```env
-VITE_API_BASE_URL=http://group3.it4788.sukkaito.id.vn/api
+VITE_API_BASE_URL=https://group3.it4788.sukkaito.id.vn/api
 VITE_WS_URL=ws://group3.it4788.sukkaito.id.vn/api/ws
 VITE_ADMIN_PHONE=your_phone_here
 VITE_ADMIN_PASSWORD=your_password_here

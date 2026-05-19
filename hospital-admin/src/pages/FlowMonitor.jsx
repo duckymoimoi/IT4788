@@ -7,7 +7,7 @@ import axios from 'axios';
 const { Title, Text } = Typography;
 
 // Định nghĩa Base URL kết nối tới Production Server chung của nhóm
-const BASE_URL = 'http://group3.it4788.sukkaito.id.vn/api';
+const BASE_URL = 'https://group3.it4788.sukkaito.id.vn/api';
 
 // 1. Hàm call API lấy dữ liệu Heatmap lưu thông (API số 48)
 const fetchHeatmapData = async () => {

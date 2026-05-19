@@ -4,7 +4,7 @@ info:
   description: Hệ thống điều hướng và quản lý bệnh viện thông minh
   version: 1.0.0
 servers:
-  - url: http://group3.it4788.sukkaito.id.vn
+  - url: https://group3.it4788.sukkaito.id.vn
     description: Production
   - url: http://localhost:8080
     description: Local

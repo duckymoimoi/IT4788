@@ -7,7 +7,7 @@ import axios from 'axios';
 const { Title, Text } = Typography;
 
 // Đường dẫn Base URL kết nối trực tiếp đến Production Server của nhóm
-const BASE_URL = 'http://group3.it4788.sukkaito.id.vn/api';
+const BASE_URL = 'https://group3.it4788.sukkaito.id.vn/api';
 
 // --- TẦNG CALL API (KHỚP HOÀN TOÀN VỚI TÀI LIỆU SWAGGER & API REFERENCE) ---
 

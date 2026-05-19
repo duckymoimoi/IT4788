@@ -1,6 +1,6 @@
 # Hospital Navigation API — Full Test Report
 
-> **Server:** `http://group3.it4788.sukkaito.id.vn/api`  
+> **Server:** `https://group3.it4788.sukkaito.id.vn/api`  
 > **Time:** 2026-04-29 15:32:06  
 > **Accounts:** Admin `0900000001` / Staff `0900000003` / Patient `0900000004` / Pwd `password123`
 
@@ -444,22 +444,22 @@
   "code": 1000,
   "message": "OK",
   "data": {
-    "base_url": "http://group3.it4788.sukkaito.id.vn",
+    "base_url": "https://group3.it4788.sukkaito.id.vn",
     "files": [
       {
         "key": "turn_left",
         "text": "Rẽ trái",
-        "url": "http://group3.it4788.sukkaito.id.vn/audio/turn_left.mp3"
+        "url": "https://group3.it4788.sukkaito.id.vn/audio/turn_left.mp3"
       },
       {
         "key": "turn_right",
         "text": "Rẽ phải",
-        "url": "http://group3.it4788.sukkaito.id.vn/audio/turn_right.mp3"
+        "url": "https://group3.it4788.sukkaito.id.vn/audio/turn_right.mp3"
       },
       {
         "key": "go_straight",
         "text": "Đi thẳng",
-        "url": "http://group3.it4788.sukkaito.id.vn/audio/go_straight.mp3"
+        "url": "https://group3.it4788.sukkaito.id.vn/audio/go_straight.mp3"
       },
       "...(8 total)"
     ],
