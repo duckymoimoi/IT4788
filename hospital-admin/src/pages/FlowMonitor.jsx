@@ -2,28 +2,21 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Table, Card, Row, Col, Statistic, Tag, Spin, Alert, Typography } from 'antd';
 import { FireOutlined, DashboardOutlined, AlertOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import api from '../api/client';
 
 const { Title, Text } = Typography;
 
-// Định nghĩa Base URL kết nối tới Production Server chung của nhóm
-const BASE_URL = 'https://group3.it4788.sukkaito.id.vn/api';
+
 
 // 1. Hàm call API lấy dữ liệu Heatmap lưu thông (API số 48)
 const fetchHeatmapData = async () => {
-  const token = localStorage.getItem('token'); // Lấy JWT token đã lưu khi đăng nhập
-  const response = await axios.get(`${BASE_URL}/flow/get_heatmap`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  const response = await api.get('/flow/get_heatmap');
   return response.data.data;
 };
 
 // 2. Hàm call API lấy danh sách điểm tắc nghẽn (API số 49)
 const fetchBottlenecks = async () => {
-  const token = localStorage.getItem('token');
-  const response = await axios.get(`${BASE_URL}/flow/get_bottlenecks`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  const response = await api.get('/flow/get_bottlenecks');
   return response.data.data;
 };
 
@@ -82,10 +75,8 @@ export default function FlowMonitor() {
 
   return (
     <div style={{ padding: '24px', background: '#f5f5f5', minHeight: '100vh' }}>
-      {/* Giữ nguyên phần Header nhận diện của Người C */}
       <div style={{ marginBottom: '24px' }}>
         <Title level={4}>Flow Monitor</Title>
-        <Text type="secondary">👤 C — Giám sát luồng người, heatmap, obstacles</Text>
       </div>
 
       {/* Tầng 1: Các thẻ thống kê tổng quan (Dashboard Widgets) */}

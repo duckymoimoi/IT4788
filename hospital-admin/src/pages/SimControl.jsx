@@ -2,53 +2,42 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Button, Table, Tag, Space, notification, Alert, Spin, Typography } from 'antd';
 import { PlayCircleOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import api from '../api/client';
 
 const { Title, Text } = Typography;
 
-// Đường dẫn Base URL kết nối trực tiếp đến Production Server của nhóm
-const BASE_URL = 'https://group3.it4788.sukkaito.id.vn/api';
+
 
 // --- TẦNG CALL API (KHỚP HOÀN TOÀN VỚI TÀI LIỆU SWAGGER & API REFERENCE) ---
 
 const fetchSimStatus = async () => {
-  const token = localStorage.getItem('token');
-  const res = await axios.get(`${BASE_URL}/simulate/status`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  const res = await api.get('/simulate/status');
   return res.data.data;
 };
 
 const fetchObstacles = async () => {
-  const token = localStorage.getItem('token');
-  const res = await axios.get(`${BASE_URL}/flow/get_obstacles`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return res.data.data;
+  const res = await api.get('/flow/get_obstacles');
+  // API trả về { reports: [...], total, page, limit } — cần extract mảng reports
+  return res.data.data?.reports ?? [];
 };
 
 const startSimulation = async () => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${BASE_URL}/simulate/start`, {
+  return api.post('/simulate/start', {
     map_id: 1,
     output_file: "warehouse_small.json",
     tick_rate_ms: 1000
-  }, { headers: { Authorization: `Bearer ${token}` } });
-};
-
-const stopSimulation = async () => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${BASE_URL}/simulate/stop`, {}, {
-    headers: { Authorization: `Bearer ${token}` }
   });
 };
 
+const stopSimulation = async () => {
+  return api.post('/simulate/stop', {});
+};
+
 const resolveObstacle = async (reportID) => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${BASE_URL}/flow/resolve_obstacle`, {
+  return api.post('/flow/resolve_obstacle', {
     report_id: reportID,
     action: "resolve"
-  }, { headers: { Authorization: `Bearer ${token}` } });
+  });
 };
 
 // --- COMPONENT CHÍNH ---
@@ -162,10 +151,8 @@ export default function SimControl() {
 
   return (
     <div style={{ padding: '24px', background: '#f5f5f5', minHeight: '100vh' }}>
-      {/* Giữ nguyên phần Tiêu đề định danh của Người C */}
       <div style={{ marginBottom: '24px' }}>
         <Title level={4}>Simulation Control</Title>
-        <Text type="secondary">👤 C — Điều khiển mô phỏng MAPF</Text>
       </div>
 
       {/* Tầng 1: Khối điều khiển kích hoạt kịch bản mô phỏng */}
@@ -174,7 +161,7 @@ export default function SimControl() {
           <Space size="large">
             <div>
               Trạng thái Engine:{' '}
-              {simStatus?.is_running ? (
+              {simStatus?.running ? (
                 <Tag color="success">ĐANG CHẠY GIẢ LẬP</Tag>
               ) : (
                 <Tag color="default">ĐANG DỪNG</Tag>
@@ -183,7 +170,7 @@ export default function SimControl() {
             <Button 
               type="primary" 
               icon={<PlayCircleOutlined />} 
-              disabled={simStatus?.is_running}
+              disabled={simStatus?.running}
               onClick={() => startMutation.mutate()}
               loading={startMutation.isPending}
             >
@@ -193,7 +180,7 @@ export default function SimControl() {
               type="primary" 
               danger 
               icon={<StopOutlined />} 
-              disabled={!simStatus?.is_running}
+              disabled={!simStatus?.running}
               onClick={() => stopMutation.mutate()}
               loading={stopMutation.isPending}
             >
