@@ -11,26 +11,46 @@ import (
 
 // FlowService xu ly logic nghiep vu cho Flow + Simulation module (Slice 5).
 type FlowService struct {
-	repo    *repository.FlowRepo
-	manager *mapf.AgentManager
+	repo      *repository.FlowRepo
+	routeRepo *repository.RouteRepo
+	manager   *mapf.AgentManager
 }
 
-func NewFlowService(repo *repository.FlowRepo) *FlowService {
+func NewFlowService(repo *repository.FlowRepo, routeRepo *repository.RouteRepo) *FlowService {
 	return &FlowService{
-		repo:    repo,
-		manager: mapf.NewAgentManager(),
+		repo:      repo,
+		routeRepo: routeRepo,
+		manager:   mapf.NewAgentManager(),
 	}
 }
 
 // AutoStartSimulation tu dong bat dau mo phong khi server khoi dong.
 // Chay loop vo han (reset ve timestep 0 khi het makespan).
 // Goi tu RegisterFlowRoutes trong goroutine rieng.
-func (s *FlowService) AutoStartSimulation(outputFile string, tickRateMs int) error {
-	if err := s.manager.Start(outputFile, tickRateMs); err != nil {
+func (s *FlowService) AutoStartSimulation(mapID uint32, outputFile string, tickRateMs int, mapCols int) error {
+	if err := s.repo.StopRunningSimulations(); err != nil {
+		return fmt.Errorf("cannot stop stale simulation runs: %w", err)
+	}
+	if err := s.manager.Start(outputFile, tickRateMs, mapCols); err != nil {
 		return fmt.Errorf("auto-start simulation failed: %w", err)
 	}
 	teamSize, makespan, _, _, _ := s.manager.GetInfo()
-	fmt.Printf("[SIM] Auto-started: %d agents, makespan=%d, tick=%dms (loop forever)\n", teamSize, makespan, tickRateMs)
+
+	run := &schema.SimulationRun{
+		MapID:      mapID,
+		OutputFile: outputFile,
+		TeamSize:   teamSize,
+		Makespan:   makespan,
+		TickRateMs: tickRateMs,
+		Status:     schema.SimulationRunning,
+		StartedAt:  time.Now(),
+	}
+	if err := s.repo.CreateSimulationRun(run); err != nil {
+		s.manager.Stop()
+		return fmt.Errorf("cannot save auto-start simulation run: %w", err)
+	}
+
+	fmt.Printf("[SIM] Auto-started: %d agents, makespan=%d, tick=%dms, cols=%d (loop forever)\n", teamSize, makespan, tickRateMs, mapCols)
 	return nil
 }
 
@@ -58,9 +78,23 @@ type DensityInfo struct {
 	Minutes      int   `json:"window_minutes"`
 }
 
-// GetDensity lay mat do tai 1 diem trong 30 phut gan nhat.
+// GetDensity lay mat do tai 1 diem.
+// Neu simulation dang chay, tra ve tan suat agent di qua (throughput).
+// Neu khong, dem user pings trong 30 phut gan nhat.
 // API #47 GET get_density
 func (s *FlowService) GetDensity(gridLocation int) (*DensityInfo, error) {
+	// Uu tien du lieu tu simulation (neu dang chay)
+	if s.manager.IsRunning() {
+		freq := s.manager.GetLocationFrequency(gridLocation)
+		windowMin := int(s.manager.GetWindowDuration().Minutes())
+		return &DensityInfo{
+			GridLocation: gridLocation,
+			Count:        freq,
+			Minutes:      windowMin, // window hien tai cua simulation
+		}, nil
+	}
+
+	// Fallback: dem pings thuc te
 	minutes := 30
 	count, err := s.repo.GetDensityByLocation(gridLocation, minutes)
 	if err != nil {
@@ -74,25 +108,87 @@ func (s *FlowService) GetDensity(gridLocation int) (*DensityInfo, error) {
 	}, nil
 }
 
+// GetDensityByRoute lay tong mat do cua tat ca cac diem tren route.
+func (s *FlowService) GetDensityByRoute(routeID string) (*DensityInfo, error) {
+	_, err := s.routeRepo.FindRouteByID(routeID)
+	if err != nil {
+		return nil, fmt.Errorf("route not found")
+	}
+
+	paths, err := s.routeRepo.FindPathsByRouteID(routeID)
+	if err != nil {
+		return nil, err
+	}
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no paths found for route")
+	}
+
+	var totalCount int64 = 0
+	minutes := 30
+
+	if s.manager.IsRunning() {
+		windowMin := int(s.manager.GetWindowDuration().Minutes())
+		for _, p := range paths {
+			totalCount += s.manager.GetLocationFrequency(p.GridLocation)
+		}
+		return &DensityInfo{
+			Count:   totalCount,
+			Minutes: windowMin,
+		}, nil
+	}
+
+	locations := make([]int, len(paths))
+	for i, p := range paths {
+		locations[i] = p.GridLocation
+	}
+
+	totalCount, err = s.repo.GetDensityByLocations(locations, minutes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DensityInfo{
+		Count:   totalCount,
+		Minutes: minutes,
+	}, nil
+}
+
 // HeatmapEntry 1 o tren heatmap.
 type HeatmapEntry struct {
 	GridLocation int   `json:"grid_location"`
 	Density      int64 `json:"density"`
 }
 
-// GetHeatmap lay heatmap density tu pings gan day.
+// GetHeatmap lay heatmap density.
+// Neu simulation dang chay: dung tan suat tich luy (throughput) thay vi snapshot.
+// Neu khong: query user_pings 30 phut gan nhat.
+// Co the loc theo routeID neu duoc cung cap.
 // API #48 GET get_heatmap
-func (s *FlowService) GetHeatmap() ([]HeatmapEntry, error) {
-	// Neu simulation dang chay, lay tu AgentManager
-	if s.manager.IsRunning() {
-		positions := s.manager.GetAllPositions()
-		densityMap := make(map[int]int64)
-		for _, pos := range positions {
-			densityMap[pos.Location]++
+func (s *FlowService) GetHeatmap(routeID string) ([]HeatmapEntry, error) {
+	var routeLocations map[int]bool
+	if routeID != "" {
+		paths, err := s.routeRepo.FindPathsByRouteID(routeID)
+		if err != nil {
+			return nil, err
 		}
-		entries := make([]HeatmapEntry, 0, len(densityMap))
-		for loc, count := range densityMap {
-			entries = append(entries, HeatmapEntry{GridLocation: loc, Density: count})
+		routeLocations = make(map[int]bool)
+		for _, p := range paths {
+			routeLocations[p.GridLocation] = true
+		}
+	}
+
+	// Neu simulation dang chay, lay tu ban do tan suat (throughput)
+	if s.manager.IsRunning() {
+		freqEntries := s.manager.GetFrequencyMap()
+		var entries []HeatmapEntry
+		for _, fe := range freqEntries {
+			if routeLocations != nil && !routeLocations[fe.Location] {
+				continue
+			}
+			entries = append(entries, HeatmapEntry{
+				GridLocation: fe.Location,
+				Density:      fe.Frequency,
+			})
 		}
 		return entries, nil
 	}
@@ -103,22 +199,44 @@ func (s *FlowService) GetHeatmap() ([]HeatmapEntry, error) {
 		return nil, err
 	}
 
-	entries := make([]HeatmapEntry, len(results))
-	for i, r := range results {
-		entries[i] = HeatmapEntry{
+	var entries []HeatmapEntry
+	for _, r := range results {
+		if routeLocations != nil && !routeLocations[r.GridLocation] {
+			continue
+		}
+		entries = append(entries, HeatmapEntry{
 			GridLocation: r.GridLocation,
 			Density:      r.Count,
-		}
+		})
 	}
 	return entries, nil
 }
 
 // GetBottlenecks lay top N diem un tac.
+// Neu simulation dang chay: top N vi tri co tan suat cao nhat.
+// Neu khong: top N tu user_pings.
 // API #49 GET get_bottlenecks
 func (s *FlowService) GetBottlenecks(limit int) ([]repository.DensityResult, error) {
 	if limit <= 0 {
 		limit = 10
 	}
+
+	// Neu simulation dang chay, lay tu frequency map
+	if s.manager.IsRunning() {
+		freqEntries := s.manager.GetFrequencyMap()
+		results := make([]repository.DensityResult, 0, limit)
+		for i, fe := range freqEntries {
+			if i >= limit {
+				break
+			}
+			results = append(results, repository.DensityResult{
+				GridLocation: fe.Location,
+				Count:        fe.Frequency,
+			})
+		}
+		return results, nil
+	}
+
 	return s.repo.GetBottlenecks(30, limit)
 }
 
@@ -150,9 +268,9 @@ func (s *FlowService) SetCapacity(poiID uint32, capacity int) error {
 
 // GetForecast du bao luu thong theo gio.
 // API #52 GET get_forecast
-func (s *FlowService) GetForecast(hours int) ([]repository.HourlyStats, error) {
+func (s *FlowService) GetForecast(hours float64) ([]repository.HourlyStats, error) {
 	if hours <= 0 {
-		hours = 24
+		hours = 24.0
 	}
 	return s.repo.GetPingsByHour(hours)
 }
@@ -200,7 +318,7 @@ func (s *FlowService) GetStatsFlow(hours int) ([]repository.HourlyStats, error) 
 	if hours <= 0 {
 		hours = 24
 	}
-	return s.repo.GetPingsByHour(hours)
+	return s.repo.GetPingsByHour(float64(hours))
 }
 
 // ResetFlow xoa tat ca flow data.
@@ -247,26 +365,26 @@ func (s *FlowService) ExpirePriority(priorityID uint64) error {
 
 // SimulationInfo thong tin phien mo phong.
 type SimulationInfo struct {
-	RunID       uint64                `json:"run_id,omitempty"`
-	Running     bool                  `json:"running"`
-	TeamSize    int                   `json:"team_size"`
-	Makespan    int                   `json:"makespan"`
-	CurrentTS   int                   `json:"current_timestep"`
-	TickRateMs  int                   `json:"tick_rate_ms"`
-	OutputFile  string                `json:"output_file"`
-	Positions   []mapf.AgentState     `json:"positions,omitempty"`
+	RunID      uint64            `json:"run_id,omitempty"`
+	Running    bool              `json:"running"`
+	TeamSize   int               `json:"team_size"`
+	Makespan   int               `json:"makespan"`
+	CurrentTS  int               `json:"current_timestep"`
+	TickRateMs int               `json:"tick_rate_ms"`
+	OutputFile string            `json:"output_file"`
+	Positions  []mapf.AgentState `json:"positions,omitempty"`
 }
 
 // StartSimulation bat dau mo phong MAPF.
 // API #58 POST simulate/start
-func (s *FlowService) StartSimulation(mapID uint32, outputFile string, tickRateMs int) (*SimulationInfo, error) {
+func (s *FlowService) StartSimulation(mapID uint32, outputFile string, tickRateMs int, mapCols int) (*SimulationInfo, error) {
 	// Kiem tra da co phien dang chay chua
 	if s.manager.IsRunning() {
 		return nil, fmt.Errorf("a simulation is already running")
 	}
 
 	// Load va bat dau mo phong
-	if err := s.manager.Start(outputFile, tickRateMs); err != nil {
+	if err := s.manager.Start(outputFile, tickRateMs, mapCols); err != nil {
 		return nil, err
 	}
 

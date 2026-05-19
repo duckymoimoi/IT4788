@@ -1,4 +1,4 @@
-﻿package schema
+package schema
 
 import "time"
 
@@ -70,3 +70,17 @@ type GridPOI struct {
 }
 
 func (GridPOI) TableName() string { return "grid_pois" }
+
+// MapStep là edge thủ công giữa 2 node (manual override).
+// Bảng: map_steps [T10]
+type MapStep struct {
+	StepID      uint32  `gorm:"primaryKey;autoIncrement;column:step_id" json:"id"`
+	MapID       uint32  `gorm:"not null;index;column:map_id" json:"map_id"`
+	StartNodeID string  `gorm:"not null;size:30;column:start_node_id" json:"start_node_id"`
+	EndNodeID   string  `gorm:"not null;size:30;column:end_node_id" json:"end_node_id"`
+	Distance    float32 `gorm:"not null;column:distance" json:"distance"`
+	Direction   string  `gorm:"size:50;column:direction" json:"direction,omitempty"`
+	Instruction string  `gorm:"size:500;column:instruction" json:"instruction,omitempty"`
+}
+
+func (MapStep) TableName() string { return "map_steps" }

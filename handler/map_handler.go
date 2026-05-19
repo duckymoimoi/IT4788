@@ -1,6 +1,7 @@
-﻿package handler
+package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"strconv"
 
@@ -23,13 +24,13 @@ func NewMapHandler(svc *service.MapService) *MapHandler {
 // ========================================
 
 type addNodeRequest struct {
-	MapID                uint32  `json:"map_id"`
+	ID                   string  `json:"id" binding:"required"` // corresponds to POICode
+	MapID                uint32  `json:"map_id" binding:"required"`
+	Name                 string  `json:"name" binding:"required"`
+	Type                 string  `json:"type" binding:"required"`
+	X                    int     `json:"x"`
+	Y                    int     `json:"y"`
 	WardID               *uint32 `json:"ward_id"`
-	POICode              string  `json:"poi_code"`
-	POIName              string  `json:"poi_name"`
-	POIType              string  `json:"poi_type"`
-	GridRow              int     `json:"grid_row"`
-	GridCol              int     `json:"grid_col"`
 	IsLandmark           bool    `json:"is_landmark"`
 	WheelchairAccessible bool    `json:"wheelchair_accessible"`
 	Capacity             *int    `json:"capacity"`
@@ -38,10 +39,11 @@ type addNodeRequest struct {
 }
 
 type editNodeRequest struct {
-	POIID                uint32   `json:"poi_id"`
-	POICode              *string  `json:"poi_code"`
-	POIName              *string  `json:"poi_name"`
-	POIType              *string  `json:"poi_type"`
+	ID                   string   `json:"id" binding:"required"` // corresponds to POICode
+	X                    *int     `json:"x"`
+	Y                    *int     `json:"y"`
+	Name                 *string  `json:"name"`
+	Type                 *string  `json:"type"`
 	IsLandmark           *bool    `json:"is_landmark"`
 	WheelchairAccessible *bool    `json:"wheelchair_accessible"`
 	IsAccessible         *bool    `json:"is_accessible"`
@@ -51,9 +53,29 @@ type editNodeRequest struct {
 	CustomWeight         *float32 `json:"custom_weight"`
 }
 
+type delNodeRequest struct {
+	ID string `json:"id" binding:"required"`
+}
+
+type addEdgeRequest struct {
+	MapID     uint32   `json:"map_id"`
+	StartNode string   `json:"start_node"`
+	EndNode   string   `json:"end_node"`
+	Distance  *float32 `json:"distance"`
+}
+
+type editEdgeRequest struct {
+	ID       uint32   `json:"id"`
+	Distance *float32 `json:"distance"`
+}
+
+type delEdgeRequest struct {
+	ID uint32 `json:"id"`
+}
+
 type setWeightRequest struct {
-	POIID  uint32  `json:"poi_id" binding:"required"`
-	Weight float32 `json:"weight" binding:"required"`
+	EdgeID *uint32  `json:"edge_id"`
+	Weight *float32 `json:"weight"`
 }
 
 // ========================================
@@ -72,9 +94,33 @@ func (h *MapHandler) GetFloors(c *gin.Context) {
 
 // [17] GET /api/map/get_nodes?map_id=
 func (h *MapHandler) GetNodes(c *gin.Context) {
-	mapID := parseUint32(c.Query("map_id"))
-	items, err := h.svc.GetNodes(mapID)
-	if err != nil {
+	mapIDStr := firstQuery(c, "map_id", "floor_id")
+	if mapIDStr == "" {
+		response.ErrMissingParam(c)
+		return
+	}
+	mapIDInt, err := strconv.ParseInt(mapIDStr, 10, 64)
+	if err != nil || mapIDStr[0] == '-' {
+		response.ErrInvalidType(c)
+		return
+	}
+	if mapIDInt <= 0 || mapIDInt > 2147483647 {
+		response.ErrInvalidValue(c)
+		return
+	}
+	mapID := uint32(mapIDInt)
+
+	// Verify map exists
+	if exists, err := h.svc.MapExists(mapID); err != nil {
+		response.ErrUnexpected(c)
+		return
+	} else if !exists {
+		response.SuccessWithCode(c, 4001, nil)
+		return
+	}
+
+	items, err2 := h.svc.GetNodes(mapID)
+	if err2 != nil {
 		response.ErrUnexpected(c)
 		return
 	}
@@ -83,14 +129,33 @@ func (h *MapHandler) GetNodes(c *gin.Context) {
 
 // [18] GET /api/map/get_edges?map_id=
 func (h *MapHandler) GetEdges(c *gin.Context) {
-	mapID := parseUint32(c.Query("map_id"))
-	result, _ := h.svc.GetEdges(mapID)
-	response.SuccessWithCode(c, 2003, result)
+	mapIDStr := firstQuery(c, "map_id", "floor_id")
+	if mapIDStr == "" {
+		response.ErrMissingParam(c)
+		return
+	}
+	mapIDInt, err := strconv.ParseInt(mapIDStr, 10, 64)
+	if err != nil || mapIDStr[0] == '-' {
+		response.ErrInvalidType(c)
+		return
+	}
+	if mapIDInt <= 0 || mapIDInt > 2147483647 {
+		response.ErrInvalidValue(c)
+		return
+	}
+	mapID := uint32(mapIDInt)
+
+	result, err2 := h.svc.GetEdges(mapID)
+	if err2 != nil {
+		h.handleMapError(c, err2)
+		return
+	}
+	response.Success(c, result)
 }
 
 // [19] GET /api/map/get_meta?map_id=
 func (h *MapHandler) GetMeta(c *gin.Context) {
-	mapID := parseUint32(c.Query("map_id"))
+	mapID := parseUint32(firstQuery(c, "map_id", "floor_id"))
 	meta, err := h.svc.GetMeta(mapID)
 	if err != nil {
 		h.handleMapError(c, err)
@@ -114,7 +179,7 @@ func (h *MapHandler) GetDepartments(c *gin.Context) {
 // [21] GET /api/map/search_location?keyword=&map_id=
 func (h *MapHandler) SearchLocation(c *gin.Context) {
 	keyword := c.Query("keyword")
-	mapID := parseUint32(c.Query("map_id"))
+	mapID := parseUint32(firstQuery(c, "map_id", "floor_id"))
 	items, err := h.svc.SearchLocation(keyword, mapID)
 	if err != nil {
 		response.ErrUnexpected(c)
@@ -125,7 +190,7 @@ func (h *MapHandler) SearchLocation(c *gin.Context) {
 
 // [22] GET /api/map/get_landmarks?map_id=
 func (h *MapHandler) GetLandmarks(c *gin.Context) {
-	mapID := parseUint32(c.Query("map_id"))
+	mapID := parseUint32(firstQuery(c, "map_id", "floor_id"))
 	items, err := h.svc.GetLandmarks(mapID)
 	if err != nil {
 		response.ErrUnexpected(c)
@@ -136,7 +201,7 @@ func (h *MapHandler) GetLandmarks(c *gin.Context) {
 
 // [24] GET /api/map/sync_full?map_id=
 func (h *MapHandler) SyncFull(c *gin.Context) {
-	mapID := parseUint32(c.Query("map_id"))
+	mapID := parseUint32(firstQuery(c, "map_id", "floor_id"))
 	result, err := h.svc.SyncFull(mapID)
 	if err != nil {
 		response.ErrUnexpected(c)
@@ -151,8 +216,42 @@ func (h *MapHandler) SyncFull(c *gin.Context) {
 
 // [25] POST /api/admin/add_node
 func (h *MapHandler) AddNode(c *gin.Context) {
+	// Parse raw body to distinguish missing vs wrong type
+	var rawBody map[string]interface{}
+	if err := c.ShouldBindJSON(&rawBody); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	// Validate required fields
+	if _, ok := rawBody["id"]; !ok {
+		response.ErrMissingParam(c)
+		return
+	}
+	if _, ok := rawBody["map_id"]; !ok {
+		response.ErrMissingParam(c)
+		return
+	}
+	if _, ok := rawBody["name"]; !ok {
+		response.ErrMissingParam(c)
+		return
+	}
+	if _, ok := rawBody["type"]; !ok {
+		response.ErrMissingParam(c)
+		return
+	}
+
+	// Type validation: id must be string
+	idVal, idOk := rawBody["id"].(string)
+	if !idOk || idVal == "" {
+		response.ErrInvalidType(c)
+		return
+	}
+
+	// Re-bind into typed struct for convenience
+	body, _ := json.Marshal(rawBody)
 	var req addNodeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := json.Unmarshal(body, &req); err != nil {
 		response.ErrBodyInvalid(c)
 		return
 	}
@@ -160,11 +259,11 @@ func (h *MapHandler) AddNode(c *gin.Context) {
 	item, err := h.svc.AddNode(service.AddNodeInput{
 		MapID:                req.MapID,
 		WardID:               req.WardID,
-		POICode:              req.POICode,
-		POIName:              req.POIName,
-		POIType:              req.POIType,
-		GridRow:              req.GridRow,
-		GridCol:              req.GridCol,
+		POICode:              req.ID,
+		POIName:              req.Name,
+		POIType:              req.Type,
+		GridRow:              req.Y,
+		GridCol:              req.X,
 		IsLandmark:           req.IsLandmark,
 		WheelchairAccessible: req.WheelchairAccessible,
 		Capacity:             req.Capacity,
@@ -187,10 +286,11 @@ func (h *MapHandler) EditNode(c *gin.Context) {
 	}
 
 	item, err := h.svc.EditNode(service.EditNodeInput{
-		POIID:                req.POIID,
-		POICode:              req.POICode,
-		POIName:              req.POIName,
-		POIType:              req.POIType,
+		POICode:              req.ID,
+		POIName:              req.Name,
+		POIType:              req.Type,
+		GridRow:              req.Y,
+		GridCol:              req.X,
 		IsLandmark:           req.IsLandmark,
 		WheelchairAccessible: req.WheelchairAccessible,
 		IsAccessible:         req.IsAccessible,
@@ -206,19 +306,15 @@ func (h *MapHandler) EditNode(c *gin.Context) {
 	response.Success(c, item)
 }
 
-// [27] DELETE /api/admin/del_node?poi_id=
+// [27] DELETE /api/admin/del_node
 func (h *MapHandler) DelNode(c *gin.Context) {
-	poiID := parseUint32(c.Query("poi_id"))
-	if poiID == 0 {
-		// Fallback: try JSON body
-		var req struct {
-			POIID uint32 `json:"poi_id"`
-		}
-		_ = c.ShouldBindJSON(&req)
-		poiID = req.POIID
+	var req delNodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
 	}
 
-	err := h.svc.DelNode(poiID)
+	err := h.svc.DelNode(req.ID)
 	if err != nil {
 		h.handleMapError(c, err)
 		return
@@ -226,30 +322,303 @@ func (h *MapHandler) DelNode(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// [28] POST /api/admin/add_edge  - grid-based: không hỗ trợ
+// [28] POST /api/admin/add_edge
 func (h *MapHandler) AddEdge(c *gin.Context) {
-	response.SuccessWithCode(c, 2003, map[string]string{
-		"message": "edges are auto-computed from grid adjacency, manual edge creation is not supported",
-	})
-}
-
-// [29] DELETE /api/admin/del_edge  - grid-based: không hỗ trợ
-func (h *MapHandler) DelEdge(c *gin.Context) {
-	response.SuccessWithCode(c, 2003, map[string]string{
-		"message": "edges are auto-computed from grid adjacency, manual edge deletion is not supported",
-	})
-}
-
-// [30] PATCH /api/admin/set_weight
-func (h *MapHandler) SetWeight(c *gin.Context) {
-	var req setWeightRequest
+	var req addEdgeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrBodyInvalid(c)
 		return
 	}
 
-	err := h.svc.SetWeight(req.POIID, req.Weight)
+	// Validate required fields
+	if req.MapID == 0 {
+		response.ErrMissingParam(c)
+		return
+	}
+	if req.StartNode == "" || req.EndNode == "" {
+		response.ErrMissingParam(c)
+		return
+	}
+	if req.Distance == nil {
+		response.ErrMissingParam(c)
+		return
+	}
+	if *req.Distance <= 0 {
+		response.ErrInvalidValue(c)
+		return
+	}
+
+	edgeID, err := h.svc.AddEdge(req.MapID, req.StartNode, req.EndNode, *req.Distance)
 	if err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+	response.Success(c, map[string]interface{}{"id": edgeID})
+}
+
+// [29] DELETE /api/admin/del_edge
+func (h *MapHandler) DelEdge(c *gin.Context) {
+	var req delEdgeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+	if req.ID == 0 {
+		response.ErrMissingParam(c)
+		return
+	}
+
+	if err := h.svc.DelEdge(req.ID); err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+// [30] PATCH /api/admin/set_weight
+func (h *MapHandler) SetWeight(c *gin.Context) {
+	// Parse raw to distinguish missing vs wrong type vs invalid value
+	var rawBody map[string]interface{}
+	if err := c.ShouldBindJSON(&rawBody); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	// Check missing fields
+	rawEdgeID, hasEdgeID := rawBody["edge_id"]
+	rawWeight, hasWeight := rawBody["weight"]
+	if !hasEdgeID {
+		response.ErrMissingParam(c)
+		return
+	}
+	if !hasWeight {
+		response.ErrMissingParam(c)
+		return
+	}
+
+	// Type check: edge_id must be number
+	edgeIDFloat, ok := rawEdgeID.(float64)
+	if !ok {
+		response.ErrInvalidType(c)
+		return
+	}
+	edgeID := uint32(edgeIDFloat)
+	if edgeID == 0 {
+		response.ErrMissingParam(c)
+		return
+	}
+
+	// Type check: weight must be number
+	weightFloat, ok := rawWeight.(float64)
+	if !ok {
+		response.ErrInvalidType(c)
+		return
+	}
+	weight := float32(weightFloat)
+
+	// Value validation
+	if weight <= 0 {
+		response.ErrInvalidValue(c)
+		return
+	}
+
+	if err := h.svc.SetWeight(edgeID, weight); err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+
+	response.Success(c, nil)
+}
+
+// ========================================
+// MAP FILE APIs
+// ========================================
+
+// [31] POST /api/admin/upload_map
+func (h *MapHandler) UploadMap(c *gin.Context) {
+	// 1. Get file
+	file, err := c.FormFile("file")
+	if err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	mapName := c.PostForm("map_name")
+	if mapName == "" {
+		mapName = file.Filename
+	}
+	rows := parseUint32(c.PostForm("rows"))
+	cols := parseUint32(c.PostForm("cols"))
+
+	// 2. Save .map file
+	filePath := "data/" + file.Filename
+	if err := c.SaveUploadedFile(file, filePath); err != nil {
+		response.ErrInternalError(c)
+		return
+	}
+
+	// 3. Save image file if provided
+	var mapImageURL *string
+	imageFile, err := c.FormFile("image_file")
+	if err == nil && imageFile != nil {
+		imagePath := "data/" + imageFile.Filename
+		if err := c.SaveUploadedFile(imageFile, imagePath); err == nil {
+			url := "/data/" + imageFile.Filename
+			mapImageURL = &url
+		}
+	}
+
+	// 4. Get GridData if frontend sends it
+	gridData := c.PostForm("grid_data")
+	if gridData == "" {
+		gridData = "[]" // fallback
+	}
+
+	// 5. Check if updating existing map (map_id provided)
+	mapIDStr := c.PostForm("map_id")
+	if mapIDStr != "" && mapIDStr != "0" {
+		mapID := parseUint32(mapIDStr)
+		if err := h.svc.UpdateMapFiles(mapID, mapName, filePath, int(rows), int(cols), gridData, mapImageURL); err != nil {
+			h.handleMapError(c, err)
+			return
+		}
+		response.Success(c, map[string]interface{}{"map_id": mapID, "updated": true})
+		return
+	}
+
+	// 6. Create new map
+	m, err := h.svc.UploadMap(mapName, filePath, int(rows), int(cols), gridData, mapImageURL)
+	if err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+	response.Success(c, m)
+}
+
+// [32] POST /api/admin/upload_output
+func (h *MapHandler) UploadOutput(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	filePath := "data/" + file.Filename
+	if err := c.SaveUploadedFile(file, filePath); err != nil {
+		response.ErrInternalError(c)
+		return
+	}
+
+	response.Success(c, map[string]string{"file_path": filePath})
+}
+
+// [33] POST /api/admin/set_active_map
+func (h *MapHandler) SetActiveMap(c *gin.Context) {
+	var req struct {
+		MapID uint32 `json:"map_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	if err := h.svc.SetActiveMap(req.MapID); err != nil {
+		if err.Error() == "cannot change active map: simulation is currently running. Please stop it first." {
+			response.ErrorResponse(c, 400, 4011, err.Error())
+			return
+		}
+		h.handleMapError(c, err)
+		return
+	}
+
+	response.Success(c, nil)
+}
+
+// [34] GET /api/admin/get_maps
+func (h *MapHandler) GetMaps(c *gin.Context) {
+	maps, err := h.svc.GetMaps()
+	if err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+	response.Success(c, maps)
+}
+
+// POST /api/admin/edit_map
+func (h *MapHandler) EditMap(c *gin.Context) {
+	var req struct {
+		MapID   uint32 `json:"map_id"`
+		MapName string `json:"map_name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.MapID == 0 {
+		response.ErrBodyInvalid(c)
+		return
+	}
+	err := h.svc.EditMap(req.MapID, req.MapName)
+	if err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+// POST /api/admin/update_grid
+func (h *MapHandler) UpdateGrid(c *gin.Context) {
+	var req struct {
+		MapID    uint32 `json:"map_id"`
+		GridData string `json:"grid_data"`
+		MapName  string `json:"map_name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.MapID == 0 || req.GridData == "" {
+		response.ErrBodyInvalid(c)
+		return
+	}
+	err := h.svc.UpdateGrid(req.MapID, req.GridData, req.MapName)
+	if err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+// GET /api/admin/export_map?filename=
+func (h *MapHandler) ExportMap(c *gin.Context) {
+	filename := c.Query("filename")
+	if filename == "" {
+		response.ErrMissingParam(c)
+		return
+	}
+	c.FileAttachment("data/"+filename, filename)
+}
+
+// DELETE /api/admin/delete_map
+func (h *MapHandler) DeleteMap(c *gin.Context) {
+	var req struct {
+		MapID uint32 `json:"map_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	if err := h.svc.DeleteMap(req.MapID); err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+// POST /api/admin/deactivate_map
+func (h *MapHandler) DeactivateMap(c *gin.Context) {
+	var req struct {
+		MapID uint32 `json:"map_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	if err := h.svc.DeactivateMap(req.MapID); err != nil {
 		h.handleMapError(c, err)
 		return
 	}
@@ -265,16 +634,27 @@ func parseUint32(s string) uint32 {
 	return uint32(v)
 }
 
+func firstQuery(c *gin.Context, keys ...string) string {
+	for _, key := range keys {
+		if value := c.Query(key); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func (h *MapHandler) handleMapError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, service.ErrMapNotFound):
-		response.ErrNotFound(c)
+		response.SuccessWithCode(c, 4001, nil)
 	case errors.Is(err, service.ErrNodeNotFound):
-		response.ErrNotFound(c)
+		response.SuccessWithCode(c, 4001, nil)
+	case errors.Is(err, service.ErrEdgeNotFound):
+		response.SuccessWithCode(c, 4001, nil)
 	case errors.Is(err, service.ErrNodeCodeExist):
 		response.ErrorResponse(c, 409, 4009, "POI code already exists")
 	case errors.Is(err, service.ErrMissingField):
-		response.ErrBodyInvalid(c)
+		response.ErrMissingParam(c)
 	case errors.Is(err, service.ErrCellNotFree):
 		response.ErrorResponse(c, 400, 4010, "Grid cell is not walkable")
 	default:

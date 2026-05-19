@@ -1,4 +1,4 @@
-﻿package repository
+package repository
 
 import (
 	"hospital/schema"
@@ -40,14 +40,55 @@ func (r *MapRepo) FindMapByID(mapID uint32) (*schema.GridMap, error) {
 	return &m, err
 }
 
+// FindMapByIDAnyStatus trả về 1 bản đồ theo ID bất kể trạng thái active hay không.
+func (r *MapRepo) FindMapByIDAnyStatus(mapID uint32) (*schema.GridMap, error) {
+	var m schema.GridMap
+	err := r.db.First(&m, "map_id = ?", mapID).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	return &m, err
+}
+
 // CreateMap tạo bản đồ mới.
 func (r *MapRepo) CreateMap(m *schema.GridMap) error {
 	return r.db.Omit(clause.Associations).Create(m).Error
 }
 
+// GetAllMaps trả về tất cả bản đồ (cả active và inactive).
+func (r *MapRepo) GetAllMaps() ([]schema.GridMap, error) {
+	var maps []schema.GridMap
+	err := r.db.Order("map_id ASC").Find(&maps).Error
+	return maps, err
+}
+
+// SetActiveMap set is_active = true cho map truyền vào, false cho các map khác.
+func (r *MapRepo) SetActiveMap(mapID uint32) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// Set tất cả về false
+		if err := tx.Model(&schema.GridMap{}).Where("1 = 1").Update("is_active", false).Error; err != nil {
+			return err
+		}
+		// Set map mong muốn thành true
+		if err := tx.Model(&schema.GridMap{}).Where("map_id = ?", mapID).Update("is_active", true).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
 // ========================================
 // GRID POIS  - CRUD
 // ========================================
+
+// IsSimulationRunning kiem tra xem co simulation nao dang chay tren ban do nay khong.
+func (r *MapRepo) IsSimulationRunning(mapID uint32) bool {
+	var count int64
+	r.db.Model(&schema.SimulationRun{}).
+		Where("map_id = ? AND status = ?", mapID, schema.SimulationRunning).
+		Count(&count)
+	return count > 0
+}
 
 // FindAllPOIs trả về tất cả POI đang active của 1 map.
 func (r *MapRepo) FindAllPOIs(mapID uint32) ([]schema.GridPOI, error) {
@@ -210,4 +251,80 @@ func (r *MapRepo) UpdatePOIWeight(poiID uint32, weight float32) error {
 	return r.db.Model(&schema.GridPOI{}).
 		Where("poi_id = ?", poiID).
 		Update("custom_weight", weight).Error
+}
+
+// ========================================
+// MAP STEPS  - Manual edges (CRUD)
+// ========================================
+
+// CreateEdge tạo manual edge và trả về ID.
+func (r *MapRepo) CreateEdge(mapID uint32, startNode, endNode string, distance float32) (uint32, error) {
+	step := &schema.MapStep{
+		MapID:       mapID,
+		StartNodeID: startNode,
+		EndNodeID:   endNode,
+		Distance:    distance,
+	}
+	if err := r.db.Create(step).Error; err != nil {
+		return 0, err
+	}
+	return step.StepID, nil
+}
+
+// EdgeExists kiểm tra edge có tồn tại không.
+func (r *MapRepo) EdgeExists(stepID uint32) (bool, error) {
+	var count int64
+	err := r.db.Model(&schema.MapStep{}).
+		Where("step_id = ?", stepID).
+		Count(&count).Error
+	return count > 0, err
+}
+
+// DeleteEdge xóa manual edge.
+func (r *MapRepo) DeleteEdge(stepID uint32) error {
+	return r.db.Delete(&schema.MapStep{}, "step_id = ?", stepID).Error
+}
+
+// ========================================
+// MAP UPDATE HELPERS
+// ========================================
+
+// UpdateMapName cap nhat ten ban do.
+func (r *MapRepo) UpdateMapName(mapID uint32, name string) error {
+	return r.db.Model(&schema.GridMap{}).
+		Where("map_id = ?", mapID).
+		Update("map_name", name).Error
+}
+
+// UpdateMap cap nhat nhieu truong cua ban do.
+func (r *MapRepo) UpdateMap(mapID uint32, updates map[string]interface{}) error {
+	return r.db.Model(&schema.GridMap{}).
+		Where("map_id = ?", mapID).
+		Updates(updates).Error
+}
+
+// DeleteMap xóa map theo ID (hard delete), kèm xóa POIs và steps liên quan.
+func (r *MapRepo) DeleteMap(mapID uint32) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// Xóa map_steps liên quan
+		if err := tx.Where("map_id = ?", mapID).Delete(&schema.MapStep{}).Error; err != nil {
+			return err
+		}
+		// Xóa POIs liên quan
+		if err := tx.Where("map_id = ?", mapID).Delete(&schema.GridPOI{}).Error; err != nil {
+			return err
+		}
+		// Xóa map
+		if err := tx.Delete(&schema.GridMap{}, "map_id = ?", mapID).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// DeactivateMap set is_active = false cho 1 map cụ thể.
+func (r *MapRepo) DeactivateMap(mapID uint32) error {
+	return r.db.Model(&schema.GridMap{}).
+		Where("map_id = ?", mapID).
+		Update("is_active", false).Error
 }

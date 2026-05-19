@@ -174,7 +174,7 @@ func main() {
 	fmt.Println(strings.Repeat("=", 70))
 
 	fmt.Print("\n  Logging in...")
-	patientToken := login("0900000004", "password123")
+	patientToken := login("0900000004", "Password123")
 	if patientToken == "" {
 		fmt.Println(" FAILED")
 		os.Exit(1)

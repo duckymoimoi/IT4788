@@ -13,6 +13,12 @@ import (
 // Chi chay khi database rong (kiem tra bang users truoc).
 // Du lieu nay dung de test API va demo san pham.
 func Seed() error {
+	// Always repair the canonical map on boot. Deploy databases are persistent,
+	// so a normal seed skip must not leave another uploaded/test map active.
+	if err := SeedMap(DB); err != nil {
+		log.Printf("CANH BAO: Khong repair duoc map data: %v", err)
+	}
+
 	var count int64
 	DB.Model(&schema.User{}).Count(&count)
 	if count > 0 {
@@ -41,8 +47,8 @@ func Seed() error {
 	log.Printf("Da tao %d wards", len(wards))
 
 	// --- BUOC 2: Tao tai khoan nguoi dung ---
-	// Dung password "password123" cho tat ca tai khoan test
-	testPassword := hashPassword("password123")
+	// Dung password "Password123" cho tat ca tai khoan test
+	testPassword := hashPassword("Password123")
 	dob := time.Date(1990, 1, 15, 0, 0, 0, 0, time.UTC)
 	genderMale := schema.GenderMale
 	genderFemale := schema.GenderFemale
@@ -181,7 +187,7 @@ func Seed() error {
 
 	log.Println("Seed du lieu demo hoan thanh")
 	log.Println("-------------------------------------------")
-	log.Println("Tai khoan test (mat khau: password123):")
+	log.Println("Tai khoan test (mat khau: Password123):")
 	log.Println("  Admin      : 0900000001")
 	log.Println("  Coordinator: 0900000002")
 	log.Println("  Staff      : 0900000003")
@@ -252,4 +258,3 @@ func dobPtr(year, month, day int) *time.Time {
 	t := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
 	return &t
 }
-

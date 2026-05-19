@@ -66,7 +66,7 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	// =============================================
 	api.GET("/sys/check_version", sysH.CheckVersion)
 	api.GET("/sys/get_voice_key", sysH.GetVoiceKey)     // #79
-	api.GET("/sys/get_voice_files", sysH.GetVoiceFiles)  // #80
+	api.GET("/sys/get_voice_files", sysH.GetVoiceFiles) // #80
 
 	// =============================================
 	// MAP  - Public (API 16-22, 24)
@@ -80,6 +80,13 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	mapG.GET("/search_location", mapH.SearchLocation)
 	mapG.GET("/get_landmarks", mapH.GetLandmarks)
 	mapG.GET("/sync_full", mapH.SyncFull)
+	// Legacy aliases used by the external Jest test suite.
+	mapG.GET("/floors", mapH.GetFloors)
+	mapG.GET("/nodes", mapH.GetNodes)
+	mapG.GET("/edges", mapH.GetEdges)
+	mapG.GET("/meta", mapH.GetMeta)
+	mapG.GET("/search", mapH.SearchLocation)
+	mapG.GET("/landmarks", mapH.GetLandmarks)
 
 	// =============================================
 	// ADMIN  - Private (admin only)
@@ -93,6 +100,20 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	admin.DELETE("/del_edge", mapH.DelEdge)
 	admin.PATCH("/set_weight", mapH.SetWeight)
 
+	// Map File APIs
+	admin.POST("/upload_map", mapH.UploadMap)
+	admin.POST("/upload_output", mapH.UploadOutput)
+	admin.POST("/set_active_map", mapH.SetActiveMap)
+	admin.GET("/get_maps", mapH.GetMaps)
+	admin.POST("/edit_map", mapH.EditMap)
+	admin.POST("/update_grid", mapH.UpdateGrid)
+	admin.GET("/export_map", mapH.ExportMap)
+	admin.DELETE("/delete_map", mapH.DeleteMap)
+	admin.POST("/deactivate_map", mapH.DeactivateMap)
+
+	// Device Admin APIs
+	RegisterAdminDeviceRoutes(admin, db)
+
 	// =============================================
 	// ROUTE  - Public + Private (shared routeH)
 	// =============================================
@@ -103,6 +124,8 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	routePriv.Use(middleware.Auth())
 	routePriv.POST("/preview", routeH.Preview)
 	routePriv.POST("/order", routeH.Order)
+	routePriv.POST("/order_multi", routeH.OrderMulti)
+	routePriv.POST("/order_unordered", routeH.OrderUnordered)
 	routePriv.GET("/get_steps", routeH.GetSteps)
 	routePriv.POST("/get_eta", routeH.GetETA)
 	routePriv.GET("/get_active", routeH.GetActive)
@@ -114,6 +137,27 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	routePriv.DELETE("/clear_history", routeH.ClearHistory)
 	routePriv.POST("/share", routeH.Share)
 	routePriv.POST("/rate", routeH.Rate)
+
+	// Legacy /api/routing aliases used by the external Jest test suite.
+	routing := api.Group("/routing")
+	routing.GET("/get_modes", routeH.GetModes)
+
+	routingPriv := api.Group("/routing")
+	routingPriv.Use(middleware.AuthCompat())
+	routingPriv.POST("/route_ordered", routeH.OrderMulti)
+	routingPriv.POST("/route_unordered", routeH.OrderUnordered)
+	routingPriv.POST("/re_calculate", routeH.Recalculate)
+	routingPriv.GET("/get_active", routeH.GetActive)
+	routingPriv.POST("/cancel_route", routeH.Cancel)
+	routingPriv.POST("/share_route", routeH.Share)
+	routingPriv.POST("/rate_path", routeH.Rate)
+	routingPriv.GET("/get_history", routeH.GetHistory)
+	routingPriv.DELETE("/clear_history", routeH.ClearHistory)
+	routingPriv.GET("/get_steps", routeH.GetSteps)
+	routingPriv.POST("/preview_path", routeH.Preview)
+	routingPriv.GET("/preview_path", routeH.Preview)
+	routingPriv.POST("/get_eta", routeH.GetETA)
+	routingPriv.POST("/pass_node", routeH.PassNode)
 
 	// =============================================
 	// ENGINE  - Admin only (shared engineH)
@@ -130,13 +174,11 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	engine.GET("/mapf_positions", engineH.GetMAPFPositions)
 	engine.GET("/mapf_info", engineH.GetMAPFInfo)
 
-	// =============================================
-	// MODULE STUBS - Team khac implement
-	// =============================================
-	RegisterFlowRoutes(api, db)       // Person B
-	RegisterMedicalRoutes(api, db)    // Person C
-	RegisterNotifRoutes(api, db)      // Person C
-	RegisterDeviceRoutes(api, db)     // Person D
-	RegisterUtilRoutes(api, db)       // Person D
-	RegisterSupportRoutes(api, db)    // Person E
+	// MODULE STUBS
+	RegisterFlowRoutes(api, db)
+	RegisterMedicalRoutes(api, db)
+	RegisterNotifRoutes(api, db)
+	RegisterDeviceRoutes(api, db)
+	RegisterUtilRoutes(api, db)
+	RegisterSupportRoutes(api, db)
 }

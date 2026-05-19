@@ -1,6 +1,6 @@
 # ==============================================================
-# HOSPITAL NAVIGATION SYSTEM - Docker Compose
-# 2 containers: Go API + PostgreSQL
+# HOSPITAL NAVIGATION SYSTEM - Docker Compose (Local Dev)
+# 3 containers: Go API + PostgreSQL + Admin Panel
 # ==============================================================
 # Chay:  docker compose up --build
 # Dung:  docker compose down
@@ -47,8 +47,24 @@ services:
     volumes:
       - uploads:/app/uploads       # Giu file uploads giua cac lan restart
       - audio:/app/audio           # Cache TTS audio files
+      - mapdata:/app/data
+
+  # ---- Admin Panel (React + Nginx) ----
+  admin:
+    build:
+      context: ./hospital-admin
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8080/api
+    container_name: hospital-admin
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3080:80"                  # Port 3080 de tranh conflict
 
 volumes:
   pgdata:                          # PostgreSQL data persist
   uploads:                         # User uploaded files
   audio:                           # TTS voice files cache
+  mapdata:                         # Map data
