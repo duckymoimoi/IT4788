@@ -24,7 +24,7 @@ const fetchObstacles = async () => {
 const startSimulation = async () => {
   return api.post('/simulate/start', {
     map_id: 1,
-    output_file: "warehouse_small.json",
+    output_file: "data/output.json",
     tick_rate_ms: 1000
   });
 };
