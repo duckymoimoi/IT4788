@@ -16,6 +16,7 @@ import {
   LogoutOutlined,
   FileOutlined,
   EditOutlined,
+  CodeOutlined,
 } from '@ant-design/icons';
 import useAuthStore from '../../stores/authStore';
 
@@ -42,6 +43,7 @@ const menuItems = [
   { key: '/chat', icon: <MessageOutlined />, label: 'Chat' },
   { key: '/engine', icon: <SettingOutlined />, label: 'Engine' },
   { key: '/settings', icon: <ToolOutlined />, label: 'Settings' },
+  { key: '/api-logs', icon: <CodeOutlined />, label: 'API Logger' },
 ];
 
 export default function AdminLayout() {
@@ -121,13 +123,14 @@ export default function AdminLayout() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            overflow: 'hidden',
           }}
         >
           <Text
             strong
-            style={{ color: '#fff', fontSize: collapsed ? 14 : 16, whiteSpace: 'nowrap' }}
+            style={{ color: '#fff', fontSize: collapsed ? 18 : 16, whiteSpace: 'nowrap' }}
           >
-            {'Hospital Admin'}
+            {collapsed ? 'H' : 'Hospital Admin'}
           </Text>
         </div>
         <Menu

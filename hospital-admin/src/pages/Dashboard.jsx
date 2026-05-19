@@ -73,7 +73,7 @@ function DensityChart({ data }) {
   }));
 
   return (
-    <Card title="📊 Mật độ người 24h" style={{ marginTop: 16 }}>
+    <Card title="Mật độ người 24h" style={{ marginTop: 16 }}>
       {chartData.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
           Chưa có dữ liệu — Cần bật Simulation trước
@@ -174,7 +174,7 @@ function AlertsPanel({ alerts, bottlenecks }) {
 function MiniHeatmap({ data }) {
   if (!data || data.length === 0) {
     return (
-      <Card title="🗺️ Mini Heatmap" style={{ marginTop: 16 }}>
+      <Card title=" Mini Heatmap" style={{ marginTop: 16 }}>
         <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
           Chưa có dữ liệu heatmap — Cần bật Simulation
         </div>
