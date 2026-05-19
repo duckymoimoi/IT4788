@@ -20,6 +20,7 @@ import SimControl from './pages/SimControl';
 import MedicalDash from './pages/MedicalDash';
 import DeviceMonitor from './pages/DeviceMonitor';
 import SystemSettings from './pages/SystemSettings';
+import ApiLogger from './pages/ApiLogger';
 
 // E — SOS & Chat
 import SOSDashboard from './pages/SOSDashboard';
@@ -52,6 +53,7 @@ function App() {
         <Route path="chat" element={<ChatSupport />} />
         <Route path="engine" element={<EnginePanel />} />
         <Route path="settings" element={<SystemSettings />} />
+        <Route path="api-logs" element={<ApiLogger />} />
       </Route>
     </Routes>
   );

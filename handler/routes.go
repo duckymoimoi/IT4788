@@ -110,6 +110,8 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	admin.GET("/export_map", mapH.ExportMap)
 	admin.DELETE("/delete_map", mapH.DeleteMap)
 	admin.POST("/deactivate_map", mapH.DeactivateMap)
+	admin.GET("/get_request_logs", GetRequestLogs)
+	admin.POST("/clear_request_logs", ClearRequestLogs)
 
 	// Device Admin APIs
 	RegisterAdminDeviceRoutes(admin, db)

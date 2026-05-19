@@ -16,6 +16,7 @@ import (
 
 	"hospital/database"
 	"hospital/handler"
+	"hospital/middleware"
 	"hospital/pkg/tts"
 )
 
@@ -71,6 +72,9 @@ func main() {
 		AllowCredentials: false,
 		MaxAge:           12 * time.Hour,
 	}))
+
+	// Log tất cả request/response vào bộ nhớ (xem tại Admin Panel → API Logger)
+	router.Use(middleware.APILogger())
 
 	// Tạo thư mục uploads nếu chưa có
 	os.MkdirAll("uploads", 0755)
