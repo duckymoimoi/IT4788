@@ -51,11 +51,14 @@ type addDeviceRequest struct {
 	Type          string `json:"type"`
 	Status        string `json:"status"`
 	CurrentNodeID string `json:"current_node_id"`
+	NodeID        string `json:"node_id"`
 }
 
 type editDeviceRequest struct {
-	ID     uint32 `json:"id"`
-	Status string `json:"status"`
+	ID            uint32 `json:"id"`
+	Status        string `json:"status"`
+	CurrentNodeID string `json:"current_node_id"`
+	NodeID        string `json:"node_id"`
 }
 
 type delDeviceRequest struct {
@@ -68,6 +71,8 @@ type delDeviceRequest struct {
 var validAdminDeviceStatuses = map[string]bool{
 	"available":   true,
 	"maintenance": true,
+	"in_use":      true,
+	"broken":      true,
 }
 
 // ========================================
@@ -249,6 +254,17 @@ func (h *DeviceHandler) TrackDevice(c *gin.Context) {
 // ADMIN DEVICE APIS
 // ========================================
 
+// GET /api/admin/admin_get_devices
+func (h *DeviceHandler) AdminGetDevices(c *gin.Context) {
+	devType := c.Query("type")
+	devices, err := h.svc.AdminListDevices(devType)
+	if err != nil {
+		h.handleDeviceError(c, err)
+		return
+	}
+	response.Success(c, devices)
+}
+
 // POST /api/admin/admin_add_device
 func (h *DeviceHandler) AdminAddDevice(c *gin.Context) {
 	var req addDeviceRequest
@@ -266,7 +282,11 @@ func (h *DeviceHandler) AdminAddDevice(c *gin.Context) {
 		response.ErrMissingParam(c)
 		return
 	}
-	if req.CurrentNodeID == "" {
+	currentNodeID := req.CurrentNodeID
+	if currentNodeID == "" {
+		currentNodeID = req.NodeID
+	}
+	if currentNodeID == "" {
 		response.ErrMissingParam(c)
 		return
 	}
@@ -277,7 +297,7 @@ func (h *DeviceHandler) AdminAddDevice(c *gin.Context) {
 		return
 	}
 
-	device, err := h.svc.AdminAddDevice(req.Type, req.Status, req.CurrentNodeID)
+	device, err := h.svc.AdminAddDevice(req.Type, req.Status, currentNodeID)
 	if err != nil {
 		h.handleDeviceError(c, err)
 		return
@@ -303,7 +323,12 @@ func (h *DeviceHandler) AdminEditDevice(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.AdminEditDevice(req.ID, req.Status); err != nil {
+	currentNodeID := req.CurrentNodeID
+	if currentNodeID == "" {
+		currentNodeID = req.NodeID
+	}
+
+	if err := h.svc.AdminEditDevice(req.ID, req.Status, currentNodeID); err != nil {
 		h.handleDeviceError(c, err)
 		return
 	}

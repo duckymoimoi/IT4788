@@ -43,7 +43,14 @@ func RegisterAdminDeviceRoutes(adminGroup *gin.RouterGroup, db *gorm.DB) {
 	deviceService := service.NewDeviceService(deviceRepo)
 	deviceHandler := NewDeviceHandler(deviceService)
 
+	adminGroup.GET("/admin_get_devices", deviceHandler.AdminGetDevices)
+	adminGroup.GET("/get_devices", deviceHandler.AdminGetDevices)
 	adminGroup.POST("/admin_add_device", deviceHandler.AdminAddDevice)
+	adminGroup.POST("/add_device", deviceHandler.AdminAddDevice)
 	adminGroup.POST("/admin_edit_device", deviceHandler.AdminEditDevice)
+	adminGroup.POST("/edit_device", deviceHandler.AdminEditDevice)
+	adminGroup.PATCH("/edit_device", deviceHandler.AdminEditDevice)
 	adminGroup.POST("/admin_del_device", deviceHandler.AdminDelDevice)
+	adminGroup.POST("/del_device", deviceHandler.AdminDelDevice)
+	adminGroup.DELETE("/del_device", deviceHandler.AdminDelDevice)
 }

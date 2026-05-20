@@ -2,6 +2,7 @@ package repository
 
 import (
 	"hospital/schema"
+	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -63,6 +64,20 @@ func (r *DeviceRepo) FindAvailableDevices(devType schema.DeviceType) ([]schema.D
 	return devices, err
 }
 
+// FindAllDevices returns all active devices for the admin panel.
+func (r *DeviceRepo) FindAllDevices(devType schema.DeviceType) ([]schema.Device, error) {
+	var devices []schema.Device
+	q := r.db.Where("is_active = ?", true)
+	if devType != "" {
+		q = q.Where("device_type = ?", devType)
+	}
+	err := q.Preload("Station").
+		Preload("CurrentPOI").
+		Order("device_id ASC").
+		Find(&devices).Error
+	return devices, err
+}
+
 // FindDeviceByID tìm thiết bị theo numeric ID.
 func (r *DeviceRepo) FindDeviceByID(deviceID uint32) (*schema.Device, error) {
 	var device schema.Device
@@ -73,6 +88,39 @@ func (r *DeviceRepo) FindDeviceByID(deviceID uint32) (*schema.Device, error) {
 		return nil, nil
 	}
 	return &device, err
+}
+
+// ResolvePOIIdentifier supports POI code, poi_id, or grid_location input.
+func (r *DeviceRepo) ResolvePOIIdentifier(identifier string) (*schema.GridPOI, error) {
+	var poi schema.GridPOI
+	err := r.db.Where("poi_code = ? AND is_active = ?", identifier, true).First(&poi).Error
+	if err == nil {
+		return &poi, nil
+	}
+	if err != gorm.ErrRecordNotFound {
+		return nil, err
+	}
+
+	if n, convErr := strconv.Atoi(identifier); convErr == nil {
+		err = r.db.Where("(poi_id = ? OR grid_location = ?) AND is_active = ?", n, n, true).First(&poi).Error
+		if err == nil {
+			return &poi, nil
+		}
+		if err != gorm.ErrRecordNotFound {
+			return nil, err
+		}
+	}
+
+	return nil, nil
+}
+
+func (r *DeviceRepo) FindStationByPOIID(poiID uint32) (*schema.DeviceStation, error) {
+	var station schema.DeviceStation
+	err := r.db.Where("poi_id = ? AND is_active = ?", poiID, true).First(&station).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	return &station, err
 }
 
 // FindDeviceByCode tìm thiết bị theo device_code (string identifier).

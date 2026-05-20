@@ -15,12 +15,12 @@ import (
 // ========================================
 
 var (
-	ErrDeviceNotFound      = errors.New("device not found")
-	ErrStationNotFound     = errors.New("station not found")
-	ErrNodeNotFoundDev     = errors.New("node not found")
-	ErrDeviceUnavailable   = errors.New("device unavailable")
-	ErrDeviceLimitExceeded = errors.New("already borrowing a device")
-	ErrDeviceOwnership     = errors.New("device does not belong to you")
+	ErrDeviceNotFound       = errors.New("device not found")
+	ErrStationNotFound      = errors.New("station not found")
+	ErrNodeNotFoundDev      = errors.New("node not found")
+	ErrDeviceUnavailable    = errors.New("device unavailable")
+	ErrDeviceLimitExceeded  = errors.New("already borrowing a device")
+	ErrDeviceOwnership      = errors.New("device does not belong to you")
 	ErrDeviceAlreadyDeleted = errors.New("device already deleted")
 )
 
@@ -37,10 +37,10 @@ func NewDeviceService(repo *repository.DeviceRepo) *DeviceService {
 // ========================================
 
 type StationItem struct {
-	StationID           uint32 `json:"station_id"`
-	StationName         string `json:"station_name"`
-	Capacity            int    `json:"capacity"`
-	AvailableWheelchairs int   `json:"available_wheelchairs"`
+	StationID            uint32 `json:"station_id"`
+	StationName          string `json:"station_name"`
+	Capacity             int    `json:"capacity"`
+	AvailableWheelchairs int    `json:"available_wheelchairs"`
 }
 
 func (s *DeviceService) GetStations() ([]StationItem, error) {
@@ -52,9 +52,9 @@ func (s *DeviceService) GetStations() ([]StationItem, error) {
 	for i, st := range stations {
 		count, _ := s.repo.CountAvailableByStation(st.StationID, schema.DeviceTypeWheelchair)
 		items[i] = StationItem{
-			StationID:           st.StationID,
-			StationName:         st.StationName,
-			Capacity:            st.Capacity,
+			StationID:            st.StationID,
+			StationName:          st.StationName,
+			Capacity:             st.Capacity,
 			AvailableWheelchairs: int(count),
 		}
 	}
@@ -66,7 +66,7 @@ func (s *DeviceService) GetStations() ([]StationItem, error) {
 // ========================================
 
 type WheelchairItem struct {
-	AssetID      string  `json:"asset_id"`     // device_code
+	AssetID      string  `json:"asset_id"` // device_code
 	DeviceID     uint32  `json:"device_id"`
 	Status       string  `json:"status"`
 	BatteryLevel *int    `json:"battery_level,omitempty"`
@@ -302,15 +302,117 @@ func (s *DeviceService) TrackAsset(userID uint64, assetID string) (*AssetTrackIt
 // ADMIN DEVICE CRUD
 // ========================================
 
+type AdminDeviceItem struct {
+	ID            uint32  `json:"id"`
+	DeviceID      uint32  `json:"device_id"`
+	Name          string  `json:"name"`
+	AssetID       string  `json:"asset_id"`
+	DeviceCode    string  `json:"device_code"`
+	Type          string  `json:"type"`
+	DeviceType    string  `json:"device_type"`
+	Status        string  `json:"status"`
+	NodeID        string  `json:"node_id"`
+	CurrentNodeID string  `json:"current_node_id"`
+	CurrentPoiID  *uint32 `json:"current_poi_id,omitempty"`
+	StationID     *uint32 `json:"station_id,omitempty"`
+	StationName   string  `json:"station_name,omitempty"`
+	BatteryLevel  *int    `json:"battery_level,omitempty"`
+}
+
+func deviceToAdminItem(d schema.Device) AdminDeviceItem {
+	nodeID := ""
+	if d.CurrentPOI != nil {
+		nodeID = d.CurrentPOI.POICode
+	} else if d.CurrentPoiID != nil {
+		nodeID = fmt.Sprintf("%d", *d.CurrentPoiID)
+	}
+
+	stationName := ""
+	if d.Station != nil {
+		stationName = d.Station.StationName
+	}
+
+	return AdminDeviceItem{
+		ID:            d.DeviceID,
+		DeviceID:      d.DeviceID,
+		Name:          d.DeviceCode,
+		AssetID:       d.DeviceCode,
+		DeviceCode:    d.DeviceCode,
+		Type:          string(d.DeviceType),
+		DeviceType:    string(d.DeviceType),
+		Status:        string(d.Status),
+		NodeID:        nodeID,
+		CurrentNodeID: nodeID,
+		CurrentPoiID:  d.CurrentPoiID,
+		StationID:     d.StationID,
+		StationName:   stationName,
+		BatteryLevel:  d.BatteryLevel,
+	}
+}
+
+func normalizeDeviceStatus(status string) schema.DeviceStatus {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "broken", "maintenance":
+		return schema.DeviceStatusMaintenance
+	case "in_use":
+		return schema.DeviceStatusInUse
+	default:
+		return schema.DeviceStatusAvailable
+	}
+}
+
+func (s *DeviceService) AdminListDevices(devType string) ([]AdminDeviceItem, error) {
+	devices, err := s.repo.FindAllDevices(schema.DeviceType(devType))
+	if err != nil {
+		return nil, err
+	}
+	items := make([]AdminDeviceItem, len(devices))
+	for i, d := range devices {
+		items[i] = deviceToAdminItem(d)
+	}
+	return items, nil
+}
+
 func (s *DeviceService) AdminAddDevice(devType, status, currentNodeID string) (*schema.Device, error) {
+	devType = strings.TrimSpace(devType)
+	if devType == "" {
+		return nil, ErrDeviceNotFound
+	}
+
+	poi, err := s.repo.ResolvePOIIdentifier(currentNodeID)
+	if err != nil {
+		return nil, err
+	}
+	if poi == nil {
+		return nil, ErrNodeNotFoundDev
+	}
+
 	// Generate device code: type prefix + timestamp
-	code := strings.ToUpper(string([]rune(devType)[:2])) + fmt.Sprintf("-%d", time.Now().UnixNano()%100000)
+	prefixRunes := []rune(devType)
+	if len(prefixRunes) > 2 {
+		prefixRunes = prefixRunes[:2]
+	}
+	code := strings.ToUpper(string(prefixRunes)) + fmt.Sprintf("-%d", time.Now().UnixNano()%100000)
+	normalizedStatus := normalizeDeviceStatus(status)
+
+	var stationID *uint32
+	if normalizedStatus == schema.DeviceStatusAvailable {
+		station, err := s.repo.FindStationByPOIID(poi.POIID)
+		if err != nil {
+			return nil, err
+		}
+		if station != nil {
+			stationID = &station.StationID
+		}
+	}
 
 	device := &schema.Device{
-		DeviceCode: code,
-		DeviceType: schema.DeviceType(devType),
-		Status:     schema.DeviceStatus(strings.ToLower(status)),
-		IsActive:   true,
+		DeviceCode:   code,
+		DeviceType:   schema.DeviceType(devType),
+		Status:       normalizedStatus,
+		CurrentPoiID: &poi.POIID,
+		StationID:    stationID,
+		IsActive:     true,
 	}
 	if err := s.repo.CreateDevice(device); err != nil {
 		return nil, err
@@ -318,14 +420,34 @@ func (s *DeviceService) AdminAddDevice(devType, status, currentNodeID string) (*
 	return device, nil
 }
 
-func (s *DeviceService) AdminEditDevice(deviceID uint32, status string) error {
+func (s *DeviceService) AdminEditDevice(deviceID uint32, status string, currentNodeID string) error {
 	device, err := s.repo.FindDeviceByID(deviceID)
 	if err != nil || device == nil {
 		return ErrDeviceNotFound // → 4001 in handler
 	}
 	updates := map[string]interface{}{}
 	if status != "" {
-		updates["status"] = strings.ToLower(status)
+		updates["status"] = normalizeDeviceStatus(status)
+	}
+	if currentNodeID != "" {
+		poi, err := s.repo.ResolvePOIIdentifier(currentNodeID)
+		if err != nil {
+			return err
+		}
+		if poi == nil {
+			return ErrNodeNotFoundDev
+		}
+		updates["current_poi_id"] = poi.POIID
+
+		station, err := s.repo.FindStationByPOIID(poi.POIID)
+		if err != nil {
+			return err
+		}
+		if station != nil && (status == "" || normalizeDeviceStatus(status) == schema.DeviceStatusAvailable) {
+			updates["station_id"] = station.StationID
+		} else {
+			updates["station_id"] = nil
+		}
 	}
 	return s.repo.UpdateDevice(deviceID, updates)
 }

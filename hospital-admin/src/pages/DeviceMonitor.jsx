@@ -55,14 +55,23 @@ export default function DeviceMonitor() {
   const staffMutation = useMutation({
     mutationFn: requestStaff,
     onSuccess: () => message.success('Staff requested successfully'),
-    onError: () => message.error('Failed to request staff')
+    onError: () => message.error('Enter a device code first, then request staff')
   });
 
   const saveDeviceMutation = useMutation({
-    mutationFn: (data) => editingDevice ? editDevice({ ...data, id: editingDevice.id }) : addDevice(data),
+    mutationFn: (data) => {
+      const payload = {
+        type: data.type,
+        status: data.status,
+        current_node_id: data.current_node_id,
+      };
+      return editingDevice ? editDevice({ ...payload, id: editingDevice.id }) : addDevice(payload);
+    },
     onSuccess: () => {
       message.success(`Device ${editingDevice ? 'updated' : 'added'} successfully`);
       setIsDeviceModalOpen(false);
+      setEditingDevice(null);
+      deviceForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['wheelchairs'] });
       queryClient.invalidateQueries({ queryKey: ['stations'] });
     },
@@ -74,27 +83,41 @@ export default function DeviceMonitor() {
     onSuccess: () => {
       message.success('Device deleted');
       queryClient.invalidateQueries({ queryKey: ['wheelchairs'] });
+      queryClient.invalidateQueries({ queryKey: ['stations'] });
     },
     onError: () => message.error('Failed to delete device')
   });
 
   // Tables
   const stationColumns = [
-    { title: 'ID', dataIndex: 'id', key: 'id' },
-    { title: 'Name', dataIndex: 'name', key: 'name' },
-    { title: 'Location (Node)', dataIndex: 'node_id', key: 'node_id' },
+    { title: 'ID', dataIndex: 'station_id', key: 'station_id', width: 80 },
+    { title: 'Name', dataIndex: 'station_name', key: 'station_name' },
+    { title: 'Capacity', dataIndex: 'capacity', key: 'capacity', width: 100 },
+    { title: 'Available Wheelchairs', dataIndex: 'available_wheelchairs', key: 'available_wheelchairs', width: 170 },
   ];
 
   const wheelchairColumns = [
-    { title: 'ID', dataIndex: 'id', key: 'id' },
-    { title: 'Name', dataIndex: 'name', key: 'name' },
-    { title: 'Status', dataIndex: 'status', key: 'status',
-      render: (s) => <Tag color={s === 'available' ? 'green' : s === 'in_use' ? 'blue' : 'red'}>{s}</Tag>
+    { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },
+    { title: 'Code', dataIndex: 'device_code', key: 'device_code' },
+    { title: 'Type', dataIndex: 'device_type', key: 'device_type',
+      render: (type) => <Tag>{type}</Tag>
     },
-    { title: 'Node', dataIndex: 'node_id', key: 'node_id' },
+    { title: 'Status', dataIndex: 'status', key: 'status',
+      render: (s) => <Tag color={s === 'available' ? 'green' : s === 'in_use' ? 'blue' : 'orange'}>{s}</Tag>
+    },
+    { title: 'Current Node', dataIndex: 'current_node_id', key: 'current_node_id' },
+    { title: 'Station', dataIndex: 'station_name', key: 'station_name', render: (v) => v || '—' },
     { title: 'Actions', key: 'actions', render: (_, record) => (
         <Space>
-          <a onClick={() => { setEditingDevice(record); deviceForm.setFieldsValue(record); setIsDeviceModalOpen(true); }}>Edit</a>
+          <a onClick={() => {
+            setEditingDevice(record);
+            deviceForm.setFieldsValue({
+              type: record.device_type,
+              status: record.status,
+              current_node_id: record.current_node_id,
+            });
+            setIsDeviceModalOpen(true);
+          }}>Edit</a>
           <a style={{ color: 'red' }} onClick={() => deleteDeviceMutation.mutate(record.id)}>Delete</a>
         </Space>
       )
@@ -102,7 +125,10 @@ export default function DeviceMonitor() {
   ];
 
   const onReportFinish = (values) => {
-    reportMutation.mutate(values);
+    reportMutation.mutate({
+      asset_id: values.asset_id,
+      reason: values.reason,
+    });
   };
 
   const onDeviceFinish = (values) => {
@@ -114,7 +140,12 @@ export default function DeviceMonitor() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>Device Monitor</Title>
         <Space>
-          <Button onClick={() => staffMutation.mutate({ priority: 'high' })}>Request Staff</Button>
+          <Button
+            onClick={() => staffMutation.mutate({ asset_id: trackingId, node_id: trackData?.track?.current_node_id || '1' })}
+            disabled={!trackingId}
+          >
+            Request Staff
+          </Button>
           <Button type="primary" onClick={() => { setEditingDevice(null); deviceForm.resetFields(); setIsDeviceModalOpen(true); }}>
             Add Device
           </Button>
@@ -161,7 +192,7 @@ export default function DeviceMonitor() {
                 {trackLoading ? <Text type="secondary">Loading...</Text> : trackData ? (
                   <div>
                     <Text strong>Status:</Text> <Tag>{trackData.status?.status || 'Unknown'}</Tag><br/>
-                    <Text strong>Location:</Text> {trackData.track?.node_id ? `Node ${trackData.track.node_id}` : 'N/A'}
+                    <Text strong>Location:</Text> {trackData.track?.current_node_id ? `Node ${trackData.track.current_node_id}` : 'N/A'}
                   </div>
                 ) : <Text type="danger">Device not found or error</Text>}
               </div>
@@ -171,10 +202,10 @@ export default function DeviceMonitor() {
 
             <Title level={5}>Report Broken Device</Title>
             <Form form={reportForm} layout="vertical" onFinish={onReportFinish}>
-              <Form.Item name="device_id" label="Device ID" rules={[{ required: true }]}>
-                <Input placeholder="e.g. WL-01" />
+              <Form.Item name="asset_id" label="Device Code" rules={[{ required: true }]}>
+                <Input placeholder="e.g. WL-001" />
               </Form.Item>
-              <Form.Item name="description" label="Issue Description" rules={[{ required: true }]}>
+              <Form.Item name="reason" label="Issue Description" rules={[{ required: true }]}>
                 <Input.TextArea rows={2} placeholder="What is broken?" />
               </Form.Item>
               <Button type="primary" htmlType="submit" loading={reportMutation.isPending} block>
@@ -193,23 +224,21 @@ export default function DeviceMonitor() {
         footer={null}
       >
         <Form form={deviceForm} layout="vertical" onFinish={onDeviceFinish}>
-          <Form.Item name="name" label="Device Name" rules={[{ required: true }]}>
-            <Input placeholder="e.g. WL-05" />
-          </Form.Item>
           <Form.Item name="type" label="Type" rules={[{ required: true }]}>
             <Select>
               <Select.Option value="wheelchair">Wheelchair</Select.Option>
-              <Select.Option value="beacon">Beacon</Select.Option>
+              <Select.Option value="stretcher">Stretcher</Select.Option>
+              <Select.Option value="hospital_cart">Hospital Cart</Select.Option>
             </Select>
           </Form.Item>
-          <Form.Item name="node_id" label="Node ID" rules={[{ required: true }]}>
-            <Input type="number" placeholder="e.g. 123" />
+          <Form.Item name="current_node_id" label="Current Node" rules={[{ required: true }]}>
+            <Input placeholder="POI code, POI ID, or grid location" />
           </Form.Item>
           <Form.Item name="status" label="Status" rules={[{ required: true }]}>
             <Select>
               <Select.Option value="available">Available</Select.Option>
               <Select.Option value="in_use">In Use</Select.Option>
-              <Select.Option value="broken">Broken</Select.Option>
+              <Select.Option value="maintenance">Maintenance</Select.Option>
             </Select>
           </Form.Item>
           <Button type="primary" htmlType="submit" loading={saveDeviceMutation.isPending} block>
