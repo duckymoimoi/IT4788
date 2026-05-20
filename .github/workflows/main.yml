@@ -39,6 +39,9 @@ jobs:
   deploy:
     needs: [image-build]
     runs-on: ubuntu-24.04
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
     permissions:
       contents: read #This is required for actions/checkout
     steps:
@@ -60,11 +63,13 @@ jobs:
         host: ${{ secrets.HOST }}
         username: ${{ secrets.ACTION_DEPLOY_USERNAME }}
         key: ${{ secrets.ACTION_DEPLOY_SSH_KEY }}
+        command_timeout: 20m
         script: |
+          set -e
           cd /home/deploy/group3
-          docker compose -f docker-compose.ci.yml down 
-          docker compose -f docker-compose.ci.yml pull
-          docker compose -f docker-compose.ci.yml up -d
+          docker compose -f docker-compose.ci.yml pull --quiet
+          docker compose -f docker-compose.ci.yml up -d --remove-orphans
+          docker image prune -f
 
     - name: Check container health
       uses: appleboy/ssh-action@v1.2.5
