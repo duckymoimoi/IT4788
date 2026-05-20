@@ -3186,6 +3186,128 @@ paths:
   # ============================================================
   # MISSING APIS (Appended automatically)
   # ============================================================
+  /api/admin/get_devices:
+    get:
+      {
+        tags: [Admin],
+        summary: List active devices for admin panel,
+        security: [{ BearerAuth: [] }],
+        parameters:
+          [
+            {
+              name: type,
+              in: query,
+              required: false,
+              schema:
+                {
+                  type: string,
+                  enum: [wheelchair, stretcher, hospital_cart],
+                },
+            },
+          ],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/admin/admin_get_devices:
+    get:
+      {
+        tags: [Admin],
+        summary: List active devices for admin panel legacy alias,
+        security: [{ BearerAuth: [] }],
+        parameters:
+          [
+            {
+              name: type,
+              in: query,
+              required: false,
+              schema:
+                {
+                  type: string,
+                  enum: [wheelchair, stretcher, hospital_cart],
+                },
+            },
+          ],
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/admin/add_device:
+    post:
+      {
+        tags: [Admin],
+        summary: Add device for admin panel,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [type, status, current_node_id],
+                        properties:
+                          {
+                            type:
+                              {
+                                type: string,
+                                enum: [wheelchair, stretcher, hospital_cart],
+                              },
+                            status:
+                              {
+                                type: string,
+                                enum: [available, in_use, maintenance, broken],
+                                description: broken is accepted as an alias for maintenance,
+                              },
+                            current_node_id:
+                              {
+                                type: string,
+                                description: POI code, POI ID, or grid_location,
+                              },
+                            node_id:
+                              {
+                                type: string,
+                                description: Legacy alias for current_node_id,
+                              },
+                          },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
   /api/admin/admin_add_device:
     post:
       {
@@ -3205,9 +3327,124 @@ paths:
                         required: [type, status, current_node_id],
                         properties:
                           {
-                            type: { type: string },
-                            status: { type: string },
+                            type:
+                              {
+                                type: string,
+                                enum: [wheelchair, stretcher, hospital_cart],
+                              },
+                            status:
+                              {
+                                type: string,
+                                enum: [available, in_use, maintenance, broken],
+                                description: broken is accepted as an alias for maintenance,
+                              },
+                            current_node_id:
+                              {
+                                type: string,
+                                description: POI code, POI ID, or grid_location,
+                              },
+                            node_id:
+                              {
+                                type: string,
+                                description: Legacy alias for current_node_id,
+                              },
+                          },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/admin/edit_device:
+    post:
+      {
+        tags: [Admin],
+        summary: Edit device for admin panel,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [id],
+                        properties:
+                          {
+                            id: { type: integer },
+                            status:
+                              {
+                                type: string,
+                                enum: [available, in_use, maintenance, broken],
+                              },
+                            current_node_id:
+                              {
+                                type: string,
+                                description: POI code, POI ID, or grid_location,
+                              },
+                            node_id:
+                              {
+                                type: string,
+                                description: Legacy alias for current_node_id,
+                              },
+                          },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+    patch:
+      {
+        tags: [Admin],
+        summary: Edit device for admin panel PATCH alias,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [id],
+                        properties:
+                          {
+                            id: { type: integer },
+                            status:
+                              {
+                                type: string,
+                                enum: [available, in_use, maintenance, broken],
+                              },
                             current_node_id: { type: string },
+                            node_id: { type: string },
                           },
                       },
                   },
@@ -3244,7 +3481,93 @@ paths:
                         type: object,
                         required: [id],
                         properties:
-                          { id: { type: integer }, status: { type: string } },
+                          {
+                            id: { type: integer },
+                            status:
+                              {
+                                type: string,
+                                enum: [available, in_use, maintenance, broken],
+                              },
+                            current_node_id:
+                              {
+                                type: string,
+                                description: POI code, POI ID, or grid_location,
+                              },
+                            node_id:
+                              {
+                                type: string,
+                                description: Legacy alias for current_node_id,
+                              },
+                          },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+  /api/admin/del_device:
+    post:
+      {
+        tags: [Admin],
+        summary: Delete device for admin panel,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [id],
+                        properties: { id: { type: integer } },
+                      },
+                  },
+              },
+          },
+        responses:
+          {
+            "200":
+              {
+                description: OK,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: "#/components/schemas/Response" } },
+                  },
+              },
+          },
+      }
+    delete:
+      {
+        tags: [Admin],
+        summary: Delete device for admin panel DELETE alias,
+        security: [{ BearerAuth: [] }],
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        required: [id],
+                        properties: { id: { type: integer } },
                       },
                   },
               },
