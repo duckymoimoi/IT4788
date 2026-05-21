@@ -18,9 +18,9 @@ export default function MedicalDash() {
   const queryClient = useQueryClient();
 
   const roomOptions = [
-    { value: 1, label: 'Room 1 - General' },
-    { value: 2, label: 'Room 2 - Cardiology' },
-    { value: 3, label: 'Room 3 - Neurology' },
+    { value: 1, label: 'Room POI #1' },
+    { value: 2, label: 'Room POI #2' },
+    { value: 3, label: 'Room POI #3' },
   ];
 
   // Queries
@@ -69,24 +69,60 @@ export default function MedicalDash() {
 
   // Table Columns
   const taskColumns = [
-    { title: 'Task ID', dataIndex: 'id', key: 'id' },
-    { title: 'Patient', dataIndex: 'patient_name', key: 'patient_name' },
-    { title: 'Type', dataIndex: 'type', key: 'type' },
-    { title: 'Status', dataIndex: 'status', key: 'status',
-      render: (s) => <Tag color={s === 'completed' ? 'green' : s === 'pending' ? 'orange' : 'blue'}>{s}</Tag>
+    { title: 'Task ID', dataIndex: 'treatment_id', key: 'treatment_id', width: 90 },
+    { title: 'Task Name', dataIndex: 'task_name', key: 'task_name' },
+    { title: 'Patient ID', dataIndex: 'user_id', key: 'user_id', width: 100 },
+    { title: 'Room POI', dataIndex: 'poi_id', key: 'poi_id', width: 100 },
+    {
+      title: 'Type',
+      dataIndex: 'task_type',
+      key: 'task_type',
+      width: 110,
+      render: (type) => type || '-',
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (s) => <Tag color={s === 'completed' ? 'green' : s === 'pending' ? 'orange' : 'blue'}>{s || '-'}</Tag>
     },
   ];
 
   const historyColumns = [
-    { title: 'Date', dataIndex: 'date', key: 'date' },
-    { title: 'Diagnosis', dataIndex: 'diagnosis', key: 'diagnosis' },
-    { title: 'Doctor', dataIndex: 'doctor', key: 'doctor' },
+    { title: 'Task ID', dataIndex: 'treatment_id', key: 'treatment_id', width: 90 },
+    { title: 'Task Name', dataIndex: 'task_name', key: 'task_name' },
+    { title: 'Type', dataIndex: 'task_type', key: 'task_type', width: 110 },
+    {
+      title: 'Completed At',
+      dataIndex: 'completed_at',
+      key: 'completed_at',
+      render: (value) => value ? new Date(value).toLocaleString() : '-',
+    },
   ];
 
   const prescriptionColumns = [
-    { title: 'Medicine', dataIndex: 'medicine_name', key: 'medicine' },
-    { title: 'Dosage', dataIndex: 'dosage', key: 'dosage' },
-    { title: 'Duration', dataIndex: 'duration', key: 'duration' },
+    { title: 'Prescription ID', dataIndex: 'prescription_id', key: 'prescription_id', width: 130 },
+    {
+      title: 'Items',
+      dataIndex: 'items_json',
+      key: 'items_json',
+      render: (value) => {
+        try {
+          const items = JSON.parse(value || '[]');
+          return items.map((item) => `${item.name || 'Medicine'} (${item.dosage || 'no dosage'})`).join(', ');
+        } catch {
+          return value || '-';
+        }
+      },
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (s) => <Tag color={s === 'dispensed' ? 'green' : 'orange'}>{s || '-'}</Tag>,
+    },
   ];
 
   return (
@@ -120,7 +156,7 @@ export default function MedicalDash() {
                 <Col span={12}>
                   <Statistic 
                     title="Current Queue" 
-                    value={queueData?.queue_length || 0} 
+                    value={queueData?.waiting_count || 0} 
                     prefix={<UserOutlined />} 
                     loading={queueLoading} 
                   />
@@ -128,7 +164,7 @@ export default function MedicalDash() {
                 <Col span={12}>
                   <Statistic 
                     title="Est. Wait Time" 
-                    value={queueData?.estimated_wait_time || 0} 
+                    value={queueData?.avg_wait_minutes || 0} 
                     suffix="mins" 
                     prefix={<ClockCircleOutlined />} 
                     loading={queueLoading} 
@@ -137,7 +173,7 @@ export default function MedicalDash() {
                 <Col span={24}>
                   <Text strong>Room Hours:</Text><br/>
                   {roomLoading ? <Text type="secondary">Loading...</Text> : (
-                    <Text>{roomData?.open_time || '08:00'} - {roomData?.close_time || '17:00'}</Text>
+                    <Text>{roomData?.open || '08:00'} - {roomData?.close || '17:00'}</Text>
                   )}
                 </Col>
               </Row>
@@ -159,7 +195,7 @@ export default function MedicalDash() {
                     dataSource={tasksData || []} 
                     columns={taskColumns} 
                     loading={tasksLoading} 
-                    rowKey={(r) => r.id || r.task_id || Math.random()} 
+                    rowKey={(r) => r.treatment_id} 
                     size="small"
                     pagination={{ pageSize: 5 }}
                   />
@@ -173,7 +209,7 @@ export default function MedicalDash() {
                     dataSource={historyData || []} 
                     columns={historyColumns} 
                     loading={historyLoading} 
-                    rowKey={(r) => r.id || r.history_id || Math.random()} 
+                    rowKey={(r) => r.treatment_id} 
                     size="small"
                     pagination={{ pageSize: 5 }}
                   />
@@ -187,7 +223,7 @@ export default function MedicalDash() {
                     dataSource={prescriptionData || []} 
                     columns={prescriptionColumns} 
                     loading={prepLoading} 
-                    rowKey={(r) => r.id || r.prescription_id || Math.random()} 
+                    rowKey={(r) => r.prescription_id} 
                     size="small"
                     pagination={{ pageSize: 5 }}
                   />
