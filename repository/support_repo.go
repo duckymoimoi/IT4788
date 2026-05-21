@@ -77,6 +77,13 @@ func (r *SupportRepo) FindConversationByID(convID uint64) (*schema.Conversation,
 	return &conv, nil
 }
 
+// FindAllConversations lay toan bo phong chat cho admin/coordinator.
+func (r *SupportRepo) FindAllConversations() ([]schema.Conversation, error) {
+	var convs []schema.Conversation
+	err := r.db.Order("updated_at DESC").Find(&convs).Error
+	return convs, err
+}
+
 // FindConversationsByUserID lay DS phong chat cua benh nhan.
 func (r *SupportRepo) FindConversationsByUserID(userID uint64) ([]schema.Conversation, error) {
 	var convs []schema.Conversation
@@ -117,6 +124,49 @@ func (r *SupportRepo) FindStaffByUserID(userID uint64) (*schema.Staff, error) {
 	return &staff, nil
 }
 
+// FindPatientByID kiem tra user benh nhan dang active.
+func (r *SupportRepo) FindPatientByID(userID uint64) (*schema.User, error) {
+	var user schema.User
+	err := r.db.Where("user_id = ? AND user_type = ? AND status = ?",
+		userID, schema.UserTypePatient, schema.UserStatusActive).
+		First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// FindStaffByID kiem tra staff dang active.
+func (r *SupportRepo) FindStaffByID(staffID uint64) (*schema.Staff, error) {
+	var staff schema.Staff
+	err := r.db.Preload("User").
+		Where("staff_id = ? AND is_active = ?", staffID, true).
+		First(&staff).Error
+	if err != nil {
+		return nil, err
+	}
+	return &staff, nil
+}
+
+// FindChatPatients lay danh sach benh nhan de tao phong chat tu admin panel.
+func (r *SupportRepo) FindChatPatients() ([]schema.User, error) {
+	var users []schema.User
+	err := r.db.Where("user_type = ? AND status = ?", schema.UserTypePatient, schema.UserStatusActive).
+		Order("full_name ASC").
+		Find(&users).Error
+	return users, err
+}
+
+// FindChatStaffs lay danh sach nhan vien active de gan phong chat.
+func (r *SupportRepo) FindChatStaffs() ([]schema.Staff, error) {
+	var staffs []schema.Staff
+	err := r.db.Preload("User").
+		Where("is_active = ?", true).
+		Order("staff_id ASC").
+		Find(&staffs).Error
+	return staffs, err
+}
+
 // ========================================
 // MESSAGES
 // ========================================
@@ -135,7 +185,7 @@ func (r *SupportRepo) FindMessagesByConversationID(convID uint64, page, limit in
 		Where("conversation_id = ? AND is_deleted = ?", convID, false)
 	q.Count(&total)
 
-	err := q.Order("created_at DESC").
+	err := q.Order("created_at ASC").
 		Offset((page - 1) * limit).
 		Limit(limit).
 		Find(&msgs).Error

@@ -32,15 +32,15 @@ func RegisterSupportRoutes(api *gin.RouterGroup, db *gorm.DB) {
 	// [96] Benh nhan tao SOS — bat ky user nao cung duoc
 	sos := api.Group("/sos")
 	sos.Use(middleware.Auth())
-	sos.POST("/create", sosH.CreateSOS)         // [96]
-	sos.GET("/get_detail", sosH.GetSOSDetail)    // [100]
+	sos.POST("/create", sosH.CreateSOS)       // [96]
+	sos.GET("/get_detail", sosH.GetSOSDetail) // [100]
 
 	// [97-99] Chi staff moi duoc xem DS, nhan va dong SOS
 	sosStaff := api.Group("/sos")
 	sosStaff.Use(middleware.Auth(), middleware.RequireStaff())
-	sosStaff.GET("/get_list", sosH.GetSOSList)   // [97]
-	sosStaff.POST("/respond", sosH.RespondSOS)   // [98]
-	sosStaff.POST("/resolve", sosH.ResolveSOS)   // [99]
+	sosStaff.GET("/get_list", sosH.GetSOSList) // [97]
+	sosStaff.POST("/respond", sosH.RespondSOS) // [98]
+	sosStaff.POST("/resolve", sosH.ResolveSOS) // [99]
 
 	// ========================================
 	// CHAT APIs (7 endpoints)
@@ -48,17 +48,18 @@ func RegisterSupportRoutes(api *gin.RouterGroup, db *gorm.DB) {
 
 	chat := api.Group("/chat")
 	chat.Use(middleware.Auth())
-	chat.POST("/create_room", chatH.CreateRoom)       // [101]
-	chat.GET("/get_rooms", chatH.GetRooms)             // [102]
-	chat.GET("/get_messages", chatH.GetMessages)       // [103]
-	chat.POST("/send_message", chatH.SendMessage)      // [104]
+	chat.POST("/create_room", chatH.CreateRoom)         // [101]
+	chat.GET("/get_rooms", chatH.GetRooms)              // [102]
+	chat.GET("/get_messages", chatH.GetMessages)        // [103]
+	chat.POST("/send_message", chatH.SendMessage)       // [104]
 	chat.GET("/get_unread_count", chatH.GetUnreadCount) // [106]
-	chat.POST("/mark_read", chatH.MarkRead)            // [107]
+	chat.POST("/mark_read", chatH.MarkRead)             // [107]
 
 	// [105] Chi staff moi duoc dong phong
 	chatStaff := api.Group("/chat")
 	chatStaff.Use(middleware.Auth(), middleware.RequireStaff())
-	chatStaff.POST("/close_room", chatH.CloseRoom)    // [105]
+	chatStaff.GET("/participants", chatH.GetParticipants)
+	chatStaff.POST("/close_room", chatH.CloseRoom) // [105]
 
 	// ========================================
 	// WebSocket (1 endpoint)

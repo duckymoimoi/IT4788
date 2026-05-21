@@ -3,6 +3,12 @@ import api from './client';
 export const fetchRooms = () =>
   api.get('/chat/get_rooms').then((r) => r.data.data);
 
+export const fetchChatParticipants = () =>
+  api.get('/chat/participants').then((r) => r.data.data);
+
+export const createRoom = (data) =>
+  api.post('/chat/create_room', data).then((r) => r.data);
+
 export const fetchMessages = (conversation_id, page = 1, limit = 30) =>
   api.get('/chat/get_messages', { params: { conversation_id, page, limit } }).then((r) => r.data.data);
 
@@ -20,6 +26,11 @@ export const markRead = (conversation_id) =>
 
 export const getWSUrl = (conversationId) => {
   const token = localStorage.getItem('token');
-  const base = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/api/ws';
+  const configuredBase = import.meta.env.VITE_WS_URL;
+  const apiBase = import.meta.env.VITE_API_BASE_URL || window.location.origin + '/api';
+  const base = configuredBase || apiBase
+    .replace(/^https:/, 'wss:')
+    .replace(/^http:/, 'ws:')
+    .replace(/\/api\/?$/, '/api/ws');
   return `${base}/chat?conversation_id=${conversationId}&token=${token}`;
 };

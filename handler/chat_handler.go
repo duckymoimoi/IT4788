@@ -26,6 +26,7 @@ func NewChatHandler(chatSvc *service.ChatService) *ChatHandler {
 // ========================================
 
 type createRoomRequest struct {
+	UserID  uint64 `json:"user_id"`
 	StaffID uint64 `json:"staff_id" binding:"required"`
 	Topic   string `json:"topic"`
 }
@@ -63,13 +64,37 @@ func (h *ChatHandler) CreateRoom(c *gin.Context) {
 		return
 	}
 
-	conv, err := h.chatSvc.CreateRoom(userID, req.StaffID, req.Topic)
+	role := middleware.GetRole(c)
+	roomUserID := userID
+	if role == "admin" || role == "coordinator" || role == "staff" {
+		if req.UserID == 0 {
+			response.ErrMissingParam(c)
+			return
+		}
+		roomUserID = req.UserID
+	}
+
+	conv, err := h.chatSvc.CreateRoom(roomUserID, req.StaffID, req.Topic)
+	if err != nil {
+		response.ErrBadRequest(c, err.Error())
+		return
+	}
+
+	response.Success(c, conv)
+}
+
+// GetParticipants tra danh sach benh nhan/nhan vien cho admin panel tao phong chat.
+func (h *ChatHandler) GetParticipants(c *gin.Context) {
+	patients, staffs, err := h.chatSvc.GetParticipants()
 	if err != nil {
 		response.ErrUnexpected(c)
 		return
 	}
 
-	response.Success(c, conv)
+	response.Success(c, gin.H{
+		"patients": patients,
+		"staffs":   staffs,
+	})
 }
 
 // ========================================

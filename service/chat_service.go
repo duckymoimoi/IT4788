@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"hospital/repository"
@@ -24,6 +25,18 @@ func NewChatService(repo *repository.SupportRepo) *ChatService {
 
 // CreateRoom tao phong chat moi giua benh nhan va staff.
 func (s *ChatService) CreateRoom(userID, staffID uint64, topic string) (*schema.Conversation, error) {
+	if _, err := s.repo.FindPatientByID(userID); err != nil {
+		return nil, fmt.Errorf("patient not found")
+	}
+	if _, err := s.repo.FindStaffByID(staffID); err != nil {
+		return nil, fmt.Errorf("staff not found")
+	}
+
+	topic = strings.TrimSpace(topic)
+	if topic == "" {
+		topic = "Ho tro benh nhan"
+	}
+
 	conv := &schema.Conversation{
 		UserID:  userID,
 		StaffID: staffID,
@@ -47,7 +60,9 @@ func (s *ChatService) CreateRoom(userID, staffID uint64, topic string) (*schema.
 // Staff: tim theo staff_id (can map tu user_id -> staff_id).
 func (s *ChatService) GetRooms(userID uint64, role string) ([]schema.Conversation, error) {
 	switch role {
-	case "admin", "coordinator", "staff":
+	case "admin", "coordinator":
+		return s.repo.FindAllConversations()
+	case "staff":
 		// Staff: can tim staff_id tu user_id
 		staff, err := s.repo.FindStaffByUserID(userID)
 		if err != nil {
@@ -58,6 +73,19 @@ func (s *ChatService) GetRooms(userID uint64, role string) ([]schema.Conversatio
 		// Benh nhan: tim truc tiep theo user_id
 		return s.repo.FindConversationsByUserID(userID)
 	}
+}
+
+// GetParticipants lay danh sach benh nhan va nhan vien de tao phong chat.
+func (s *ChatService) GetParticipants() ([]schema.User, []schema.Staff, error) {
+	patients, err := s.repo.FindChatPatients()
+	if err != nil {
+		return nil, nil, err
+	}
+	staffs, err := s.repo.FindChatStaffs()
+	if err != nil {
+		return nil, nil, err
+	}
+	return patients, staffs, nil
 }
 
 // ========================================
