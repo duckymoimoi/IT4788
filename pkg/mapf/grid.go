@@ -1,4 +1,4 @@
-﻿package mapf
+package mapf
 
 import (
 	"bufio"
@@ -103,6 +103,31 @@ func (g *GridMap) IsWalkable(row, col int) bool {
 		return false
 	}
 	return g.Grid[row][col] == 0
+}
+
+// Clone tao ban sao doc lap de co the overlay obstacle runtime.
+func (g *GridMap) Clone() *GridMap {
+	if g == nil {
+		return nil
+	}
+	cloned := &GridMap{
+		Name: g.Name,
+		Rows: g.Rows,
+		Cols: g.Cols,
+		Grid: make([][]int, len(g.Grid)),
+	}
+	for r := range g.Grid {
+		cloned.Grid[r] = append([]int(nil), g.Grid[r]...)
+	}
+	return cloned
+}
+
+// SetCell cap nhat gia tri 1 o neu toa do hop le.
+func (g *GridMap) SetCell(row, col, value int) {
+	if g == nil || row < 0 || row >= g.Rows || col < 0 || col >= g.Cols {
+		return
+	}
+	g.Grid[row][col] = value
 }
 
 // ToLocation chuyển (row, col) -> location index.

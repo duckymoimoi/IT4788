@@ -58,9 +58,13 @@ func (s *RouteService) PreviewRoute(startLoc, destLoc int, modeID string) (*Prev
 	if err != nil {
 		return nil, err
 	}
+	routingGrid, err := s.routingGrid(grid, startLoc, destLoc)
+	if err != nil {
+		return nil, err
+	}
 
 	// Chay Dijkstra
-	result := mapf.DijkstraWithSpeed(grid, startLoc, destLoc, mode.SpeedFactor)
+	result := mapf.DijkstraWithSpeed(routingGrid, startLoc, destLoc, mode.SpeedFactor)
 	if !result.Found {
 		return nil, fmt.Errorf("no path found from %d to %d", startLoc, destLoc)
 	}
@@ -72,7 +76,7 @@ func (s *RouteService) PreviewRoute(startLoc, destLoc int, modeID string) (*Prev
 			StepOrder:    i,
 			GridRow:      p.Row,
 			GridCol:      p.Col,
-			GridLocation: p.Row*grid.Cols + p.Col,
+			GridLocation: p.Row*routingGrid.Cols + p.Col,
 		}
 	}
 
@@ -501,6 +505,56 @@ func (s *RouteService) ClearGridCache() {
 	s.gridCache = nil
 	s.gridPath = ""
 	s.mu.Unlock()
+}
+
+// routingGrid blocks active POI cells so paths do not pass through rooms or
+// service points. The requested start/destination cells stay open because a
+// route is allowed to begin or end at that POI.
+func (s *RouteService) routingGrid(base *mapf.GridMap, startLoc, destLoc int) (*mapf.GridMap, error) {
+	grid := base.Clone()
+	if grid == nil {
+		return nil, fmt.Errorf("grid is not loaded")
+	}
+
+	pois, err := s.activePOIsForGrid(base.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, poi := range pois {
+		loc := grid.ToLocation(poi.GridRow, poi.GridCol)
+		if loc == startLoc || loc == destLoc {
+			continue
+		}
+		grid.SetCell(poi.GridRow, poi.GridCol, 1)
+	}
+
+	return grid, nil
+}
+
+func (s *RouteService) activePOIsForGrid(mapPath string) ([]schema.GridPOI, error) {
+	maps, err := s.mapRepo.FindAllMaps()
+	if err != nil {
+		return nil, err
+	}
+	if len(maps) == 0 {
+		return nil, nil
+	}
+
+	mapID := maps[len(maps)-1].MapID
+	for i := len(maps) - 1; i >= 0; i-- {
+		if maps[i].MapFilePath == mapPath {
+			mapID = maps[i].MapID
+			return s.mapRepo.FindAllPOIs(mapID)
+		}
+	}
+	for i := len(maps) - 1; i >= 0; i-- {
+		if maps[i].MapFilePath != "" {
+			mapID = maps[i].MapID
+			break
+		}
+	}
+	return s.mapRepo.FindAllPOIs(mapID)
 }
 
 func (s *RouteService) gridMapPath() string {
