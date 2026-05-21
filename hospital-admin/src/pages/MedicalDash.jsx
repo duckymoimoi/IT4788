@@ -10,18 +10,13 @@ import {
   fetchHistory,
   syncNow
 } from '../api/medical';
+import { fetchSyncFull } from '../api/map';
 
 const { Title, Text } = Typography;
 
 export default function MedicalDash() {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const queryClient = useQueryClient();
-
-  const roomOptions = [
-    { value: 1, label: 'Room POI #1' },
-    { value: 2, label: 'Room POI #2' },
-    { value: 3, label: 'Room POI #3' },
-  ];
 
   // Queries
   const { data: queueData, isLoading: queueLoading } = useQuery({
@@ -42,6 +37,39 @@ export default function MedicalDash() {
     queryFn: fetchTasks,
     refetchInterval: 15000,
   });
+
+  const tasks = tasksData || [];
+
+  const { data: mapData, isLoading: roomsLoading } = useQuery({
+    queryKey: ['medicalRoomPois'],
+    queryFn: () => fetchSyncFull(),
+  });
+
+  const roomOptions = React.useMemo(() => {
+    const taskPoiIds = new Set(tasks.map((task) => task.poi_id).filter(Boolean));
+    const pois = mapData?.pois || [];
+    const optionsByID = new Map();
+
+    pois
+      .filter((poi) => poi.poi_type === 'room' || taskPoiIds.has(poi.poi_id))
+      .forEach((poi) => {
+        optionsByID.set(poi.poi_id, {
+          value: poi.poi_id,
+          label: `${poi.poi_name || poi.poi_code || 'Room'} (POI #${poi.poi_id})`,
+        });
+      });
+
+    taskPoiIds.forEach((poiID) => {
+      if (!optionsByID.has(poiID)) {
+        optionsByID.set(poiID, {
+          value: poiID,
+          label: `Room POI #${poiID}`,
+        });
+      }
+    });
+
+    return Array.from(optionsByID.values()).sort((a, b) => a.value - b.value);
+  }, [mapData, tasks]);
 
   const { data: prescriptionData, isLoading: prepLoading } = useQuery({
     queryKey: ['prescriptions'],
@@ -147,6 +175,7 @@ export default function MedicalDash() {
               style={{ width: '100%', marginBottom: 16 }}
               placeholder="Select a Room"
               options={roomOptions}
+              loading={roomsLoading || tasksLoading}
               onChange={(val) => setSelectedRoom(val)}
               allowClear
             />
@@ -192,7 +221,7 @@ export default function MedicalDash() {
                 label: 'Current Tasks',
                 children: (
                   <Table 
-                    dataSource={tasksData || []} 
+                    dataSource={tasks} 
                     columns={taskColumns} 
                     loading={tasksLoading} 
                     rowKey={(r) => r.treatment_id} 
