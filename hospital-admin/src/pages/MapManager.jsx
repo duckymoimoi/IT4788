@@ -6,10 +6,17 @@ import {
 import {
   UploadOutlined, PlayCircleOutlined, DownloadOutlined,
   FileOutlined, CheckCircleOutlined, CloudUploadOutlined, EditOutlined,
-  DeleteOutlined, StopOutlined,
+  DeleteOutlined, StopOutlined, PictureOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchMaps, uploadMap, setActiveMap, exportMap, uploadOutput, deleteMap, deactivateMap } from '../api/map';
+import {
+  fetchMaps, fetchNodes, uploadMap, setActiveMap,
+  exportMap, uploadOutput, deleteMap, deactivateMap,
+} from '../api/map';
+import {
+  parseMapFile, appendMapPreviewToFormData, parseGridData,
+  renderGridToPNG, downloadPngBlob,
+} from '../utils/mapExport';
 
 const { Title, Text } = Typography;
 
@@ -84,16 +91,45 @@ export default function MapManager() {
   const handleUploadMap = async () => {
     try {
       const values = await mapForm.validateFields();
+      const file = values.file?.[0]?.originFileObj;
+      if (!file) return;
+
       const formData = new FormData();
-      formData.append('map_name', values.map_name);
-      formData.append('rows', String(values.rows));
-      formData.append('cols', String(values.cols));
-      if (values.file?.[0]?.originFileObj) {
-        formData.append('file', values.file[0].originFileObj);
+      const mapName = values.map_name.trim();
+      formData.append('map_name', mapName);
+      formData.append('file', file);
+
+      const text = await file.text();
+      const parsed = parseMapFile(text);
+      const rows = parsed?.height || values.rows;
+      const cols = parsed?.width || values.cols;
+      formData.append('rows', String(rows));
+      formData.append('cols', String(cols));
+
+      if (parsed?.grid) {
+        await appendMapPreviewToFormData(formData, mapName, rows, cols, parsed.grid);
       }
+
       uploadMapMutation.mutate(formData);
     } catch (e) {
-      // validation error
+      message.error('Upload thất bại: ' + (e.message || 'Lỗi không xác định'));
+    }
+  };
+
+  const handleExportPng = async (record) => {
+    try {
+      const grid = parseGridData(record.grid_data);
+      if (!grid) {
+        message.warning('Map chưa có grid_data — không thể xuất PNG');
+        return;
+      }
+      const nodes = await fetchNodes(record.map_id);
+      const blob = await renderGridToPNG(record.rows, record.cols, grid, nodes || []);
+      const safeName = (record.map_name || `map_${record.map_id}`).replace(/\s+/g, '_');
+      downloadPngBlob(blob, `${safeName}.png`);
+      message.success(`Đã tải PNG (${nodes?.length || 0} POI)`);
+    } catch (err) {
+      message.error('Xuất PNG thất bại: ' + (err.response?.data?.message || err.message));
     }
   };
 
@@ -216,7 +252,7 @@ export default function MapManager() {
     {
       title: 'Hành động',
       key: 'action',
-      width: 340,
+      width: 400,
       render: (_, record) => (
         <Space size="small" wrap>
           <Button
@@ -266,7 +302,14 @@ export default function MapManager() {
             icon={<DownloadOutlined />}
             onClick={() => handleExport(record.map_file_path, record.map_name)}
           >
-            Export
+            .map
+          </Button>
+          <Button
+            size="small"
+            icon={<PictureOutlined />}
+            onClick={() => handleExportPng(record)}
+          >
+            PNG
           </Button>
           {!record.is_active && (
             <Popconfirm

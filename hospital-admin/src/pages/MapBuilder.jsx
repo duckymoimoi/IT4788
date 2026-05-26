@@ -13,6 +13,9 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { fetchMaps, fetchNodes, uploadMap } from '../api/map';
 import api from '../api/client';
 import GridCanvas from '../components/GridCanvas/GridCanvas';
+import {
+  gridToMapFile, parseMapFile, appendMapPreviewToFormData,
+} from '../utils/mapExport';
 
 const { Title, Text } = Typography;
 
@@ -30,80 +33,6 @@ const POI_TYPES = [
   { value: 'wifi', label: '📶 WiFi' },
   { value: 'other', label: '⬜ Khác' },
 ];
-
-// ─── Helper: generate .map file content ───────────────────────
-function gridToMapFile(rows, cols, grid) {
-  const lines = ['type octile', `height ${rows}`, `width ${cols}`, 'map'];
-  for (let r = 0; r < rows; r++) {
-    let line = '';
-    for (let c = 0; c < cols; c++) {
-      line += (grid[r]?.[c] === 1) ? '@' : '.';
-    }
-    lines.push(line);
-  }
-  return lines.join('\n');
-}
-
-// ─── Helper: parse .map file (octile format) ─────────────────
-function parseMapFile(text) {
-  const lines = text.split(/\r?\n/);
-  let height = 0, width = 0;
-  let mapStartIdx = -1;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (line.startsWith('height ')) height = parseInt(line.split(' ')[1], 10);
-    if (line.startsWith('width '))  width  = parseInt(line.split(' ')[1], 10);
-    if (line === 'map') { mapStartIdx = i + 1; break; }
-  }
-  if (!height || !width || mapStartIdx < 0) return null;
-  const grid = [];
-  for (let r = 0; r < height; r++) {
-    const row = [];
-    const rawLine = lines[mapStartIdx + r] || '';
-    for (let c = 0; c < width; c++) {
-      const ch = rawLine[c] || '.';
-      // '@' and 'T' are walls/obstacles, everything else is walkable
-      row.push((ch === '@' || ch === 'T') ? 1 : 0);
-    }
-    grid.push(row);
-  }
-  return { height, width, grid };
-}
-
-// ─── Helper: render grid as PNG blob (offscreen) ──────────────
-function renderGridToPNG(rows, cols, grid) {
-  // Use a larger fixed cell size for high-quality export
-  const cellSize = 16;
-  const dpr = window.devicePixelRatio || 2; // scale up for retina/sharpness
-  const canvas = document.createElement('canvas');
-  canvas.width = cols * cellSize * dpr;
-  canvas.height = rows * cellSize * dpr;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  ctx.imageSmoothingEnabled = false;
-  // Background (walkable)
-  ctx.fillStyle = '#f0f0f0';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  // Walls
-  ctx.fillStyle = '#595959';
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      if (grid[r]?.[c] === 1) {
-        ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
-      }
-    }
-  }
-  // Grid lines
-  ctx.strokeStyle = '#e8e8e8';
-  ctx.lineWidth = 0.5;
-  for (let r = 0; r <= rows; r++) {
-    ctx.beginPath(); ctx.moveTo(0, r * cellSize); ctx.lineTo(cols * cellSize, r * cellSize); ctx.stroke();
-  }
-  for (let c = 0; c <= cols; c++) {
-    ctx.beginPath(); ctx.moveTo(c * cellSize, 0); ctx.lineTo(c * cellSize, rows * cellSize); ctx.stroke();
-  }
-  return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-}
 
 // ─── Main Component ──────────────────────────────────────────
 export default function MapBuilder() {
@@ -252,16 +181,13 @@ export default function MapBuilder() {
       const mapBlob = new Blob([mapContent], { type: 'text/plain' });
       const safeName = mapName.trim().replace(/\s+/g, '_');
       const mapFile = new File([mapBlob], `${safeName}.map`);
-      const pngBlob = await renderGridToPNG(rows, cols, grid);
-      const pngFile = new File([pngBlob], `${safeName}.png`, { type: 'image/png' });
 
       const fd = new FormData();
       fd.append('file', mapFile);
-      fd.append('image_file', pngFile);
       fd.append('map_name', mapName.trim());
       fd.append('rows', String(rows));
       fd.append('cols', String(cols));
-      fd.append('grid_data', JSON.stringify(grid)); // Gửi thẳng grid lên backend
+      await appendMapPreviewToFormData(fd, mapName.trim(), rows, cols, grid, canvasNodes);
 
       if (editingMapId) {
         fd.append('map_id', String(editingMapId));
@@ -296,6 +222,7 @@ export default function MapBuilder() {
       }
 
       queryClient.invalidateQueries({ queryKey: ['admin-maps'] });
+      queryClient.invalidateQueries({ queryKey: ['maps-poi-status'] });
       queryClient.invalidateQueries({ queryKey: ['floors'] });
     } catch (err) {
       message.error('Lỗi: ' + (err.response?.data?.message || err.message));

@@ -1,4 +1,5 @@
 import api from './client';
+import { assessMapPoiCompleteness } from '../utils/mapExport';
 
 // ─── Public — Map data (read-only) ───────────────────────────
 export const fetchFloors = () =>
@@ -28,6 +29,38 @@ export const fetchSyncFull = (map_id) =>
 // ─── Admin — Map management ──────────────────────────────────
 export const fetchMaps = () =>
   api.get('/admin/get_maps').then((r) => r.data.data);
+
+/**
+ * Kiểm tra tình trạng mọi map đã có trong DB:
+ * GET /admin/get_maps + GET /map/get_nodes?map_id= cho từng map.
+ */
+export async function fetchMapsPoiStatus() {
+  const maps = await fetchMaps();
+  if (!maps?.length) return [];
+
+  return Promise.all(
+    maps.map(async (m) => {
+      let nodes = [];
+      try {
+        nodes = (await fetchNodes(m.map_id)) || [];
+      } catch {
+        nodes = [];
+      }
+      return {
+        map_id: m.map_id,
+        map_name: m.map_name,
+        is_active: m.is_active,
+        rows: m.rows,
+        cols: m.cols,
+        map_file_path: m.map_file_path,
+        map_image_url: m.map_image_url,
+        has_grid_data: !!(m.grid_data && m.grid_data !== '[]'),
+        has_preview_image: !!m.map_image_url,
+        ...assessMapPoiCompleteness(nodes),
+      };
+    }),
+  );
+}
 
 export const setActiveMap = (map_id) =>
   api.post('/admin/set_active_map', { map_id }).then((r) => r.data);

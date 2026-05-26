@@ -2,33 +2,13 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { Stage, Layer, Rect, Circle, Text as KonvaText, Image as KonvaImage, Line } from 'react-konva';
 import { Button, Tooltip } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
+import {
+  getPOIColor, parseGridData, renderGridToPNG, downloadPngBlob,
+} from '../../utils/mapExport';
 
 // ─── Constants ────────────────────────────────────────────────
 const MIN_SCALE = 0.15;
 const MAX_SCALE = 6;
-
-// Color map for POI types
-const POI_COLORS = {
-  entrance: '#52c41a',
-  room: '#1677ff',
-  elevator: '#faad14',
-  canteen: '#fa8c16',
-  pharmacy: '#13c2c2',
-  info: '#722ed1',
-  toilet: '#8c8c8c',
-  wc: '#8c8c8c',
-  stair: '#eb2f96',
-  stairs: '#eb2f96',
-  parking: '#2f54eb',
-  corridor: '#91caff',
-  wifi: '#389e0d',
-  other: '#bfbfbf',
-  default: '#bfbfbf',
-};
-
-function getPOIColor(poiType) {
-  return POI_COLORS[poiType] || POI_COLORS.default;
-}
 
 // ─── Pre-render grid background as offscreen canvas ───────────
 // This is critical for large grids (140×500 = 70K cells).
@@ -337,16 +317,13 @@ export default function GridCanvas({
     lastPaintedCell.current = null;
   }, []);
 
-  const handleExport = useCallback(() => {
-    if (!stageRef.current) return;
-    const uri = stageRef.current.toDataURL({ pixelRatio: 2 });
-    const link = document.createElement('a');
-    link.download = `hospital_map_${rows}x${cols}_${new Date().getTime()}.png`;
-    link.href = uri;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }, [rows, cols]);
+  const parsedGrid = useMemo(() => parseGridData(gridData), [gridData]);
+
+  const handleExport = useCallback(async () => {
+    if (!parsedGrid) return;
+    const blob = await renderGridToPNG(rows, cols, parsedGrid, nodes);
+    downloadPngBlob(blob, `hospital_map_${rows}x${cols}_${Date.now()}.png`);
+  }, [rows, cols, parsedGrid, nodes]);
 
   return (
     <div style={{ position: 'relative', border: '1px solid #d9d9d9', borderRadius: 8, overflow: 'hidden', background: editMode ? '#fff' : '#fafafa' }}>

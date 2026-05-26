@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import {
   Typography, Row, Col, Card, Select, Input, Button, Space, Tag, Descriptions,
   Modal, Form, Switch, InputNumber, message, Spin, Empty, Badge, Tooltip, Divider,
-  Upload, List, Popconfirm,
+  Upload, List, Popconfirm, Table,
 } from 'antd';
 import {
   EnvironmentOutlined, SearchOutlined, EditOutlined, AimOutlined,
@@ -14,9 +14,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchFloors, fetchNodes, fetchMeta, fetchDepts,
   searchLocation, fetchLandmarks, editNode, setCapacity,
-  fetchMaps, uploadMap, setActiveMap, exportMap,
+  fetchMaps, fetchMapsPoiStatus, uploadMap, setActiveMap, exportMap,
 } from '../api/map';
 import GridCanvas from '../components/GridCanvas/GridCanvas';
+import { parseMapFile, appendMapPreviewToFormData, RECOMMENDED_POI_TYPES } from '../utils/mapExport';
 
 const { Title, Text } = Typography;
 
@@ -262,6 +263,7 @@ function MapManagementPanel({ activeFloor, onFloorChange }) {
       message.success('Đã đặt map active!');
       queryClient.invalidateQueries({ queryKey: ['admin-maps'] });
       queryClient.invalidateQueries({ queryKey: ['floors'] });
+      queryClient.invalidateQueries({ queryKey: ['maps-poi-status'] });
     },
     onError: (err) => message.error(err.response?.data?.message || 'Lỗi'),
   });
@@ -273,44 +275,20 @@ function MapManagementPanel({ activeFloor, onFloorChange }) {
     }
     setUploading(true);
     try {
-      // Read file to parse height/width from octile header
       const text = await file.text();
-      const headerLines = text.split(/\r?\n/);
-      let parsedRows = 0, parsedCols = 0;
-      let mapStartIdx = -1;
-      for (let i = 0; i < headerLines.length; i++) {
-        const trimmed = headerLines[i].trim();
-        if (trimmed.startsWith('height ')) parsedRows = parseInt(trimmed.split(' ')[1], 10);
-        if (trimmed.startsWith('width ')) parsedCols = parseInt(trimmed.split(' ')[1], 10);
-        if (trimmed === 'map') { mapStartIdx = i + 1; break; }
-      }
+      const parsed = parseMapFile(text);
 
       const fd = new FormData();
       fd.append('file', file);
       const finalName = mapName.trim() || file.name.replace(/\.map$/i, '');
       fd.append('map_name', finalName);
+      const parsedRows = parsed?.height ?? 0;
+      const parsedCols = parsed?.width ?? 0;
       if (parsedRows > 0) fd.append('rows', String(parsedRows));
       if (parsedCols > 0) fd.append('cols', String(parsedCols));
 
-      // Parse grid to generate PNG and JSON grid_data
-      if (parsedRows > 0 && parsedCols > 0 && mapStartIdx >= 0) {
-        const grid = [];
-        for (let r = 0; r < parsedRows; r++) {
-          const row = [];
-          const rawLine = headerLines[mapStartIdx + r] || '';
-          for (let c = 0; c < parsedCols; c++) {
-            const ch = rawLine[c] || '.';
-            row.push((ch === '@' || ch === 'T') ? 1 : 0);
-          }
-          grid.push(row);
-        }
-        
-        fd.append('grid_data', JSON.stringify(grid));
-        
-        const pngBlob = await renderGridToPNG(parsedRows, parsedCols, grid);
-        const safeName = finalName.replace(/\s+/g, '_');
-        const pngFile = new File([pngBlob], `${safeName}.png`, { type: 'image/png' });
-        fd.append('image_file', pngFile);
+      if (parsed?.grid) {
+        await appendMapPreviewToFormData(fd, finalName, parsedRows, parsedCols, parsed.grid);
       }
 
       await uploadMap(fd);
@@ -319,6 +297,7 @@ function MapManagementPanel({ activeFloor, onFloorChange }) {
       setMapName('');
       queryClient.invalidateQueries({ queryKey: ['admin-maps'] });
       queryClient.invalidateQueries({ queryKey: ['floors'] });
+      queryClient.invalidateQueries({ queryKey: ['maps-poi-status'] });
     } catch (err) {
       message.error(err.response?.data?.message || 'Upload thất bại');
     } finally {
@@ -460,6 +439,114 @@ function MapManagementPanel({ activeFloor, onFloorChange }) {
   );
 }
 
+const POI_STATUS_LABELS = {
+  complete: { color: 'success', text: 'Đủ POI' },
+  partial: { color: 'warning', text: 'Thiếu loại' },
+  empty: { color: 'error', text: 'Chưa có POI' },
+};
+
+// ─── Bảng kiểm tra map trong DB (get_maps + get_nodes) ───────
+function MapDbAuditTable({ data, loading, activeMapId, onSelectMap, onRefresh }) {
+  const columns = [
+    {
+      title: 'ID',
+      dataIndex: 'map_id',
+      width: 52,
+    },
+    {
+      title: 'Tên bản đồ',
+      dataIndex: 'map_name',
+      ellipsis: true,
+      render: (name, record) => (
+        <Space size={4}>
+          <Text strong={record.map_id === activeMapId}>{name}</Text>
+          {record.is_active && <Tag color="green" style={{ fontSize: 10 }}>Active</Tag>}
+        </Space>
+      ),
+    },
+    {
+      title: 'Grid',
+      key: 'grid',
+      width: 88,
+      render: (_, r) => <Text type="secondary">{r.rows}×{r.cols}</Text>,
+    },
+    {
+      title: 'POI (DB)',
+      dataIndex: 'poi_count',
+      width: 72,
+      align: 'center',
+    },
+    {
+      title: 'Tình trạng POI',
+      key: 'poi_status',
+      width: 110,
+      render: (_, r) => {
+        const cfg = POI_STATUS_LABELS[r.status] || POI_STATUS_LABELS.empty;
+        return <Tag color={cfg.color}>{cfg.text}</Tag>;
+      },
+    },
+    {
+      title: 'Thiếu loại',
+      dataIndex: 'missing_types',
+      width: 140,
+      ellipsis: true,
+      render: (types) => (
+        types?.length
+          ? <Text type="danger" style={{ fontSize: 12 }}>{types.join(', ')}</Text>
+          : <Text type="secondary">—</Text>
+      ),
+    },
+    {
+      title: 'Dữ liệu',
+      key: 'data',
+      width: 120,
+      render: (_, r) => (
+        <Space size={4} wrap>
+          <Tag color={r.has_grid_data ? 'blue' : 'default'} style={{ fontSize: 10 }}>
+            {r.has_grid_data ? 'grid' : 'no grid'}
+          </Tag>
+          <Tag color={r.has_preview_image ? 'purple' : 'default'} style={{ fontSize: 10 }}>
+            {r.has_preview_image ? 'ảnh' : 'no ảnh'}
+          </Tag>
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <Card
+      size="small"
+      title="Tình trạng map trong DB"
+      style={{ marginTop: 12 }}
+      extra={(
+        <Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={onRefresh}>
+          Kiểm tra lại
+        </Button>
+      )}
+    >
+      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+        Nguồn: <Text code>GET /admin/get_maps</Text> + <Text code>GET /map/get_nodes</Text>.
+        Đủ POI = có ít nhất một POI mỗi loại: {RECOMMENDED_POI_TYPES.join(', ')}.
+      </Text>
+      <Table
+        size="small"
+        rowKey="map_id"
+        loading={loading}
+        dataSource={data || []}
+        columns={columns}
+        pagination={false}
+        scroll={{ x: 720 }}
+        locale={{ emptyText: 'Chưa có map trong DB' }}
+        rowClassName={(record) => (record.map_id === activeMapId ? 'ant-table-row-selected' : '')}
+        onRow={(record) => ({
+          onClick: () => onSelectMap(record.map_id),
+          style: { cursor: 'pointer' },
+        })}
+      />
+    </Card>
+  );
+}
+
 // ─── Map Editor Page ──────────────────────────────────────────
 export default function MapEditor() {
   // State
@@ -484,6 +571,16 @@ export default function MapEditor() {
   const { data: adminMaps } = useQuery({
     queryKey: ['admin-maps'],
     queryFn: fetchMaps,
+  });
+
+  const {
+    data: dbMapStatuses,
+    isLoading: loadingDbAudit,
+    refetch: refetchDbAudit,
+  } = useQuery({
+    queryKey: ['maps-poi-status'],
+    queryFn: fetchMapsPoiStatus,
+    enabled: !!adminMaps?.length,
   });
 
   // Auto-select first floor
@@ -644,6 +741,8 @@ export default function MapEditor() {
                     queryClient.invalidateQueries({ queryKey: ['nodes', activeFloor] });
                     queryClient.invalidateQueries({ queryKey: ['landmarks', activeFloor] });
                     queryClient.invalidateQueries({ queryKey: ['admin-maps'] });
+                    queryClient.invalidateQueries({ queryKey: ['maps-poi-status'] });
+                    refetchDbAudit();
                     message.info('Đang làm mới...');
                   }}
                 />
@@ -676,8 +775,8 @@ export default function MapEditor() {
 
       {/* ─── Main Content ────────────────────────────────────── */}
       <Row gutter={16}>
-        {/* Canvas */}
-        <Col xs={24} lg={16} xl={17}>
+        {/* Map + stats + DB audit */}
+        <Col xs={24} lg={17} xl={18}>
           <Card
             bodyStyle={{ padding: 8 }}
             title={
@@ -706,23 +805,48 @@ export default function MapEditor() {
                 selectedNodeId={selectedNode?.poi_id}
                 highlightNodeId={highlightNodeId}
                 onNodeClick={handleNodeClick}
-                width={Math.min(1100, window.innerWidth - 500)}
+                width={Math.min(1100, window.innerWidth - 360)}
                 height={620}
               />
             )}
           </Card>
+
+          <Card title="📊 Thống kê map đang xem" size="small" style={{ marginTop: 12 }}>
+            <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small">
+              <Descriptions.Item label="Tổng POIs">{allNodes?.length || 0}</Descriptions.Item>
+              <Descriptions.Item label="Landmarks">{landmarks?.length || 0}</Descriptions.Item>
+              <Descriptions.Item label="Khoa">{depts?.length || 0}</Descriptions.Item>
+              <Descriptions.Item label="Grid Size">
+                {meta ? `${meta.rows} × ${meta.cols} (${meta.rows * meta.cols} ô)` : '—'}
+              </Descriptions.Item>
+            </Descriptions>
+          </Card>
+
+          <MapDbAuditTable
+            data={dbMapStatuses}
+            loading={loadingDbAudit}
+            activeMapId={activeFloor}
+            onSelectMap={(id) => {
+              setSelectedFloor(id);
+              setSelectedNode(null);
+              setHighlightNodeId(null);
+            }}
+            onRefresh={() => {
+              queryClient.invalidateQueries({ queryKey: ['maps-poi-status'] });
+              queryClient.invalidateQueries({ queryKey: ['admin-maps'] });
+              refetchDbAudit();
+            }}
+          />
         </Col>
 
-        {/* Sidebar */}
-        <Col xs={24} lg={8} xl={7}>
-          {/* POI Info Panel */}
+        {/* Sidebar — POI info + quản lý file */}
+        <Col xs={24} lg={7} xl={6}>
           <POIInfoPanel
             node={selectedNode}
             onEdit={handleEdit}
             onSetCapacity={handleSetCapacity}
           />
 
-          {/* Map Management Panel */}
           <MapManagementPanel
             activeFloor={activeFloor}
             onFloorChange={(id) => {
@@ -731,18 +855,6 @@ export default function MapEditor() {
               setHighlightNodeId(null);
             }}
           />
-
-          {/* Quick Stats */}
-          <Card title="📊 Thống kê" style={{ marginTop: 16 }} size="small">
-            <Descriptions column={1} size="small">
-              <Descriptions.Item label="Tổng POIs">{allNodes?.length || 0}</Descriptions.Item>
-              <Descriptions.Item label="Landmarks">{landmarks?.length || 0}</Descriptions.Item>
-              <Descriptions.Item label="Khoa">{depts?.length || 0}</Descriptions.Item>
-              <Descriptions.Item label="Grid Size">
-                {meta ? `${meta.rows} × ${meta.cols} (${meta.rows * meta.cols} cells)` : '—'}
-              </Descriptions.Item>
-            </Descriptions>
-          </Card>
         </Col>
       </Row>
 
