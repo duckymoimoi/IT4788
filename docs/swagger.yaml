@@ -1341,7 +1341,7 @@ paths:
                       rows: 33
                       cols: 57
                       grid_data: "[[0,0,0],[1,1,0]]"
-                      map_image_url: /uploads/maps/hospital_floor_1.png
+                      map_image_url: /data/hospital_floor_1.png
                       is_active: true
                       has_grid_data: true
                       has_preview_image: true
