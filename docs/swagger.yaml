@@ -852,6 +852,7 @@ paths:
                       map_name: Hospital Floor 1
                       rows: 33
                       cols: 57
+                      map_image_url: "/data/Hospital_Main_Floor.png"
                 error:
                   summary: Error response
                   value:
