@@ -7,6 +7,9 @@ export const fetchFloors = () =>
 export const fetchNodes = (map_id) =>
   api.get('/map/get_nodes', { params: { map_id } }).then((r) => r.data.data);
 
+export const fetchAdminNodes = (map_id) =>
+  api.get('/admin/get_nodes', { params: { map_id } }).then((r) => r.data.data);
+
 export const fetchEdges = (map_id) =>
   api.get('/map/get_edges', { params: { map_id } }).then((r) => r.data.data);
 

@@ -1298,6 +1298,26 @@ paths:
     get:
       tags:
       - Admin-Map
+      description: |
+        Returns admin map metadata.
+
+        Backward compatible default: include_grid=true, include_stats=false.
+        Admin list screens should use include_grid=false to avoid downloading large grid_data payloads.
+      parameters:
+      - name: include_grid
+        in: query
+        description: Include grid_data in each map item. Set false for lightweight admin list sync.
+        required: false
+        schema:
+          type: boolean
+          default: true
+      - name: include_stats
+        in: query
+        description: Include POI completion fields such as poi_count, landmark_count, missing_types, status, and is_complete.
+        required: false
+        schema:
+          type: boolean
+          default: false
       summary: Lấy danh sách map
       security:
       - BearerAuth: []
@@ -1317,8 +1337,62 @@ paths:
                     data:
                     - map_id: 1
                       map_name: Hospital Floor 1
+                      map_file_path: maps/hospital_floor_1.map
                       rows: 33
                       cols: 57
+                      grid_data: "[[0,0,0],[1,1,0]]"
+                      map_image_url: /uploads/maps/hospital_floor_1.png
+                      is_active: true
+                      has_grid_data: true
+                      has_preview_image: true
+                      poi_count: 12
+                      landmark_count: 3
+                      missing_types: []
+                      status: complete
+                      is_complete: true
+                error:
+                  summary: Error response
+                  value:
+                    code: 4000
+                    message: Error message
+                    data: null
+  /api/admin/get_nodes:
+    get:
+      tags:
+      - Admin-Map
+      summary: Lay danh sach POI cua map cho admin
+      description: Returns POIs for any existing map, including inactive maps. Map Builder uses this endpoint so editing an inactive map does not lose POI data.
+      security:
+      - BearerAuth: []
+      parameters:
+      - name: map_id
+        in: query
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              examples:
+                success:
+                  summary: Successful response
+                  value:
+                    code: 1000
+                    message: Success
+                    data:
+                    - poi_id: 1
+                      map_id: 1
+                      poi_code: ENT-01
+                      poi_name: Main Entrance
+                      poi_type: entrance
+                      grid_row: 2
+                      grid_col: 14
+                      grid_location: 128
+                      is_landmark: true
                 error:
                   summary: Error response
                   value:

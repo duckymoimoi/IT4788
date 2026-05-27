@@ -10,7 +10,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { fetchMapWithGrid, fetchMaps, fetchNodes, uploadMap } from '../api/map';
+import { fetchAdminNodes, fetchMapWithGrid, fetchMaps, uploadMap } from '../api/map';
 import api from '../api/client';
 import GridCanvas from '../components/GridCanvas/GridCanvas';
 import {
@@ -66,6 +66,7 @@ export default function MapBuilder() {
   const [poiModalOpen, setPoiModalOpen] = useState(false);
   const [pendingPoiCell, setPendingPoiCell] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [loadingMapId, setLoadingMapId] = useState(null);
   const [editingMapId, setEditingMapId] = useState(editMapId ? Number(editMapId) : null);
   const [poiForm] = Form.useForm();
   const pendingPaintRef = useRef(new Map());
@@ -102,7 +103,7 @@ export default function MapBuilder() {
       const g = map.grid_data ? JSON.parse(map.grid_data) : Array.from({ length: map.rows }, () => Array(map.cols).fill(0));
       setGrid(g);
       // Load existing POIs
-      const nodes = await fetchNodes(map.map_id);
+      const nodes = await fetchAdminNodes(map.map_id);
       setLocalPois((nodes || []).map((n) => ({
         id: n.poi_id, code: n.poi_code, name: n.poi_name,
         type: n.poi_type, row: n.grid_row, col: n.grid_col,
@@ -127,24 +128,30 @@ export default function MapBuilder() {
 
   // ─── Load existing map for editing ─────────────────────────
   const handleLoadMap = async (map) => {
-    const fullMap = map.grid_data ? map : await fetchMapWithGrid(map.map_id);
-    if (!fullMap) { message.error('Map not found'); return; }
-    map = fullMap;
-    setMapName(map.map_name);
-    setRows(map.rows);
-    setCols(map.cols);
-    const g = map.grid_data ? JSON.parse(map.grid_data) : Array.from({ length: map.rows }, () => Array(map.cols).fill(0));
-    setGrid(g);
-    setEditingMapId(map.map_id);
+    setLoadingMapId(map.map_id);
     try {
-      const nodes = await fetchNodes(map.map_id);
+      const fullMap = map.grid_data ? map : await fetchMapWithGrid(map.map_id);
+      if (!fullMap) { message.error('Map not found'); return; }
+      map = fullMap;
+      setMapName(map.map_name);
+      setRows(map.rows);
+      setCols(map.cols);
+      const g = map.grid_data ? JSON.parse(map.grid_data) : Array.from({ length: map.rows }, () => Array(map.cols).fill(0));
+      setGrid(g);
+      setEditingMapId(map.map_id);
+      const nodes = await fetchAdminNodes(map.map_id);
       setLocalPois((nodes || []).map((n) => ({
         id: n.poi_id, code: n.poi_code, name: n.poi_name,
         type: n.poi_type, row: n.grid_row, col: n.grid_col,
         is_landmark: n.is_landmark, isExisting: true,
       })));
-    } catch { setLocalPois([]); }
-    setMode('editor');
+      setMode('editor');
+    } catch (err) {
+      setLocalPois([]);
+      message.error('Không tải được map: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setLoadingMapId(null);
+    }
   };
 
   // ─── Cell paint handler ────────────────────────────────────
@@ -261,7 +268,7 @@ export default function MapBuilder() {
             is_landmark: p.is_landmark,
           })
         ));
-        const refreshedNodes = await fetchNodes(targetMapId);
+        const refreshedNodes = await fetchAdminNodes(targetMapId);
         setLocalPois((refreshedNodes || []).map((n) => ({
           id: n.poi_id, code: n.poi_code, name: n.poi_name,
           type: n.poi_type, row: n.grid_row, col: n.grid_col,
@@ -381,7 +388,17 @@ export default function MapBuilder() {
                       </div>
                       <Space>
                         {m.is_active && <Tag color="green">Active</Tag>}
-                        <Button size="small" icon={<EditOutlined />}>Sửa</Button>
+                        <Button
+                          size="small"
+                          icon={<EditOutlined />}
+                          loading={loadingMapId === m.map_id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleLoadMap(m);
+                          }}
+                        >
+                          Sửa
+                        </Button>
                       </Space>
                     </div>
                   ))}

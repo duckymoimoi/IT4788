@@ -128,6 +128,20 @@ func (h *MapHandler) GetNodes(c *gin.Context) {
 	response.Success(c, items)
 }
 
+func (h *MapHandler) GetAdminNodes(c *gin.Context) {
+	mapID := parseUint32(firstQuery(c, "map_id", "floor_id"))
+	if mapID == 0 {
+		response.ErrMissingParam(c)
+		return
+	}
+	items, err := h.svc.GetAdminNodes(mapID)
+	if err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+	response.Success(c, items)
+}
+
 // [18] GET /api/map/get_edges?map_id=
 func (h *MapHandler) GetEdges(c *gin.Context) {
 	mapIDStr := firstQuery(c, "map_id", "floor_id")

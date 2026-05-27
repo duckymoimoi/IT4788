@@ -282,6 +282,20 @@ func (s *MapService) GetNodes(mapID uint32) ([]POIItem, error) {
 }
 
 // EdgeItem 1 cạnh giữa 2 ô walkable liền kề.
+func (s *MapService) GetAdminNodes(mapID uint32) ([]POIItem, error) {
+	if mapID == 0 {
+		return nil, ErrMissingField
+	}
+	m, err := s.repo.FindMapByIDAnyStatus(mapID)
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return nil, ErrMapNotFound
+	}
+	return s.GetNodes(mapID)
+}
+
 type EdgeItem struct {
 	FromRow      int `json:"from_row"`
 	FromCol      int `json:"from_col"`
