@@ -76,25 +76,6 @@ function drawPoisOnContext(ctx, nodes, cellSize) {
     ctx.lineWidth = Math.max(1, cellSize * 0.1);
     ctx.stroke();
   }
-
-  if (cellSize >= 8) {
-    const fontSize = Math.max(8, Math.min(14, Math.floor(cellSize * 0.65)));
-    ctx.font = `bold ${fontSize}px sans-serif`;
-    ctx.fillStyle = '#262626';
-    ctx.textBaseline = 'middle';
-
-    for (const n of list) {
-      const label = n.poi_code || (n.poi_name ? n.poi_name.slice(0, 12) : '');
-      if (!label) continue;
-      const cx = n.grid_col * cellSize + cellSize / 2;
-      const cy = n.grid_row * cellSize + cellSize / 2;
-      const tx = cx + cellSize * 0.55;
-      const ty = cy;
-      if (n.is_landmark || cellSize >= 14) {
-        ctx.fillText(label, tx, ty);
-      }
-    }
-  }
 }
 
 /**
@@ -243,11 +224,11 @@ export function downloadPngBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-/** Attach grid_data + PNG preview (with POIs) to FormData for upload_map. */
-export async function appendMapPreviewToFormData(formData, mapName, rows, cols, grid, nodes = []) {
+/** Attach grid_data + clean PNG map preview to FormData for upload_map. */
+export async function appendMapPreviewToFormData(formData, mapName, rows, cols, grid) {
   if (!grid || rows <= 0 || cols <= 0) return;
   formData.append('grid_data', JSON.stringify(grid));
-  const pngBlob = await renderGridToPNG(rows, cols, grid, nodes);
+  const pngBlob = await renderGridToPNG(rows, cols, grid);
   const safeName = mapName.trim().replace(/\s+/g, '_');
   formData.append('image_file', new File([pngBlob], `${safeName}.png`, { type: 'image/png' }));
 }
