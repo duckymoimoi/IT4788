@@ -1,5 +1,4 @@
 import api from './client';
-import { assessMapPoiCompleteness } from '../utils/mapExport';
 
 // ─── Public — Map data (read-only) ───────────────────────────
 export const fetchFloors = () =>
@@ -27,39 +26,42 @@ export const fetchSyncFull = (map_id) =>
   api.get('/map/sync_full', { params: { map_id } }).then((r) => r.data.data);
 
 // ─── Admin — Map management ──────────────────────────────────
-export const fetchMaps = () =>
-  api.get('/admin/get_maps').then((r) => r.data.data);
+export const fetchMaps = ({ includeGrid = true, includeStats = false } = {}) =>
+  api.get('/admin/get_maps', {
+    params: {
+      include_grid: includeGrid,
+      include_stats: includeStats,
+    },
+  }).then((r) => r.data.data);
+
+export async function fetchMapWithGrid(mapId) {
+  const maps = await fetchMaps({ includeGrid: true, includeStats: false });
+  return maps?.find((m) => m.map_id === Number(mapId)) || null;
+}
 
 /**
  * Kiểm tra tình trạng mọi map đã có trong DB:
- * GET /admin/get_maps + GET /map/get_nodes?map_id= cho từng map.
+ * GET /admin/get_maps?include_grid=false&include_stats=true.
  */
 export async function fetchMapsPoiStatus() {
-  const maps = await fetchMaps();
+  const maps = await fetchMaps({ includeGrid: false, includeStats: true });
   if (!maps?.length) return [];
-
-  return Promise.all(
-    maps.map(async (m) => {
-      let nodes = [];
-      try {
-        nodes = (await fetchNodes(m.map_id)) || [];
-      } catch {
-        nodes = [];
-      }
-      return {
-        map_id: m.map_id,
-        map_name: m.map_name,
-        is_active: m.is_active,
-        rows: m.rows,
-        cols: m.cols,
-        map_file_path: m.map_file_path,
-        map_image_url: m.map_image_url,
-        has_grid_data: !!(m.grid_data && m.grid_data !== '[]'),
-        has_preview_image: !!m.map_image_url,
-        ...assessMapPoiCompleteness(nodes),
-      };
-    }),
-  );
+  return maps.map((m) => ({
+    map_id: m.map_id,
+    map_name: m.map_name,
+    is_active: m.is_active,
+    rows: m.rows,
+    cols: m.cols,
+    map_file_path: m.map_file_path,
+    map_image_url: m.map_image_url,
+    has_grid_data: !!m.has_grid_data,
+    has_preview_image: !!(m.has_preview_image || m.map_image_url),
+    poi_count: m.poi_count ?? 0,
+    landmark_count: m.landmark_count ?? 0,
+    missing_types: m.missing_types || [],
+    status: m.status || 'empty',
+    is_complete: !!m.is_complete,
+  }));
 }
 
 export const setActiveMap = (map_id) =>

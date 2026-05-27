@@ -7,7 +7,6 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 
 // B — Map & Engine
-import MapEditor from './pages/MapEditor';
 import MapManager from './pages/MapManager';
 import MapBuilder from './pages/MapBuilder';
 import EnginePanel from './pages/EnginePanel';
@@ -42,7 +41,6 @@ function App() {
         }
       >
         <Route index element={<Dashboard />} />
-        <Route path="map-editor" element={<MapEditor />} />
         <Route path="map-manager" element={<MapManager />} />
         <Route path="map-builder" element={<MapBuilder />} />
         <Route path="flow" element={<FlowMonitor />} />

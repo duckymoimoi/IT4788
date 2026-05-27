@@ -10,7 +10,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  fetchMaps, fetchNodes, uploadMap, setActiveMap,
+  fetchMapWithGrid, fetchMaps, fetchNodes, uploadMap, setActiveMap,
   exportMap, uploadOutput, deleteMap, deactivateMap,
 } from '../api/map';
 import {
@@ -31,8 +31,8 @@ export default function MapManager() {
 
   // ─── Queries ────────────────────────────────────────────────
   const { data: maps, isLoading } = useQuery({
-    queryKey: ['admin-maps'],
-    queryFn: fetchMaps,
+    queryKey: ['admin-maps', { includeGrid: false, includeStats: true }],
+    queryFn: () => fetchMaps({ includeGrid: false, includeStats: true }),
   });
 
   // ─── Mutations ──────────────────────────────────────────────
@@ -118,7 +118,8 @@ export default function MapManager() {
 
   const handleExportPng = async (record) => {
     try {
-      const grid = parseGridData(record.grid_data);
+      const mapWithGrid = record.grid_data ? record : await fetchMapWithGrid(record.map_id);
+      const grid = parseGridData(mapWithGrid?.grid_data);
       if (!grid) {
         message.warning('Map chưa có grid_data — không thể xuất PNG');
         return;

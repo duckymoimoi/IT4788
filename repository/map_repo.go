@@ -62,6 +62,15 @@ func (r *MapRepo) GetAllMaps() ([]schema.GridMap, error) {
 	return maps, err
 }
 
+func (r *MapRepo) GetAllMapsLite() ([]schema.GridMap, error) {
+	var maps []schema.GridMap
+	err := r.db.
+		Select("map_id", "map_name", "map_file_path", "rows", "cols", "map_image_url", "is_active", "created_at", "updated_at").
+		Order("map_id ASC").
+		Find(&maps).Error
+	return maps, err
+}
+
 // SetActiveMap set is_active = true cho map truyền vào, false cho các map khác.
 func (r *MapRepo) SetActiveMap(mapID uint32) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {

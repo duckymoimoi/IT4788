@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -536,7 +537,9 @@ func (h *MapHandler) SetActiveMap(c *gin.Context) {
 
 // [34] GET /api/admin/get_maps
 func (h *MapHandler) GetMaps(c *gin.Context) {
-	maps, err := h.svc.GetMaps()
+	includeGrid := !strings.EqualFold(c.DefaultQuery("include_grid", "true"), "false")
+	includeStats := strings.EqualFold(c.DefaultQuery("include_stats", "false"), "true")
+	maps, err := h.svc.GetMaps(includeGrid, includeStats)
 	if err != nil {
 		h.handleMapError(c, err)
 		return

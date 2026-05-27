@@ -9,11 +9,12 @@ import {
 // ─── Constants ────────────────────────────────────────────────
 const MIN_SCALE = 0.15;
 const MAX_SCALE = 6;
+const EMPTY_ARRAY = [];
 
 // ─── Pre-render grid background as offscreen canvas ───────────
 // This is critical for large grids (140×500 = 70K cells).
 // Instead of creating 70K Konva.Rect, we paint once on a canvas.
-function buildGridImage(rows, cols, cellSize, heatmapData, pathCells, gridDataStr) {
+function buildGridImage(rows, cols, cellSize, heatmapData, pathCells, gridData) {
   const canvas = document.createElement('canvas');
   const dpr = window.devicePixelRatio || 1;
   canvas.width = cols * cellSize * dpr;
@@ -43,10 +44,10 @@ function buildGridImage(rows, cols, cellSize, heatmapData, pathCells, gridDataSt
   }
 
   // Draw walls from gridData
-  if (gridDataStr) {
+  if (gridData) {
     try {
       // Handle both JSON string and already-parsed array
-      const grid = typeof gridDataStr === 'string' ? JSON.parse(gridDataStr) : gridDataStr;
+      const grid = typeof gridData === 'string' ? JSON.parse(gridData) : gridData;
       if (Array.isArray(grid)) {
         ctx.fillStyle = '#595959'; // Wall color (darker for better contrast)
         for (let r = 0; r < Math.min(rows, grid.length); r++) {
@@ -97,9 +98,9 @@ export default function GridCanvas({
   cols = 57,
   gridData = null,
   nodes = [],
-  heatmapData = [],
-  pathCells = [],
-  agentPositions = [],
+  heatmapData = EMPTY_ARRAY,
+  pathCells = EMPTY_ARRAY,
+  agentPositions = EMPTY_ARRAY,
   selectedNodeId = null,
   highlightNodeId = null,
   onNodeClick,
@@ -127,6 +128,8 @@ export default function GridCanvas({
     return Math.max(2, Math.min(24, Math.floor(cs)));
   }, [rows, cols, width, height]);
 
+  const parsedGrid = useMemo(() => parseGridData(gridData), [gridData]);
+
   // Build node lookup: grid_location → node
   const nodeMap = useMemo(() => {
     const map = new Map();
@@ -140,8 +143,8 @@ export default function GridCanvas({
 
   // Pre-render grid background image (offscreen canvas)
   const gridImage = useMemo(() => {
-    return buildGridImage(rows, cols, cellSize, heatmapData, pathCells, gridData);
-  }, [rows, cols, cellSize, heatmapData, pathCells, gridData]);
+    return buildGridImage(rows, cols, cellSize, heatmapData, pathCells, parsedGrid);
+  }, [rows, cols, cellSize, heatmapData, pathCells, parsedGrid]);
 
   // Zoom with mouse wheel
   const handleWheel = useCallback((e) => {
@@ -316,8 +319,6 @@ export default function GridCanvas({
     setIsPainting(false);
     lastPaintedCell.current = null;
   }, []);
-
-  const parsedGrid = useMemo(() => parseGridData(gridData), [gridData]);
 
   const handleExport = useCallback(async () => {
     if (!parsedGrid) return;

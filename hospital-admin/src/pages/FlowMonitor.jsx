@@ -20,7 +20,7 @@ import {
   FireOutlined,
 } from '@ant-design/icons';
 import { fetchBottlenecks, fetchHeatmap } from '../api/flow';
-import { fetchMaps, fetchNodes } from '../api/map';
+import { fetchMaps, fetchMeta, fetchNodes } from '../api/map';
 import GridCanvas from '../components/GridCanvas/GridCanvas';
 
 const { Title, Text } = Typography;
@@ -38,8 +38,8 @@ export default function FlowMonitor() {
     isLoading: loadingMaps,
     isError: errorMaps,
   } = useQuery({
-    queryKey: ['admin-maps'],
-    queryFn: fetchMaps,
+    queryKey: ['admin-maps', { includeGrid: false, includeStats: false }],
+    queryFn: () => fetchMaps({ includeGrid: false, includeStats: false }),
   });
 
   const activeMap = useMemo(() => {
@@ -55,6 +55,15 @@ export default function FlowMonitor() {
   } = useQuery({
     queryKey: ['nodes', activeMapId],
     queryFn: () => fetchNodes(activeMapId),
+    enabled: !!activeMapId,
+  });
+
+  const {
+    data: meta,
+    isLoading: loadingMeta,
+  } = useQuery({
+    queryKey: ['meta', activeMapId],
+    queryFn: () => fetchMeta(activeMapId),
     enabled: !!activeMapId,
   });
 
@@ -253,7 +262,7 @@ export default function FlowMonitor() {
         }
         style={{ marginBottom: 16 }}
       >
-        {loadingMaps || loadingNodes || loadingHeatmap ? (
+        {loadingMaps || loadingNodes || loadingMeta || loadingHeatmap ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 96 }}>
             <Spin size="large" tip="Dang tai heatmap..." />
           </div>
@@ -263,7 +272,7 @@ export default function FlowMonitor() {
           <GridCanvas
             rows={activeMap.rows || 33}
             cols={activeMap.cols || 57}
-            gridData={activeMap.grid_data || null}
+            gridData={meta?.grid_data || null}
             nodes={nodes || []}
             heatmapData={normalizedHeatmap}
             width={canvasWidth}

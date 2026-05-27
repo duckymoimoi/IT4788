@@ -16,7 +16,6 @@ import {
   LogoutOutlined,
   FileOutlined,
   EditOutlined,
-  NodeIndexOutlined,
   CodeOutlined,
 } from '@ant-design/icons';
 import useAuthStore from '../../stores/authStore';
@@ -31,7 +30,6 @@ const menuItems = [
     icon: <EnvironmentOutlined />,
     label: 'Bản đồ',
     children: [
-      { key: '/map-editor', icon: <NodeIndexOutlined />, label: 'Map Editor' },
       { key: '/map-builder', icon: <EditOutlined />, label: 'Map Builder' },
       { key: '/map-manager', icon: <FileOutlined />, label: 'Map Manager' },
     ],

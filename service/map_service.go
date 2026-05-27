@@ -43,6 +43,27 @@ type MapItem struct {
 	MapImageURL *string `json:"map_image_url"`
 }
 
+// AdminMapItem la output cho admin get_maps.
+type AdminMapItem struct {
+	MapID         uint32   `json:"map_id"`
+	MapName       string   `json:"map_name"`
+	MapFilePath   string   `json:"map_file_path"`
+	Rows          int      `json:"rows"`
+	Cols          int      `json:"cols"`
+	GridData      string   `json:"grid_data"`
+	MapImageURL   *string  `json:"map_image_url,omitempty"`
+	IsActive      bool     `json:"is_active"`
+	CreatedAt     string   `json:"created_at"`
+	UpdatedAt     *string  `json:"updated_at,omitempty"`
+	HasGridData   *bool    `json:"has_grid_data,omitempty"`
+	HasPreview    *bool    `json:"has_preview_image,omitempty"`
+	POICount      int      `json:"poi_count,omitempty"`
+	LandmarkCount int      `json:"landmark_count,omitempty"`
+	MissingTypes  []string `json:"missing_types,omitempty"`
+	Status        string   `json:"status,omitempty"`
+	IsComplete    bool     `json:"is_complete,omitempty"`
+}
+
 // MapMetaResult là output cho get_meta.
 type MapMetaResult struct {
 	MapID       uint32  `json:"map_id"`
@@ -158,6 +179,79 @@ func mapToItem(m schema.GridMap) MapItem {
 		Rows:        m.Rows,
 		Cols:        m.Cols,
 		MapImageURL: m.MapImageURL,
+	}
+}
+
+func adminMapToItem(m schema.GridMap, includeGrid bool, includeMetaFlags bool) AdminMapItem {
+	var updatedAt *string
+	if m.UpdatedAt != nil {
+		value := m.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
+		updatedAt = &value
+	}
+	item := AdminMapItem{
+		MapID:       m.MapID,
+		MapName:     m.MapName,
+		MapFilePath: m.MapFilePath,
+		Rows:        m.Rows,
+		Cols:        m.Cols,
+		MapImageURL: m.MapImageURL,
+		IsActive:    m.IsActive,
+		CreatedAt:   m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:   updatedAt,
+	}
+	if includeGrid {
+		item.GridData = m.GridData
+	}
+	if includeMetaFlags {
+		hasGridData := (m.GridData != "" && m.GridData != "[]") || (m.Rows > 0 && m.Cols > 0)
+		hasPreview := m.MapImageURL != nil && *m.MapImageURL != ""
+		item.HasGridData = &hasGridData
+		item.HasPreview = &hasPreview
+	}
+	return item
+}
+
+func applyPOIStatsToMaps(items []AdminMapItem, pois []schema.GridPOI) {
+	requiredTypes := []string{"entrance", "elevator", "room"}
+	type stat struct {
+		count     int
+		landmarks int
+		types     map[string]bool
+	}
+	stats := make(map[uint32]*stat)
+	for _, p := range pois {
+		s := stats[p.MapID]
+		if s == nil {
+			s = &stat{types: make(map[string]bool)}
+			stats[p.MapID] = s
+		}
+		s.count++
+		if p.IsLandmark {
+			s.landmarks++
+		}
+		s.types[string(p.POIType)] = true
+	}
+
+	for i := range items {
+		s := stats[items[i].MapID]
+		if s == nil || s.count == 0 {
+			items[i].Status = "empty"
+			items[i].MissingTypes = requiredTypes
+			continue
+		}
+		items[i].POICount = s.count
+		items[i].LandmarkCount = s.landmarks
+		for _, t := range requiredTypes {
+			if !s.types[t] {
+				items[i].MissingTypes = append(items[i].MissingTypes, t)
+			}
+		}
+		if len(items[i].MissingTypes) == 0 {
+			items[i].Status = "complete"
+			items[i].IsComplete = true
+		} else {
+			items[i].Status = "partial"
+		}
 	}
 }
 
@@ -352,18 +446,14 @@ func (s *MapService) AddNode(input AddNodeInput) (*POIItem, error) {
 		return nil, ErrMissingField
 	}
 
-	// Kiểm tra map tồn tại
-	m, err := s.repo.FindMapByID(input.MapID)
+	// Admin can edit POIs on inactive maps from Map Builder.
+	m, err := s.repo.FindMapByIDAnyStatus(input.MapID)
 	if err != nil {
 		return nil, err
 	}
 	if m == nil {
 		return nil, ErrMapNotFound
 	}
-	if s.repo.IsSimulationRunning(input.MapID) {
-		return nil, errors.New("cannot add node: simulation is currently running on this map")
-	}
-
 	// Kiểm tra trùng code
 	existing, err := s.repo.FindPOIByCode(code)
 	if err != nil {
@@ -589,32 +679,52 @@ func (s *MapService) UploadMap(mapName string, mapFilePath string, rows int, col
 	return m, nil
 }
 
-// GetMaps lay tat ca maps
-func (s *MapService) GetMaps() ([]schema.GridMap, error) {
-	maps, err := s.repo.GetAllMaps()
+// GetMaps lay tat ca maps.
+func (s *MapService) GetMaps(includeGrid bool, includeStats bool) ([]AdminMapItem, error) {
+	var maps []schema.GridMap
+	var err error
+	if includeGrid {
+		maps, err = s.repo.GetAllMaps()
+	} else {
+		maps, err = s.repo.GetAllMapsLite()
+	}
 	if err != nil {
 		return nil, err
 	}
-	for i := range maps {
-		if maps[i].Rows > 0 && maps[i].Cols > 0 && maps[i].GridData != "" && maps[i].GridData != "[]" {
-			continue
-		}
-		rows, cols, gridData := normalizeMapFileData(maps[i].MapFilePath, maps[i].Rows, maps[i].Cols, maps[i].GridData)
-		if rows == maps[i].Rows && cols == maps[i].Cols && gridData == maps[i].GridData {
-			continue
-		}
-		updates := map[string]interface{}{
-			"rows":      rows,
-			"cols":      cols,
-			"grid_data": gridData,
-		}
-		if err := s.repo.UpdateMap(maps[i].MapID, updates); err == nil {
-			maps[i].Rows = rows
-			maps[i].Cols = cols
-			maps[i].GridData = gridData
+	if includeGrid {
+		for i := range maps {
+			if maps[i].Rows > 0 && maps[i].Cols > 0 && maps[i].GridData != "" && maps[i].GridData != "[]" {
+				continue
+			}
+			rows, cols, gridData := normalizeMapFileData(maps[i].MapFilePath, maps[i].Rows, maps[i].Cols, maps[i].GridData)
+			if rows == maps[i].Rows && cols == maps[i].Cols && gridData == maps[i].GridData {
+				continue
+			}
+			updates := map[string]interface{}{
+				"rows":      rows,
+				"cols":      cols,
+				"grid_data": gridData,
+			}
+			if err := s.repo.UpdateMap(maps[i].MapID, updates); err == nil {
+				maps[i].Rows = rows
+				maps[i].Cols = cols
+				maps[i].GridData = gridData
+			}
 		}
 	}
-	return maps, nil
+
+	items := make([]AdminMapItem, len(maps))
+	for i, m := range maps {
+		items[i] = adminMapToItem(m, includeGrid, !includeGrid || includeStats)
+	}
+	if includeStats {
+		pois, err := s.repo.FindAllPOIs(0)
+		if err != nil {
+			return nil, err
+		}
+		applyPOIStatsToMaps(items, pois)
+	}
+	return items, nil
 }
 
 // SetActiveMap set map active va kiem tra simulation

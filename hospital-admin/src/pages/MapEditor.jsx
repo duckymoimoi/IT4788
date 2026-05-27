@@ -253,8 +253,8 @@ function MapManagementPanel({ activeFloor, onFloorChange }) {
   const queryClient = useQueryClient();
 
   const { data: maps, isLoading } = useQuery({
-    queryKey: ['admin-maps'],
-    queryFn: fetchMaps,
+    queryKey: ['admin-maps', { includeGrid: false, includeStats: true }],
+    queryFn: () => fetchMaps({ includeGrid: false, includeStats: true }),
   });
 
   const activateMutation = useMutation({
@@ -567,10 +567,10 @@ export default function MapEditor() {
     queryFn: fetchFloors,
   });
 
-  // Fetch admin maps to get grid_data (wall/walkable info)
+  // Fetch lightweight admin map list for status/active metadata.
   const { data: adminMaps } = useQuery({
-    queryKey: ['admin-maps'],
-    queryFn: fetchMaps,
+    queryKey: ['admin-maps', { includeGrid: false, includeStats: true }],
+    queryFn: () => fetchMaps({ includeGrid: false, includeStats: true }),
   });
 
   const {
@@ -800,7 +800,7 @@ export default function MapEditor() {
               <GridCanvas
                 rows={meta?.rows || 33}
                 cols={meta?.cols || 57}
-                gridData={activeMapData?.grid_data || null}
+                gridData={meta?.grid_data || activeMapData?.grid_data || null}
                 nodes={displayNodes}
                 selectedNodeId={selectedNode?.poi_id}
                 highlightNodeId={highlightNodeId}

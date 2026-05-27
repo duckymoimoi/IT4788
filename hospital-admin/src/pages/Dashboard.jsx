@@ -13,7 +13,9 @@ import {
   ResponsiveContainer, Cell,
 } from 'recharts';
 import { fetchEngineHealth } from '../api/engine';
-import { fetchAlerts, fetchBottlenecks, fetchHeatmap, fetchStatsFlow } from '../api/flow';
+import {
+  fetchAlerts, fetchBottlenecks, fetchHeatmap, fetchSimStatus, fetchStatsFlow,
+} from '../api/flow';
 
 const { Title } = Typography;
 
@@ -66,27 +68,39 @@ function KPICards({ engineHealth, heatmapData }) {
 }
 
 // ─── Density Chart (A8) ───────────────────────────────────────
-function DensityChart({ data }) {
+function DensityChart({ data, heatmapData, simStatus }) {
   const chartData = (data || []).map((d) => ({
     hour: `${d.hour}:00`,
     count: d.count,
   }));
+  const liveFlowData = [...(heatmapData || [])]
+    .sort((a, b) => Number(b.density || 0) - Number(a.density || 0))
+    .slice(0, 20)
+    .map((d) => ({
+      hour: `Cell ${d.grid_location}`,
+      count: Number(d.density || 0),
+    }));
+  const displayData = chartData.length > 0 ? chartData : liveFlowData;
+  const isLiveFallback = chartData.length === 0 && liveFlowData.length > 0;
+  const emptyText = simStatus?.running
+    ? 'Simulation dang chay nhung chua co du lieu ping theo gio'
+    : 'Chua co du lieu flow';
 
   return (
-    <Card title="Mật độ người 24h" style={{ marginTop: 16 }}>
-      {chartData.length === 0 ? (
+    <Card title={isLiveFallback ? 'Simulation live density' : 'Mật độ người 24h'} style={{ marginTop: 16 }}>
+      {displayData.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
-          Chưa có dữ liệu — Cần bật Simulation trước
+          {emptyText}
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={chartData}>
+          <BarChart data={displayData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="hour" />
             <YAxis />
             <Tooltip />
             <Bar dataKey="count" fill="#1677ff" radius={[4, 4, 0, 0]}>
-              {chartData.map((_, index) => (
+              {displayData.map((_, index) => (
                 <Cell key={index} fill={index % 2 === 0 ? '#1677ff' : '#69b1ff'} />
               ))}
             </Bar>
@@ -171,12 +185,12 @@ function AlertsPanel({ alerts, bottlenecks }) {
 }
 
 // ─── Mini Heatmap (A10) ───────────────────────────────────────
-function MiniHeatmap({ data }) {
+function MiniHeatmap({ data, simStatus }) {
   if (!data || data.length === 0) {
     return (
       <Card title=" Mini Heatmap" style={{ marginTop: 16 }}>
         <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
-          Chưa có dữ liệu heatmap — Cần bật Simulation
+          {simStatus?.running ? 'Simulation đang chạy nhưng chưa có heatmap' : 'Chưa có dữ liệu heatmap'}
         </div>
       </Card>
     );
@@ -240,6 +254,12 @@ export default function Dashboard() {
     refetchInterval: 10000,
   });
 
+  const { data: simStatus } = useQuery({
+    queryKey: ['simulation-status'],
+    queryFn: fetchSimStatus,
+    refetchInterval: 10000,
+  });
+
   if (loadingEngine && loadingStats) {
     return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
   }
@@ -248,9 +268,9 @@ export default function Dashboard() {
     <>
       <Title level={4}>Dashboard</Title>
       <KPICards engineHealth={engineHealth} heatmapData={heatmapData} />
-      <DensityChart data={statsFlow} />
+      <DensityChart data={statsFlow} heatmapData={heatmapData} simStatus={simStatus} />
       <AlertsPanel alerts={alerts} bottlenecks={bottlenecks} />
-      <MiniHeatmap data={heatmapData} />
+      <MiniHeatmap data={heatmapData} simStatus={simStatus} />
     </>
   );
 }

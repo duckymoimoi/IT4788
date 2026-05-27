@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   Typography, Row, Col, Card, Button, Space, Tag, Input, InputNumber,
   Modal, Form, Select, Switch, message, Spin, Empty, Divider, Radio, Tooltip, Upload,
@@ -10,7 +10,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { fetchMaps, fetchNodes, uploadMap } from '../api/map';
+import { fetchMapWithGrid, fetchMaps, fetchNodes, uploadMap } from '../api/map';
 import api from '../api/client';
 import GridCanvas from '../components/GridCanvas/GridCanvas';
 import {
@@ -35,6 +35,20 @@ const POI_TYPES = [
 ];
 
 // ─── Main Component ──────────────────────────────────────────
+function applyPaintBatch(grid, pending) {
+  if (!grid || !pending?.size) return grid;
+  let next = null;
+  pending.forEach((value, key) => {
+    const [rowStr, colStr] = key.split(',');
+    const row = Number(rowStr);
+    const col = Number(colStr);
+    if (grid[row]?.[col] === value) return;
+    if (!next) next = grid.map((r) => [...r]);
+    next[row][col] = value;
+  });
+  return next || grid;
+}
+
 export default function MapBuilder() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -54,11 +68,25 @@ export default function MapBuilder() {
   const [saving, setSaving] = useState(false);
   const [editingMapId, setEditingMapId] = useState(editMapId ? Number(editMapId) : null);
   const [poiForm] = Form.useForm();
+  const pendingPaintRef = useRef(new Map());
+  const paintFrameRef = useRef(null);
+
+  const flushPendingPaint = useCallback(() => {
+    paintFrameRef.current = null;
+    const pending = pendingPaintRef.current;
+    if (!pending.size) return;
+    pendingPaintRef.current = new Map();
+    setGrid((prev) => applyPaintBatch(prev, pending));
+  }, []);
+
+  useEffect(() => () => {
+    if (paintFrameRef.current) cancelAnimationFrame(paintFrameRef.current);
+  }, []);
 
   // Load existing maps list (for setup screen)
   const { data: maps, isLoading: loadingMaps } = useQuery({
-    queryKey: ['admin-maps'],
-    queryFn: fetchMaps,
+    queryKey: ['admin-maps', { includeGrid: false, includeStats: true }],
+    queryFn: () => fetchMaps({ includeGrid: false, includeStats: true }),
     enabled: mode === 'setup',
   });
 
@@ -66,8 +94,7 @@ export default function MapBuilder() {
   const { } = useQuery({
     queryKey: ['load-map-for-edit', editMapId],
     queryFn: async () => {
-      const allMaps = await fetchMaps();
-      const map = allMaps?.find((m) => m.map_id === Number(editMapId));
+      const map = await fetchMapWithGrid(editMapId);
       if (!map) { message.error('Map not found'); return null; }
       setMapName(map.map_name);
       setRows(map.rows);
@@ -100,6 +127,9 @@ export default function MapBuilder() {
 
   // ─── Load existing map for editing ─────────────────────────
   const handleLoadMap = async (map) => {
+    const fullMap = map.grid_data ? map : await fetchMapWithGrid(map.map_id);
+    if (!fullMap) { message.error('Map not found'); return; }
+    map = fullMap;
     setMapName(map.map_name);
     setRows(map.rows);
     setCols(map.cols);
@@ -120,9 +150,15 @@ export default function MapBuilder() {
   // ─── Cell paint handler ────────────────────────────────────
   const handleCellPaint = useCallback((row, col) => {
     if (activeTool === 'wall') {
-      setGrid((prev) => { const n = prev.map((r) => [...r]); n[row][col] = 1; return n; });
+      pendingPaintRef.current.set(`${row},${col}`, 1);
+      if (!paintFrameRef.current) {
+        paintFrameRef.current = requestAnimationFrame(flushPendingPaint);
+      }
     } else if (activeTool === 'eraser') {
-      setGrid((prev) => { const n = prev.map((r) => [...r]); n[row][col] = 0; return n; });
+      pendingPaintRef.current.set(`${row},${col}`, 0);
+      if (!paintFrameRef.current) {
+        paintFrameRef.current = requestAnimationFrame(flushPendingPaint);
+      }
     } else if (activeTool === 'poi') {
       // Check if there's already a POI at this cell
       const existing = localPois.find((p) => p.row === row && p.col === col);
@@ -132,7 +168,7 @@ export default function MapBuilder() {
       setPendingPoiCell({ row, col });
       setPoiModalOpen(true);
     }
-  }, [activeTool, localPois, grid]);
+  }, [activeTool, localPois, grid, flushPendingPaint]);
 
   // ─── Add POI ───────────────────────────────────────────────
   const handleAddPoi = async () => {
@@ -160,8 +196,6 @@ export default function MapBuilder() {
   };
 
   // ─── Grid data string for GridCanvas ───────────────────────
-  const gridDataStr = useMemo(() => grid ? JSON.stringify(grid) : null, [grid]);
-
   // ─── Convert local POIs to node format for GridCanvas ──────
   const canvasNodes = useMemo(() => localPois.map((p) => ({
     poi_id: p.id, poi_code: p.code, poi_name: p.name,
@@ -172,12 +206,20 @@ export default function MapBuilder() {
   // ─── Save map ──────────────────────────────────────────────
   const handleSave = async () => {
     if (!mapName.trim()) { message.warning('Nhập tên bản đồ'); return; }
+    const pendingPaint = pendingPaintRef.current;
+    pendingPaintRef.current = new Map();
+    if (paintFrameRef.current) {
+      cancelAnimationFrame(paintFrameRef.current);
+      paintFrameRef.current = null;
+    }
+    const saveGrid = applyPaintBatch(grid, pendingPaint);
+    if (saveGrid !== grid) setGrid(saveGrid);
     setSaving(true);
     try {
       let targetMapId = editingMapId;
 
       // Always generate .map file + PNG image
-      const mapContent = gridToMapFile(rows, cols, grid);
+      const mapContent = gridToMapFile(rows, cols, saveGrid);
       const mapBlob = new Blob([mapContent], { type: 'text/plain' });
       const safeName = mapName.trim().replace(/\s+/g, '_');
       const mapFile = new File([mapBlob], `${safeName}.map`);
@@ -187,7 +229,7 @@ export default function MapBuilder() {
       fd.append('map_name', mapName.trim());
       fd.append('rows', String(rows));
       fd.append('cols', String(cols));
-      await appendMapPreviewToFormData(fd, mapName.trim(), rows, cols, grid, canvasNodes);
+      await appendMapPreviewToFormData(fd, mapName.trim(), rows, cols, saveGrid, canvasNodes);
 
       if (editingMapId) {
         fd.append('map_id', String(editingMapId));
@@ -203,11 +245,13 @@ export default function MapBuilder() {
         message.success('Tạo map mới thành công!');
       }
 
+      if (!targetMapId) throw new Error('Khong xac dinh duoc map_id sau khi luu map');
+
       // Save new POIs (those not existing in DB)
       const newPois = localPois.filter((p) => !p.isExisting);
-      for (const p of newPois) {
-        try {
-          await api.post('/admin/add_node', {
+      if (newPois.length > 0) {
+        await Promise.all(newPois.map((p) =>
+          api.post('/admin/add_node', {
             id: p.code,
             map_id: targetMapId,
             name: p.name,
@@ -215,10 +259,14 @@ export default function MapBuilder() {
             x: p.col,
             y: p.row,
             is_landmark: p.is_landmark,
-          });
-        } catch (e) {
-          console.warn('Failed to add POI:', p.code, e);
-        }
+          })
+        ));
+        const refreshedNodes = await fetchNodes(targetMapId);
+        setLocalPois((refreshedNodes || []).map((n) => ({
+          id: n.poi_id, code: n.poi_code, name: n.poi_name,
+          type: n.poi_type, row: n.grid_row, col: n.grid_col,
+          is_landmark: n.is_landmark, isExisting: true,
+        })));
       }
 
       queryClient.invalidateQueries({ queryKey: ['admin-maps'] });
@@ -411,7 +459,7 @@ export default function MapBuilder() {
             <GridCanvas
               rows={rows}
               cols={cols}
-              gridData={gridDataStr}
+              gridData={grid}
               nodes={canvasNodes}
               editMode={activeTool !== 'pan'}
               onCellPaint={handleCellPaint}
