@@ -322,7 +322,7 @@ export default function MapBuilder() {
                 <Row gutter={16}>
                   <Col span={12}>
                     <Form.Item label="Rows (hàng)">
-                      <InputNumber min={5} max={200} value={rows} onChange={setRows} style={{ width: '100%' }} />
+                      <InputNumber min={5} max={500} value={rows} onChange={setRows} style={{ width: '100%' }} />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
