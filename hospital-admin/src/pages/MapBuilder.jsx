@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   Typography, Row, Col, Card, Button, Space, Tag, Input, InputNumber,
-  Modal, Form, Select, Switch, message, Spin, Empty, Divider, Radio, Tooltip, Upload,
+  Modal, Form, Select, Switch, message, Spin, Empty, Divider, Radio, Tooltip, Upload, Popconfirm,
 } from 'antd';
 import {
   BorderOutlined, EditOutlined, DeleteOutlined, PlusOutlined,
@@ -10,7 +10,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { fetchAdminNodes, fetchMapWithGrid, fetchMaps, uploadMap } from '../api/map';
+import { deleteNode, fetchAdminNodes, fetchMapWithGrid, fetchMaps, uploadMap } from '../api/map';
 import api from '../api/client';
 import GridCanvas from '../components/GridCanvas/GridCanvas';
 import {
@@ -22,14 +22,11 @@ const { Title, Text } = Typography;
 const POI_TYPES = [
   { value: 'entrance', label: '🚪 Cổng' },
   { value: 'room', label: '🏥 Phòng khám' },
-  { value: 'elevator', label: '🛗 Thang máy' },
   { value: 'canteen', label: '🍽️ Canteen' },
   { value: 'pharmacy', label: '💊 Nhà thuốc' },
   { value: 'info', label: 'ℹ️ Thông tin' },
   { value: 'wc', label: '🚻 WC' },
-  { value: 'stair', label: '🪜 Cầu thang' },
   { value: 'parking', label: '🅿️ Bãi đỗ' },
-  { value: 'corridor', label: '🚶 Hành lang' },
   { value: 'wifi', label: '📶 WiFi' },
   { value: 'other', label: '⬜ Khác' },
 ];
@@ -198,8 +195,21 @@ export default function MapBuilder() {
   };
 
   // ─── Remove POI ────────────────────────────────────────────
-  const handleRemovePoi = (poiId) => {
-    setLocalPois((prev) => prev.filter((p) => p.id !== poiId));
+  const handleRemovePoi = async (poi) => {
+    if (!poi?.isExisting) {
+      setLocalPois((prev) => prev.filter((p) => p.id !== poi?.id));
+      return;
+    }
+
+    try {
+      await deleteNode(poi.code);
+      setLocalPois((prev) => prev.filter((p) => p.id !== poi.id));
+      queryClient.invalidateQueries({ queryKey: ['maps-poi-status'] });
+      queryClient.invalidateQueries({ queryKey: ['floors'] });
+      message.success('Đã xóa POI');
+    } catch (err) {
+      message.error('Không xóa được POI: ' + (err.response?.data?.message || err.message));
+    }
   };
 
   // ─── Grid data string for GridCanvas ───────────────────────
@@ -516,13 +526,19 @@ export default function MapBuilder() {
                     {p.is_landmark && <Tag color="gold" style={{ fontSize: 9, marginLeft: 4 }}>★</Tag>}
                     {p.isExisting && <Tag style={{ fontSize: 9, marginLeft: 4 }}>DB</Tag>}
                   </div>
-                  {!p.isExisting && (
+                  <Popconfirm
+                    title="Xóa POI này?"
+                    description={p.isExisting ? 'POI đã lưu sẽ bị xóa khỏi backend.' : 'POI mới sẽ bị xóa khỏi danh sách tạm.'}
+                    okText="Xóa"
+                    cancelText="Hủy"
+                    okButtonProps={{ danger: true }}
+                    onConfirm={() => handleRemovePoi(p)}
+                  >
                     <Button
                       size="small" type="text" danger
                       icon={<DeleteOutlined />}
-                      onClick={() => handleRemovePoi(p.id)}
                     />
-                  )}
+                  </Popconfirm>
                 </div>
               ))
             )}

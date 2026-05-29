@@ -98,6 +98,9 @@ export const deactivateMap = (map_id) =>
 export const editNode = (data) =>
   api.post('/admin/edit_node', data).then((r) => r.data);
 
+export const deleteNode = (poiCode) =>
+  api.delete('/admin/del_node', { data: { id: poiCode } }).then((r) => r.data);
+
 // Uses edit_node under the hood — set_capacity route doesn't exist
 export const setCapacity = ({ poi_id, poi_code, capacity }) =>
   api.post('/admin/edit_node', { id: poi_code, capacity }).then((r) => r.data);

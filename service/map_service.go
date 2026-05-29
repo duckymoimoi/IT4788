@@ -588,9 +588,6 @@ func (s *MapService) DelNode(poiCode string) error {
 	if poi == nil {
 		return ErrNodeNotFound
 	}
-	if s.repo.IsSimulationRunning(poi.MapID) {
-		return errors.New("cannot delete node: simulation is currently running on this map")
-	}
 	return s.repo.DeactivatePOI(poi.POIID)
 }
 
