@@ -2,6 +2,9 @@ package service
 
 import (
 	"errors"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -209,9 +212,21 @@ func (s *UserService) SetProfile(userID uint64, data UpdateProfileInput) (*Profi
 	}
 
 	// Cập nhật nếu có trường nào thay đổi
+	var oldAvatarToDelete string
+	if data.Avatar != nil && user.AvatarURL != nil {
+		newAvatar := strings.TrimSpace(*data.Avatar)
+		oldAvatar := strings.TrimSpace(*user.AvatarURL)
+		if oldAvatar != "" && oldAvatar != newAvatar {
+			oldAvatarToDelete = oldAvatar
+		}
+	}
+
 	if len(updates) > 0 {
 		if err := s.repo.UpdateProfile(userID, updates); err != nil {
 			return nil, err
+		}
+		if oldAvatarToDelete != "" {
+			deleteLocalUploadFile(oldAvatarToDelete)
 		}
 	}
 
@@ -221,6 +236,37 @@ func (s *UserService) SetProfile(userID uint64, data UpdateProfileInput) (*Profi
 		return nil, err
 	}
 	return s.buildProfileResult(updated), nil
+}
+
+func deleteLocalUploadFile(rawPath string) {
+	rawPath = strings.TrimSpace(rawPath)
+	if rawPath == "" {
+		return
+	}
+	if parsed, err := url.Parse(rawPath); err == nil && parsed.Path != "" {
+		rawPath = parsed.Path
+	}
+
+	cleanPath := filepath.Clean(strings.TrimPrefix(rawPath, "/\\"))
+	if cleanPath == "." {
+		return
+	}
+
+	uploadRoot, err := filepath.Abs("uploads")
+	if err != nil {
+		return
+	}
+	targetPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return
+	}
+	rel, err := filepath.Rel(uploadRoot, targetPath)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return
+	}
+	if info, err := os.Stat(targetPath); err == nil && !info.IsDir() {
+		_ = os.Remove(targetPath)
+	}
 }
 
 // 3. SetDevToken đăng ký nhận thông báo đẩy (FCM).
