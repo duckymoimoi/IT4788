@@ -5,7 +5,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"hospital/database"
 	response "hospital/pkg"
+	"hospital/schema"
 )
 
 // Context keys de luu thong tin user sau khi xac thuc.
@@ -65,6 +67,11 @@ func Auth() gin.HandlerFunc {
 		}
 
 		// Set thong tin user vao context cho handler su dung
+		if !IsCurrentTokenVersion(claims.UserID, claims.TokenVersion) {
+			response.ErrTokenSuperseded(c)
+			c.Abort()
+			return
+		}
 		c.Set(CtxKeyUserID, claims.UserID)
 		c.Set(CtxKeyRole, claims.Role)
 
@@ -95,6 +102,11 @@ func AuthCompat() gin.HandlerFunc {
 		tokenString := parts[1]
 		claims, err := response.ParseToken(tokenString)
 		if err == nil {
+			if !IsCurrentTokenVersion(claims.UserID, claims.TokenVersion) {
+				response.ErrTokenSuperseded(c)
+				c.Abort()
+				return
+			}
 			c.Set(CtxKeyUserID, claims.UserID)
 			c.Set(CtxKeyRole, claims.Role)
 			c.Next()
@@ -117,6 +129,21 @@ func AuthCompat() gin.HandlerFunc {
 		c.Set(CtxKeyRole, "patient")
 		c.Next()
 	}
+}
+
+func IsCurrentTokenVersion(userID uint64, tokenVersion int) bool {
+	if database.DB == nil {
+		return true
+	}
+	var user schema.User
+	err := database.DB.Select("user_id", "token_version", "status").First(&user, "user_id = ?", userID).Error
+	if err != nil {
+		return false
+	}
+	if user.Status != schema.UserStatusActive {
+		return false
+	}
+	return user.TokenVersion == tokenVersion
 }
 
 // RequireStaff middleware kiem tra user co phai nhan vien khong.

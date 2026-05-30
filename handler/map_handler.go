@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"hospital/middleware"
 	response "hospital/pkg"
 	"hospital/service"
 )
@@ -56,6 +57,13 @@ type editNodeRequest struct {
 
 type delNodeRequest struct {
 	ID string `json:"id" binding:"required"`
+}
+
+type saveSearchRequest struct {
+	Keyword    string  `json:"keyword" binding:"required"`
+	MapID      *uint32 `json:"map_id"`
+	POIID      *uint32 `json:"poi_id"`
+	ResultName string  `json:"result_name"`
 }
 
 type addEdgeRequest struct {
@@ -201,6 +209,33 @@ func (h *MapHandler) SearchLocation(c *gin.Context) {
 		return
 	}
 	response.Success(c, items)
+}
+
+func (h *MapHandler) SaveSearch(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		response.ErrNotAuthenticated(c)
+		return
+	}
+
+	var req saveSearchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	item, err := h.svc.SaveSearch(service.SaveSearchInput{
+		UserID:     userID,
+		Keyword:    req.Keyword,
+		MapID:      req.MapID,
+		POIID:      req.POIID,
+		ResultName: req.ResultName,
+	})
+	if err != nil {
+		h.handleMapError(c, err)
+		return
+	}
+	response.Success(c, item)
 }
 
 // [22] GET /api/map/get_landmarks?map_id=

@@ -1,4 +1,4 @@
-﻿package handler
+package handler
 
 import (
 	"errors"
@@ -212,7 +212,8 @@ func (h *UserHandler) handleUserError(c *gin.Context, err error) {
 		response.ErrPasswordIncorrect(c)
 	case errors.Is(err, service.ErrInvalidProfileInput),
 		errors.Is(err, service.ErrInvalidSettingInput),
-		errors.Is(err, service.ErrInvalidPlatform):
+		errors.Is(err, service.ErrInvalidPlatform),
+		errors.Is(err, service.ErrInvalidDOB):
 		response.Error(c, response.CodeInvalidValue, err.Error())
 	default:
 		response.ErrUnexpected(c)

@@ -139,6 +139,14 @@ type SetWeightInput struct {
 	Weight float32 `json:"weight"`
 }
 
+type SaveSearchInput struct {
+	UserID     uint64  `json:"user_id"`
+	Keyword    string  `json:"keyword"`
+	MapID      *uint32 `json:"map_id"`
+	POIID      *uint32 `json:"poi_id"`
+	ResultName string  `json:"result_name"`
+}
+
 // ========================================
 // PRIVATE HELPERS
 // ========================================
@@ -419,6 +427,31 @@ func (s *MapService) SearchLocation(keyword string, mapID uint32) ([]POIItem, er
 		return nil, err
 	}
 	return poisToItems(pois), nil
+}
+
+func (s *MapService) SaveSearch(input SaveSearchInput) (*schema.SearchHistory, error) {
+	keyword := strings.TrimSpace(input.Keyword)
+	if input.UserID == 0 || keyword == "" {
+		return nil, ErrMissingField
+	}
+	if len(keyword) > 200 {
+		keyword = keyword[:200]
+	}
+	resultName := strings.TrimSpace(input.ResultName)
+	if len(resultName) > 200 {
+		resultName = resultName[:200]
+	}
+	item := &schema.SearchHistory{
+		UserID:     input.UserID,
+		Keyword:    keyword,
+		MapID:      input.MapID,
+		POIID:      input.POIID,
+		ResultName: resultName,
+	}
+	if err := s.repo.CreateSearchHistory(item); err != nil {
+		return nil, err
+	}
+	return item, nil
 }
 
 // [22] GetLandmarks trả về các điểm mốc.

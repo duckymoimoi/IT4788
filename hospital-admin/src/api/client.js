@@ -17,7 +17,16 @@ api.interceptors.request.use((config) => {
 
 // Response interceptor — xử lý lỗi chung
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const code = response.data?.code;
+    if ([3001, 3002, 3009].includes(code)) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.setItem('auth_error', response.data?.message || 'Phiên đăng nhập không hợp lệ');
+      window.location.href = '/login';
+    }
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');

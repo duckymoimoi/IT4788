@@ -78,6 +78,7 @@ var (
 	ErrInvalidPassword   = errors.New("password must be at least 8 characters, contain 1 uppercase letter and 1 number")
 	ErrInvalidPhone      = errors.New("invalid phone number format")
 	ErrInvalidFullName   = errors.New("full name must not contain numbers and max 100 characters")
+	ErrInvalidDOB        = errors.New("date of birth must be valid and age must be between 13 and 120")
 )
 
 // ========================================
@@ -99,6 +100,21 @@ func determineRole(user *schema.User) string {
 		return string(user.Staff.Role)
 	}
 	return "patient"
+}
+
+func validateRegistrationDOB(dob time.Time) error {
+	now := time.Now()
+	if dob.After(now) {
+		return ErrInvalidDOB
+	}
+	age := now.Year() - dob.Year()
+	if now.YearDay() < dob.YearDay() {
+		age--
+	}
+	if age < 13 || age > 120 {
+		return ErrInvalidDOB
+	}
+	return nil
 }
 
 // ========================================
@@ -142,7 +158,11 @@ func (s *AuthService) Login(phone, password, deviceToken, platform string) (*Log
 
 	// Xac dinh role va sinh token
 	role := determineRole(user)
-	token, err := response.GenerateToken(user.UserID, role)
+	tokenVersion, err := s.repo.BumpTokenVersion(user.UserID)
+	if err != nil {
+		return nil, err
+	}
+	token, err := response.GenerateToken(user.UserID, role, tokenVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +202,8 @@ func (s *AuthService) Login(phone, password, deviceToken, platform string) (*Log
 // Trong MVP tra OTP code truc tiep (khong gui SMS).
 //
 // Input theo slide: phone_number, password, full_name, dob (date), gender (int)
-//   gender: 0 = nu (F), 1 = nam (M)
+//
+//	gender: 0 = nu (F), 1 = nam (M)
 //
 // Flow:
 //  1. Kiem tra trung so dien thoai
@@ -229,9 +250,13 @@ func (s *AuthService) Signup(phone, password, fullName, dob string, gender *int)
 	// Parse dob neu co (format: "YYYY-MM-DD")
 	if dob != "" {
 		parsedDOB, err := time.Parse("2006-01-02", dob)
-		if err == nil {
-			user.DateOfBirth = &parsedDOB
+		if err != nil {
+			return nil, ErrInvalidDOB
 		}
+		if err := validateRegistrationDOB(parsedDOB); err != nil {
+			return nil, err
+		}
+		user.DateOfBirth = &parsedDOB
 	}
 
 	// Map gender: 0 = nu (F), 1 = nam (M)

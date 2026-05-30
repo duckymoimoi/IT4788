@@ -111,6 +111,23 @@ func (r *UserRepo) UpdateProfile(id uint64, data map[string]interface{}) error {
 		Updates(data).Error
 }
 
+// BumpTokenVersion tang phien ban token hop le de vo hieu hoa token cu.
+func (r *UserRepo) BumpTokenVersion(id uint64) (int, error) {
+	var user schema.User
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("user_id", "token_version").
+			First(&user, "user_id = ?", id).Error; err != nil {
+			return err
+		}
+		user.TokenVersion++
+		return tx.Model(&schema.User{}).
+			Where("user_id = ?", id).
+			Update("token_version", user.TokenVersion).Error
+	})
+	return user.TokenVersion, err
+}
+
 // UpdatePassword cap nhat password hash.
 // Dung khi doi mat khau hoac reset password.
 func (r *UserRepo) UpdatePassword(id uint64, passwordHash string) error {

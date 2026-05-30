@@ -1068,6 +1068,64 @@ paths:
                     code: 4000
                     message: Error message
                     data: null
+  /api/map/save_search:
+    post:
+      tags:
+      - Map
+      summary: Save user search history
+      description: Requires Bearer token. Saves a keyword search and optional selected map/POI for the current user.
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - keyword
+              properties:
+                keyword:
+                  type: string
+                  example: Phong kham Noi khoa
+                map_id:
+                  type: integer
+                  nullable: true
+                  example: 1
+                poi_id:
+                  type: integer
+                  nullable: true
+                  example: 3
+                result_name:
+                  type: string
+                  example: Phong kham Noi khoa
+      responses:
+        '200':
+          description: OK. Token code 3009 means this account has logged in on another device and the current token is no longer valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              examples:
+                success:
+                  summary: Successful response
+                  value:
+                    code: 1000
+                    message: OK
+                    data:
+                      search_id: 1
+                      user_id: 4
+                      keyword: Phong kham Noi khoa
+                      map_id: 1
+                      poi_id: 3
+                      result_name: Phong kham Noi khoa
+                      created_at: '2026-05-30T10:00:00Z'
+                token_superseded:
+                  summary: Logged in elsewhere
+                  value:
+                    code: 3009
+                    message: Account logged in on another device
+                    data: null
   /api/map/sync_full:
     get:
       tags:

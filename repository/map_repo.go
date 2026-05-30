@@ -141,6 +141,10 @@ func (r *MapRepo) SearchPOIs(keyword string, mapID uint32) ([]schema.GridPOI, er
 	return pois, err
 }
 
+func (r *MapRepo) CreateSearchHistory(item *schema.SearchHistory) error {
+	return r.db.Create(item).Error
+}
+
 // FindLandmarks trả về các POI là mốc nổi bật.
 func (r *MapRepo) FindLandmarks(mapID uint32) ([]schema.GridPOI, error) {
 	var pois []schema.GridPOI

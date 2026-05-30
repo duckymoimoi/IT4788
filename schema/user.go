@@ -36,6 +36,7 @@ type User struct {
 	DateOfBirth  *time.Time `gorm:"column:date_of_birth" json:"date_of_birth,omitempty"`
 	Gender       *Gender    `gorm:"column:gender" json:"gender,omitempty"`
 	AvatarURL    *string    `gorm:"size:500;column:avatar_url" json:"avatar_url,omitempty"`
+	TokenVersion int        `gorm:"not null;default:0;column:token_version" json:"-"`
 	Status       UserStatus `gorm:"not null;default:active;column:status" json:"status"`
 	CreatedAt    time.Time  `gorm:"not null;autoCreateTime;column:created_at" json:"created_at"`
 	UpdatedAt    *time.Time `gorm:"column:updated_at" json:"updated_at,omitempty"`

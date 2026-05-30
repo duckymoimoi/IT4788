@@ -9,18 +9,18 @@ import "time"
 type POIType string
 
 const (
-	POITypeRoom      POIType = "room"
-	POITypeCorridor  POIType = "corridor"
-	POITypeElevator  POIType = "elevator"
-	POITypeStairs    POIType = "stairs"
-	POITypeWC        POIType = "wc"
-	POITypeEntrance  POIType = "entrance"
-	POITypePharmacy  POIType = "pharmacy"
-	POITypeCanteen   POIType = "canteen"
-	POITypeParking   POIType = "parking"
-	POITypeWifi      POIType = "wifi"
-	POITypeInfo      POIType = "info"
-	POITypeOther     POIType = "other"
+	POITypeRoom     POIType = "room"
+	POITypeCorridor POIType = "corridor"
+	POITypeElevator POIType = "elevator"
+	POITypeStairs   POIType = "stairs"
+	POITypeWC       POIType = "wc"
+	POITypeEntrance POIType = "entrance"
+	POITypePharmacy POIType = "pharmacy"
+	POITypeCanteen  POIType = "canteen"
+	POITypeParking  POIType = "parking"
+	POITypeWifi     POIType = "wifi"
+	POITypeInfo     POIType = "info"
+	POITypeOther    POIType = "other"
 )
 
 // GridMap ban do grid 2D (MovingAI format).
@@ -70,6 +70,24 @@ type GridPOI struct {
 }
 
 func (GridPOI) TableName() string { return "grid_pois" }
+
+// SearchHistory luu lich su tim kiem dia diem cua user.
+// Bang: search_histories
+type SearchHistory struct {
+	SearchID   uint64    `gorm:"primaryKey;autoIncrement;column:search_id" json:"search_id"`
+	UserID     uint64    `gorm:"not null;index;column:user_id" json:"user_id"`
+	Keyword    string    `gorm:"not null;size:200;column:keyword" json:"keyword"`
+	MapID      *uint32   `gorm:"index;column:map_id" json:"map_id,omitempty"`
+	POIID      *uint32   `gorm:"index;column:poi_id" json:"poi_id,omitempty"`
+	ResultName string    `gorm:"size:200;column:result_name" json:"result_name,omitempty"`
+	CreatedAt  time.Time `gorm:"not null;autoCreateTime;index;column:created_at" json:"created_at"`
+
+	User *User    `gorm:"foreignKey:UserID" json:"-"`
+	Map  *GridMap `gorm:"foreignKey:MapID" json:"-"`
+	POI  *GridPOI `gorm:"foreignKey:POIID" json:"-"`
+}
+
+func (SearchHistory) TableName() string { return "search_histories" }
 
 // MapStep là edge thủ công giữa 2 node (manual override).
 // Bảng: map_steps [T10]

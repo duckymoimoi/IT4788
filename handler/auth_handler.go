@@ -259,7 +259,8 @@ func (h *AuthHandler) handleAuthError(c *gin.Context, err error) {
 		response.ErrNotAuthenticated(c)
 	case errors.Is(err, service.ErrInvalidPassword),
 		errors.Is(err, service.ErrInvalidPhone),
-		errors.Is(err, service.ErrInvalidFullName):
+		errors.Is(err, service.ErrInvalidFullName),
+		errors.Is(err, service.ErrInvalidDOB):
 		response.Error(c, response.CodeInvalidValue, err.Error())
 	default:
 		response.ErrUnexpected(c)

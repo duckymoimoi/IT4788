@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
+	"hospital/middleware"
 	response "hospital/pkg"
 	"hospital/schema"
 	"hospital/service"
@@ -122,20 +123,20 @@ func (h *Hub) run() {
 
 // wsIncomingMsg tin nhan client gui len server.
 type wsIncomingMsg struct {
-	Type        string `json:"type"`         // text, image, voice
+	Type        string `json:"type"` // text, image, voice
 	TextContent string `json:"text_content"`
 	MediaURL    string `json:"media_url"`
 }
 
 // wsOutgoingMsg tin nhan server gui ve client.
 type wsOutgoingMsg struct {
-	MessageID  uint64            `json:"message_id"`
-	SenderID   uint64            `json:"sender_id"`
-	SenderType schema.SenderType `json:"sender_type"`
-	Type       schema.MessageType `json:"type"`
-	TextContent string           `json:"text_content"`
-	MediaURL    string           `json:"media_url"`
-	CreatedAt   string           `json:"created_at"`
+	MessageID   uint64             `json:"message_id"`
+	SenderID    uint64             `json:"sender_id"`
+	SenderType  schema.SenderType  `json:"sender_type"`
+	Type        schema.MessageType `json:"type"`
+	TextContent string             `json:"text_content"`
+	MediaURL    string             `json:"media_url"`
+	CreatedAt   string             `json:"created_at"`
 }
 
 // ========================================
@@ -181,6 +182,13 @@ func (h *WSHandler) HandleWS(c *gin.Context) {
 	claims, err := response.ParseToken(tokenStr)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return
+	}
+	if !middleware.IsCurrentTokenVersion(claims.UserID, claims.TokenVersion) {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"code":  response.CodeTokenSuperseded,
+			"error": "account logged in on another device",
+		})
 		return
 	}
 

@@ -86,6 +86,7 @@ func Migrate() error {
 		// --- Map module ---
 		&schema.GridMap{},
 		&schema.GridPOI{},
+		&schema.SearchHistory{},
 		&schema.MapStep{},
 
 		// --- Route module ---

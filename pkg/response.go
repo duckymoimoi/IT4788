@@ -67,6 +67,7 @@ const (
 	CodeUserAlreadyExists = 3006 // So dien thoai da dang ky
 	CodeUserNotFound      = 3007 // Khong tim thay nguoi dung
 	CodePasswordIncorrect = 3008 // Sai mat khau
+	CodeTokenSuperseded   = 3009 // Token cu do tai khoan da dang nhap tren thiet bi khac
 )
 
 // =====================================
@@ -197,6 +198,10 @@ func ErrTokenInvalid(c *gin.Context) {
 
 func ErrTokenExpired(c *gin.Context) {
 	Error(c, CodeTokenExpired, "Token expired")
+}
+
+func ErrTokenSuperseded(c *gin.Context) {
+	Error(c, CodeTokenSuperseded, "Account logged in on another device")
 }
 
 func ErrNotAuthenticated(c *gin.Context) {

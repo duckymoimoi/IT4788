@@ -1,4 +1,4 @@
-﻿package service
+package service
 
 import (
 	"errors"
@@ -167,6 +167,9 @@ func (s *UserService) SetProfile(userID uint64, data UpdateProfileInput) (*Profi
 			parsed, err := time.Parse("2006-01-02", dob)
 			if err != nil {
 				return nil, ErrInvalidProfileInput
+			}
+			if err := validateRegistrationDOB(parsed); err != nil {
+				return nil, err
 			}
 			updates["date_of_birth"] = parsed
 		}

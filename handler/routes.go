@@ -88,6 +88,10 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	mapG.GET("/search", mapH.SearchLocation)
 	mapG.GET("/landmarks", mapH.GetLandmarks)
 
+	mapPriv := api.Group("/map")
+	mapPriv.Use(middleware.Auth())
+	mapPriv.POST("/save_search", mapH.SaveSearch)
+
 	// =============================================
 	// ADMIN  - Private (admin only)
 	// =============================================

@@ -12,8 +12,9 @@ import (
 // Moi token chua user_id va role de middleware xac thuc
 // ma khong can query database moi request.
 type JWTClaims struct {
-	UserID uint64 `json:"user_id"`
-	Role   string `json:"role"` // "patient", "admin", "coordinator", "staff"
+	UserID       uint64 `json:"user_id"`
+	Role         string `json:"role"` // "patient", "admin", "coordinator", "staff"
+	TokenVersion int    `json:"token_version"`
 	jwt.RegisteredClaims
 }
 
@@ -47,10 +48,11 @@ func getTokenExpiry() time.Duration {
 // role: voi patient thi role = "patient",
 //
 //	voi staff thi role = staff.Role (admin/coordinator/staff)
-func GenerateToken(userID uint64, role string) (string, error) {
+func GenerateToken(userID uint64, role string, tokenVersion int) (string, error) {
 	claims := JWTClaims{
-		UserID: userID,
-		Role:   role,
+		UserID:       userID,
+		Role:         role,
+		TokenVersion: tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(getTokenExpiry())),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
