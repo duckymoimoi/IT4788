@@ -17,16 +17,27 @@ COPY . .
 # Build binary
 RUN CGO_ENABLED=0 GOOS=linux go build -o /hospital ./cmd/main.go
 
-# ---- Stage 2: Runtime ----
+# ---- Stage 2: Build MAPF solver ----
+FROM alpine:3.21 AS mapf-builder
+
+RUN apk add --no-cache build-base cmake boost-dev boost-static spdlog-dev linux-headers
+
+WORKDIR /src
+COPY mapf/ ./mapf/
+RUN cmake -B /src/mapf/build_docker /src/mapf -DPYTHON=false -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build /src/mapf/build_docker --target lifelong -j2
+
+# ---- Stage 3: Runtime ----
 FROM alpine:3.21
 
 # Cai ca-certificates cho HTTPS (TTS Google Translate)
-RUN apk --no-cache add ca-certificates tzdata
+RUN apk --no-cache add ca-certificates tzdata libstdc++ boost1.84-libs spdlog
 
 WORKDIR /app
 
 # Copy binary tu builder
 COPY --from=builder /hospital .
+COPY --from=mapf-builder /src/mapf/build_docker/lifelong ./mapf_solver/lifelong
 
 # Copy data files (map, output.json). /app/data may be shadowed by a
 # persistent Docker volume, so keep a second immutable copy for boot repair.
@@ -43,6 +54,7 @@ EXPOSE 8080
 ENV APP_ENV=production
 ENV PORT=8080
 ENV DB_DSN="host=db user=postgres password=postgres dbname=hospital port=5432 sslmode=disable"
+ENV MAPF_SOLVER_PATH="/app/mapf_solver/lifelong"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \

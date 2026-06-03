@@ -43,6 +43,16 @@ type loadMAPFRequest struct {
 	FilePath string `json:"file_path" binding:"required"`
 }
 
+type runMAPFRequest struct {
+	Agents                int   `json:"agents"`
+	Tasks                 int   `json:"tasks"`
+	Steps                 int   `json:"steps"`
+	Seed                  int64 `json:"seed"`
+	PlanTimeLimitMs       int   `json:"plan_time_limit_ms"`
+	PreprocessTimeLimitMs int   `json:"preprocess_time_limit_ms"`
+	TimeoutSeconds        int   `json:"timeout_seconds"`
+}
+
 // ========================================
 // ENGINE ADMIN APIs [91-98]
 // ========================================
@@ -136,6 +146,33 @@ func (h *EngineHandler) LoadMAPF(c *gin.Context) {
 	}
 
 	response.Success(c, h.svc.GetMAPFInfo())
+}
+
+func (h *EngineHandler) RunMAPF(c *gin.Context) {
+	var req runMAPFRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrBodyInvalid(c)
+		return
+	}
+
+	job, err := h.svc.StartMAPFRun(service.MAPFRunRequest{
+		Agents:                req.Agents,
+		Tasks:                 req.Tasks,
+		Steps:                 req.Steps,
+		Seed:                  req.Seed,
+		PlanTimeLimitMs:       req.PlanTimeLimitMs,
+		PreprocessTimeLimitMs: req.PreprocessTimeLimitMs,
+		TimeoutSeconds:        req.TimeoutSeconds,
+	})
+	if err != nil {
+		response.Error(c, response.CodeEngineUnavailable, err.Error())
+		return
+	}
+	response.Success(c, job)
+}
+
+func (h *EngineHandler) GetMAPFRunStatus(c *gin.Context) {
+	response.Success(c, h.svc.GetMAPFRunStatus())
 }
 
 // GET /api/engine/mapf_positions?timestep=  - Vi tri agents tai timestep.

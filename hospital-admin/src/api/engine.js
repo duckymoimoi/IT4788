@@ -18,6 +18,12 @@ export const clearCache = () =>
 export const loadMapf = (file_path) =>
   api.post('/engine/load_mapf', { file_path }).then((r) => r.data);
 
+export const runMapf = (data) =>
+  api.post('/engine/run_mapf', data).then((r) => r.data.data);
+
+export const fetchMapfRunStatus = () =>
+  api.get('/engine/mapf_run_status').then((r) => r.data.data);
+
 export const fetchMapfPositions = (timestep = 0) =>
   api.get('/engine/mapf_positions', { params: { timestep } }).then((r) => r.data.data);
 

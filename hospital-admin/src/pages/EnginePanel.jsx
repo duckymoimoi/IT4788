@@ -12,7 +12,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchEngineHealth, solve, setParams, fetchConvergence,
-  clearCache, loadMapf, fetchMapfPositions, fetchMapfInfo,
+  clearCache, loadMapf, runMapf, fetchMapfRunStatus, fetchMapfPositions, fetchMapfInfo,
 } from '../api/engine';
 import { fetchFloors, fetchNodes, fetchMeta } from '../api/map';
 import GridCanvas from '../components/GridCanvas/GridCanvas';
@@ -188,6 +188,7 @@ function MAPFViewerSection({ nodes, meta }) {
   const [timestep, setTimestep] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [playSpeed, setPlaySpeed] = useState(500);
+  const [runForm] = Form.useForm();
   const intervalRef = useRef(null);
   const queryClient = useQueryClient();
 
@@ -199,6 +200,12 @@ function MAPFViewerSection({ nodes, meta }) {
 
   const makespan = mapfInfo?.makespan || mapfInfo?.max_timestep || 0;
   const agentCount = mapfInfo?.agent_count || mapfInfo?.team_size || 0;
+
+  const { data: runStatus, refetch: refetchRunStatus } = useQuery({
+    queryKey: ['mapf-run-status'],
+    queryFn: fetchMapfRunStatus,
+    refetchInterval: (query) => query.state.data?.status === 'running' ? 5000 : false,
+  });
 
   // Fetch positions for current timestep
   const { data: positions, isLoading: loadingPos } = useQuery({
@@ -219,6 +226,25 @@ function MAPFViewerSection({ nodes, meta }) {
       message.error(`Load MAPF thất bại: ${err.response?.data?.message || err.message}`);
     },
   });
+
+  const runMutation = useMutation({
+    mutationFn: runMapf,
+    onSuccess: () => {
+      message.success('Đã bắt đầu chạy MAPF trên server');
+      refetchRunStatus();
+    },
+    onError: (err) => {
+      message.error(`Run MAPF thất bại: ${err.response?.data?.message || err.message}`);
+    },
+  });
+
+  useEffect(() => {
+    if (runStatus?.status === 'succeeded') {
+      refetchInfo();
+      queryClient.invalidateQueries({ queryKey: ['mapf-positions'] });
+      setTimestep(0);
+    }
+  }, [runStatus?.status, refetchInfo, queryClient]);
 
   // Auto-play
   useEffect(() => {
@@ -254,17 +280,85 @@ function MAPFViewerSection({ nodes, meta }) {
         </Space>
       }
       extra={
-        <Button
-          onClick={() => loadMutation.mutate('output.json')}
-          loading={loadMutation.isPending}
-          icon={<ReloadOutlined />}
-          size="small"
-        >
-          Load MAPF
-        </Button>
+        <Space>
+          <Button
+            onClick={() => loadMutation.mutate(runStatus?.output_file || 'output.json')}
+            loading={loadMutation.isPending}
+            icon={<ReloadOutlined />}
+            size="small"
+          >
+            Load MAPF
+          </Button>
+        </Space>
       }
       style={{ marginTop: 16 }}
     >
+      <Form
+        form={runForm}
+        layout="inline"
+        initialValues={{
+          agents: 100,
+          tasks: 300,
+          steps: 500,
+          plan_time_limit_ms: 5000,
+          preprocess_time_limit_ms: 300000,
+          timeout_seconds: 1200,
+        }}
+        onFinish={(values) => runMutation.mutate(values)}
+        style={{ marginBottom: 16 }}
+      >
+        <Form.Item name="agents" label="Agents">
+          <InputNumber min={1} max={1000} />
+        </Form.Item>
+        <Form.Item name="tasks" label="Tasks">
+          <InputNumber min={1} max={10000} />
+        </Form.Item>
+        <Form.Item name="steps" label="Steps">
+          <InputNumber min={1} max={10000} />
+        </Form.Item>
+        <Form.Item name="preprocess_time_limit_ms" label="Preprocess ms">
+          <InputNumber min={30000} step={30000} />
+        </Form.Item>
+        <Form.Item>
+          <Button
+            type="primary"
+            htmlType="submit"
+            icon={<RocketOutlined />}
+            loading={runMutation.isPending || runStatus?.status === 'running'}
+          >
+            Run MAPF
+          </Button>
+        </Form.Item>
+      </Form>
+
+      {runStatus && runStatus.status !== 'idle' && (
+        <Alert
+          type={runStatus.status === 'succeeded' ? 'success' : runStatus.status === 'failed' ? 'error' : 'info'}
+          showIcon
+          message={
+            <Space wrap>
+              <span>Run status: <Text strong>{runStatus.status}</Text></span>
+              {runStatus.map_name && <Tag>{runStatus.map_name}</Tag>}
+              {runStatus.agents > 0 && <Tag color="purple">{runStatus.agents} agents</Tag>}
+              {runStatus.tasks > 0 && <Tag color="cyan">{runStatus.tasks} tasks</Tag>}
+              {runStatus.walkable_cells > 0 && <Tag>{runStatus.walkable_cells} walkable</Tag>}
+            </Space>
+          }
+          description={
+            <div>
+              {runStatus.message && <div>{runStatus.message}</div>}
+              {runStatus.output_file && <div>Output: {runStatus.output_file}</div>}
+              {runStatus.log_tail && (
+                <pre style={{ marginTop: 8, maxHeight: 140, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
+                  {runStatus.log_tail}
+                </pre>
+              )}
+            </div>
+          }
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
       {makespan === 0 ? (
         <Alert
           type="info"

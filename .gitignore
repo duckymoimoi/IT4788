@@ -28,6 +28,8 @@ Thumbs.db
 # MAPF build artifacts (C++ compiled)
 mapf/build/
 mapf/build_new/
+mapf/build_docker/
+mapf/generated/
 mapf/PlanViz/
 mapf/image/
 mapf/plot.ipynb

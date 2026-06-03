@@ -5966,6 +5966,109 @@ paths:
                     code: 4000
                     message: Error message
                     data: null
+  /api/engine/run_mapf:
+    post:
+      tags:
+      - Engine
+      summary: Run MAPF solver from active map and POIs
+      description: Starts an async MAPF job. Backend generates .map, .agents, .tasks from the current active map and its POIs, then runs the bundled lifelong solver.
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                agents:
+                  type: integer
+                  default: 100
+                tasks:
+                  type: integer
+                  default: 300
+                steps:
+                  type: integer
+                  default: 500
+                seed:
+                  type: integer
+                  default: 4788
+                plan_time_limit_ms:
+                  type: integer
+                  default: 5000
+                preprocess_time_limit_ms:
+                  type: integer
+                  default: 300000
+                timeout_seconds:
+                  type: integer
+                  default: 1200
+            examples:
+              default:
+                summary: Run 100 agents
+                value:
+                  agents: 100
+                  tasks: 300
+                  steps: 500
+                  plan_time_limit_ms: 5000
+                  preprocess_time_limit_ms: 300000
+                  timeout_seconds: 1200
+      responses:
+        '200':
+          description: Job started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              examples:
+                success:
+                  summary: Running job
+                  value:
+                    code: 1000
+                    message: Success
+                    data:
+                      job_id: mapf_1780488000
+                      status: running
+                      agents: 100
+                      tasks: 300
+                      steps: 500
+                      started_at: '2026-06-03T10:00:00Z'
+  /api/engine/mapf_run_status:
+    get:
+      tags:
+      - Engine
+      summary: Get current MAPF run status
+      security:
+      - BearerAuth: []
+      responses:
+        '200':
+          description: Current async MAPF job state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              examples:
+                running:
+                  summary: Running
+                  value:
+                    code: 1000
+                    message: Success
+                    data:
+                      job_id: mapf_1780488000
+                      status: running
+                      map_id: 5
+                      map_name: Hospital Large
+                      agents: 100
+                      tasks: 300
+                failed:
+                  summary: Failed
+                  value:
+                    code: 1000
+                    message: Success
+                    data:
+                      job_id: mapf_1780488000
+                      status: failed
+                      message: 'MAPF solver failed: signal: killed'
+                      log_tail: Killed
   /api/engine/mapf_positions:
     get:
       tags:

@@ -51,6 +51,15 @@ func (r *MapRepo) FindMapByIDAnyStatus(mapID uint32) (*schema.GridMap, error) {
 }
 
 // CreateMap tạo bản đồ mới.
+func (r *MapRepo) FindActiveMap() (*schema.GridMap, error) {
+	var m schema.GridMap
+	err := r.db.First(&m, "is_active = ?", true).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	return &m, err
+}
+
 func (r *MapRepo) CreateMap(m *schema.GridMap) error {
 	return r.db.Omit(clause.Associations).Create(m).Error
 }

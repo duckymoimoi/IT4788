@@ -178,6 +178,8 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB) {
 	engine.GET("/health", engineH.Health)
 	engine.POST("/clear_cache", engineH.ClearCache)
 	engine.POST("/load_mapf", engineH.LoadMAPF)
+	engine.POST("/run_mapf", engineH.RunMAPF)
+	engine.GET("/mapf_run_status", engineH.GetMAPFRunStatus)
 	engine.GET("/mapf_positions", engineH.GetMAPFPositions)
 	engine.GET("/mapf_info", engineH.GetMAPFInfo)
 

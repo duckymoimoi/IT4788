@@ -18,6 +18,7 @@ type EngineService struct {
 	params      EngineParams
 	convergence *ConvergenceInfo
 	mapfResult  *mapf.MAPFResult // loaded MAPF output
+	mapfJob     *MAPFRunStatus
 }
 
 // EngineParams cau hinh engine (luu trong RAM).
