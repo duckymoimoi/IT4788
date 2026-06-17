@@ -154,6 +154,27 @@ func (r *MapRepo) CreateSearchHistory(item *schema.SearchHistory) error {
 	return r.db.Create(item).Error
 }
 
+// FindSearchHistory lấy lịch sử tìm kiếm của user (pagination).
+func (r *MapRepo) FindSearchHistory(userID uint64, page, limit int) ([]schema.SearchHistory, int64, error) {
+	var items []schema.SearchHistory
+	var total int64
+
+	q := r.db.Model(&schema.SearchHistory{}).Where("user_id = ?", userID)
+	q.Count(&total)
+
+	err := q.Order("created_at DESC").
+		Offset((page - 1) * limit).
+		Limit(limit).
+		Find(&items).Error
+	return items, total, err
+}
+
+// DeleteSearchHistory xóa toàn bộ lịch sử tìm kiếm của user (hard delete).
+func (r *MapRepo) DeleteSearchHistory(userID uint64) error {
+	return r.db.Where("user_id = ?", userID).
+		Delete(&schema.SearchHistory{}).Error
+}
+
 // FindLandmarks trả về các POI là mốc nổi bật.
 func (r *MapRepo) FindLandmarks(mapID uint32) ([]schema.GridPOI, error) {
 	var pois []schema.GridPOI

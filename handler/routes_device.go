@@ -23,6 +23,7 @@ func RegisterDeviceRoutes(api *gin.RouterGroup, db *gorm.DB) {
 		assetGroup.GET("/find_wheelchairs", deviceHandler.GetWheelchairs)
 		assetGroup.GET("/asset_health", deviceHandler.GetDeviceStatus)
 		assetGroup.GET("/track_asset", deviceHandler.TrackDevice)
+		assetGroup.GET("/my_booking", deviceHandler.MyBooking)
 
 		assetGroup.POST("/book_asset", deviceHandler.BookDevice)
 		assetGroup.POST("/release_asset", deviceHandler.ReleaseDevice)

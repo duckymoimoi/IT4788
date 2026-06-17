@@ -454,6 +454,22 @@ func (s *MapService) SaveSearch(input SaveSearchInput) (*schema.SearchHistory, e
 	return item, nil
 }
 
+// GetSearchHistory lấy lịch sử tìm kiếm có phân trang.
+func (s *MapService) GetSearchHistory(userID uint64, page, limit int) ([]schema.SearchHistory, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 50 {
+		limit = 20
+	}
+	return s.repo.FindSearchHistory(userID, page, limit)
+}
+
+// ClearSearchHistory xóa toàn bộ lịch sử tìm kiếm.
+func (s *MapService) ClearSearchHistory(userID uint64) error {
+	return s.repo.DeleteSearchHistory(userID)
+}
+
 // [22] GetLandmarks trả về các điểm mốc.
 func (s *MapService) GetLandmarks(mapID uint32) ([]POIItem, error) {
 	pois, err := s.repo.FindLandmarks(mapID)
