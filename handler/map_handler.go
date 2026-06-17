@@ -238,6 +238,47 @@ func (h *MapHandler) SaveSearch(c *gin.Context) {
 	response.Success(c, item)
 }
 
+// GET /api/map/get_search_history?page=&limit=
+func (h *MapHandler) GetSearchHistory(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		response.ErrNotAuthenticated(c)
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	items, total, err := h.svc.GetSearchHistory(userID, page, limit)
+	if err != nil {
+		response.ErrUnexpected(c)
+		return
+	}
+
+	response.Success(c, gin.H{
+		"items": items,
+		"total": total,
+		"page":  page,
+		"limit": limit,
+	})
+}
+
+// DELETE /api/map/clear_search_history
+func (h *MapHandler) ClearSearchHistory(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		response.ErrNotAuthenticated(c)
+		return
+	}
+
+	if err := h.svc.ClearSearchHistory(userID); err != nil {
+		response.ErrUnexpected(c)
+		return
+	}
+
+	response.Success(c, gin.H{"cleared": true})
+}
+
 // [22] GET /api/map/get_landmarks?map_id=
 func (h *MapHandler) GetLandmarks(c *gin.Context) {
 	mapID := parseUint32(firstQuery(c, "map_id", "floor_id"))

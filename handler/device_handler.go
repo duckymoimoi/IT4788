@@ -250,6 +250,28 @@ func (h *DeviceHandler) TrackDevice(c *gin.Context) {
 	response.Success(c, []interface{}{result})
 }
 
+// GET /api/asset/my_booking
+func (h *DeviceHandler) MyBooking(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		response.ErrNotAuthenticated(c)
+		return
+	}
+
+	result, err := h.svc.GetMyBooking(userID)
+	if err != nil {
+		h.handleDeviceError(c, err)
+		return
+	}
+
+	// Không có booking → trả data: null (code 1000)
+	if result == nil {
+		response.Success(c, nil)
+		return
+	}
+	response.Success(c, result)
+}
+
 // ========================================
 // ADMIN DEVICE APIS
 // ========================================

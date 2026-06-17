@@ -181,6 +181,23 @@ func (r *DeviceRepo) FindActiveBookingByUser(userID uint64) (*schema.DeviceBooki
 	return &booking, nil
 }
 
+// FindActiveBookingWithDetails tìm booking đang active của user, kèm thông tin device + station.
+func (r *DeviceRepo) FindActiveBookingWithDetails(userID uint64) (*schema.DeviceBooking, error) {
+	var booking schema.DeviceBooking
+	err := r.db.Where("user_id = ? AND status = ?", userID, schema.BookingStatusInUse).
+		Preload("Device").
+		Preload("Device.CurrentPOI").
+		Preload("Device.Station").
+		First(&booking).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &booking, nil
+}
+
 func (r *DeviceRepo) FindBookingByID(bookingID uint64) (*schema.DeviceBooking, error) {
 	var booking schema.DeviceBooking
 	err := r.db.Where("booking_id = ?", bookingID).First(&booking).Error

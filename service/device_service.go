@@ -299,6 +299,49 @@ func (s *DeviceService) TrackAsset(userID uint64, assetID string) (*AssetTrackIt
 }
 
 // ========================================
+// 9. GetMyBooking — GET /api/asset/my_booking
+// ========================================
+
+// MyBookingItem output cho GET /api/asset/my_booking
+type MyBookingItem struct {
+	BookingID    uint64 `json:"booking_id"`
+	AssetID      string `json:"asset_id"`
+	DeviceType   string `json:"device_type"`
+	Status       string `json:"status"`
+	BorrowedAt   string `json:"borrowed_at"`
+	BatteryLevel *int   `json:"battery_level,omitempty"`
+	StationName  string `json:"station_name,omitempty"`
+}
+
+// GetMyBooking lấy booking đang active của user.
+func (s *DeviceService) GetMyBooking(userID uint64) (*MyBookingItem, error) {
+	booking, err := s.repo.FindActiveBookingWithDetails(userID)
+	if err != nil {
+		return nil, err
+	}
+	if booking == nil {
+		return nil, nil // không có booking nào đang active
+	}
+
+	item := &MyBookingItem{
+		BookingID:  booking.BookingID,
+		Status:     string(booking.Status),
+		BorrowedAt: booking.BorrowedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}
+
+	if booking.Device != nil {
+		item.AssetID = booking.Device.DeviceCode
+		item.DeviceType = string(booking.Device.DeviceType)
+		item.BatteryLevel = booking.Device.BatteryLevel
+		if booking.Device.Station != nil {
+			item.StationName = booking.Device.Station.StationName
+		}
+	}
+
+	return item, nil
+}
+
+// ========================================
 // ADMIN DEVICE CRUD
 // ========================================
 
